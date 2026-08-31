@@ -81,6 +81,53 @@ Note: Python uses `_FILE` while Go and TypeScript use `_URI`.
 
 ---
 
+## Java SDK
+
+### OTel package
+
+No extra dependency is required: `temporal-aws-lambda` already depends on `io.temporal:temporal-opentelemetry`, `io.opentelemetry:opentelemetry-api` (BOM 1.25.0), and `io.opentelemetry.contrib:opentelemetry-aws-xray`. The helper class ships inside the module. <!-- verified in io.temporal:temporal-aws-lambda:1.38.0 pom + jar -->
+
+Import: `io.temporal.aws.lambda.OtelLambdaWorkerConfigurationHelper`
+
+### OTel functions
+
+<!-- verified with javap against io.temporal:temporal-aws-lambda:1.38.0 -->
+
+- `configure(LambdaWorkerOptions.Builder)` — configures metrics and tracing with defaults.
+- `configure(LambdaWorkerOptions.Builder, Consumer<Builder>)` — same, with customization.
+- `configureMetrics(LambdaWorkerOptions.Builder, OpenTelemetry)` — metrics only (an overload also takes a service name and a `Duration` report interval).
+- `configureTracing(LambdaWorkerOptions.Builder, OpenTelemetry)` — tracing only.
+- `configureFlushHook(LambdaWorkerOptions.Builder, OpenTelemetry, Duration)` — registers a flush before the invocation ends.
+
+Its own `newBuilder()` exposes `setOpenTelemetry`, `setEndpoint`, `setServiceName`, `setMetricsReportInterval`, `setFlushTimeout`, and `setFlushHook`.
+
+Usage in the cold-start configure callback:
+
+```java
+LambdaWorker.define(
+    new WorkerDeploymentVersion("my-app", "build-1"),
+    builder -> {
+      builder.setTaskQueue("my-task-queue");
+      builder.registerWorkflowImplementationTypes(MyWorkflowImpl.class);
+      builder.registerActivitiesImplementations(new MyActivitiesImpl());
+      OtelLambdaWorkerConfigurationHelper.configure(builder);
+    });
+```
+
+Defaults come from the constants `DEFAULT_OTLP_ENDPOINT` and `DEFAULT_SERVICE_NAME`, and the helper reads `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, and `AWS_LAMBDA_FUNCTION_NAME` from the environment. As with the other SDKs, the default endpoint is the ADOT layer's collector on `localhost:4317`.
+
+**Flush before the deadline.** A Serverless Worker's invocation ends on a deadline rather than after a request, so telemetry buffered past that point is lost. Use `configureFlushHook` (or a report interval shorter than the invocation deadline) so metrics and spans are exported before shutdown. This matters more on Java's shorter recommended deadline (90s) than on the 600s used elsewhere.
+
+### ADOT layer setup (Java)
+
+Attach the ADOT Collector layer. Because the OpenTelemetry SDK arrives as an ordinary Maven dependency of `temporal-aws-lambda`, no language-specific auto-instrumentation layer is required for the Worker's own telemetry — the same situation as Go. <!-- inferred from the artifact's dependency graph (temporal-aws-lambda:1.38.0 pom), not stated in the docs; confirm against a deployed function before relying on it -->
+
+### Collector config env var (Java)
+
+`OPENTELEMETRY_COLLECTOR_CONFIG_URI=/var/task/otel-collector-config.yaml` — the `_URI` form, as with Go and TypeScript. The official Java sample packages `otel-collector-config.template.yaml` into the artifact root as `otel-collector-config.yaml` during `shadowJar`; with Maven, add it under `src/main/resources`.
+
+---
+
 ## TypeScript SDK
 
 ### OTel package
@@ -211,6 +258,7 @@ For Python, the `AWSXRayDaemonWriteAccess` managed policy can be attached instea
 | Go | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` |
 | Python | `OPENTELEMETRY_COLLECTOR_CONFIG_FILE` |
 | TypeScript | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` |
+| Java | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` |
 
 ### ADOT layer summary
 
@@ -219,6 +267,7 @@ For Python, the `AWSXRayDaemonWriteAccess` managed policy can be attached instea
 | Go | ADOT Collector layer only (no language-specific layer; OTel SDK is compiled into the binary) |
 | Python | ADOT Python Lambda layer (includes collector and auto-instrumentation) |
 | TypeScript | ADOT JavaScript layer + ADOT Collector layer (`aws-otel-collector-amd64`) |
+| Java | ADOT Collector layer only (no language-specific layer; the OTel SDK is a Maven dependency of `temporal-aws-lambda`) |
 
 <!-- Go: docs/develop/go/workers/serverless-workers/aws-lambda.mdx:175-177 -->
 <!-- Python: docs/develop/python/workers/serverless-workers/aws-lambda.mdx:168-169 -->

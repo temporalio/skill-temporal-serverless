@@ -10,7 +10,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 ## What the skill can do
 
-- Build Serverless Workers with the Go, Python, or TypeScript SDK.
+- Build Serverless Workers with the Go, Python, TypeScript, or Java SDK.
 - Package and deploy Workers to AWS Lambda with the correct architecture, timeout, and shutdown settings.
 - Configure the separate AWS roles used by the Lambda function and by Temporal.
 - Register a Worker Deployment Version, validate its Task Queue binding, and set it current.
@@ -26,7 +26,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 |---|---|
 | Compute | AWS Lambda — Public Preview |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
-| SDKs | Go, Python, TypeScript |
+| SDKs | Go, Python, TypeScript, Java |
 | Other compute providers | Not currently supported |
 
 For Temporal Cloud, the Namespace must be hosted on AWS. The Namespace and Lambda function may be in different AWS regions.
@@ -90,6 +90,10 @@ Publish an immutable build of this TypeScript Worker and roll the deployment for
 Add OpenTelemetry tracing to my Go Serverless Worker on Lambda.
 ```
 
+```text
+Package this Java Worker as a shaded jar and deploy it to Lambda.
+```
+
 For a new deployment, the skill follows five stages:
 
 1. **Scope** — confirm the SDK, compute provider, Namespace, region, and resource-naming prefix.
@@ -116,7 +120,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 |---|---|
 | [`SKILL.md`](SKILL.md) | Core workflow, safety gates, provider rules, and reference routing |
 | [`references/concepts.md`](references/concepts.md) | Architecture, invocation flow, autoscaling, lifecycle, constraints, and use cases |
-| [`references/sdk-configuration.md`](references/sdk-configuration.md) | Go, Python, and TypeScript packages, entry points, versioning behavior, and tuned defaults |
+| [`references/sdk-configuration.md`](references/sdk-configuration.md) | Go, Python, TypeScript, and Java packages, entry points, versioning behavior, and tuned defaults |
 | [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | End-to-end deployment, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |
@@ -124,6 +128,18 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | OpenTelemetry and ADOT configuration |
 | [`references/aws-lambda/self-hosted.md`](references/aws-lambda/self-hosted.md) | Self-hosted Temporal prerequisites and configuration |
 | [`assets/`](assets/) | CloudFormation templates for Temporal invocation roles |
+
+### Provenance comments
+
+Factual lines in the reference files carry an HTML comment naming their source, so claims stay auditable. There are three forms:
+
+| Form | Meaning |
+|---|---|
+| `<!-- docs/<path>.mdx:NN -->` | Taken from Temporal's documentation, with the source line |
+| `<!-- verified against <artifact>:<version> -->` | Read from the published package itself (`javap`, sources jar, XML docs) |
+| `<!-- measured -->` / `<!-- inferred … -->` | Observed in a real deployment, or reasoned from evidence — not documented |
+
+The second form exists because the documentation and the shipped artifact can disagree: as of `temporal-aws-lambda` 1.38.0 the docs' Java entry point (`LambdaWorker.run`) does not exist in the artifact. **Where they conflict, the artifact wins and the disagreement is stated in the text.** Add `(line unverified)` when citing a documentation page whose line numbers have not been checked against the source tree, rather than guessing a number.
 
 ## Feedback
 

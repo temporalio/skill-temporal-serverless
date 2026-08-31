@@ -123,6 +123,32 @@ Common errors include: <!-- docs/troubleshooting/serverless-workers.mdx:136 -->
 - **TLS errors**: The TLS certificate or key is missing, expired, or does not match the Namespace. <!-- docs/troubleshooting/serverless-workers.mdx:142 -->
 - **Authentication errors**: The API key is invalid or does not have access to the Namespace. <!-- docs/troubleshooting/serverless-workers.mdx:143 -->
 
+### Language-specific signatures
+
+**No application logs at all, but the Worker clearly ran.** Two different SDKs produce this same misleading silence by unrelated mechanisms, and in both cases the Worker is healthy — only the logging is broken. Diagnose invocation health from Lambda's own runtime markers (`INIT_START`/`START`/`END`/`REPORT`) and CloudWatch metrics instead, then fix the binding.
+
+| SDK | Cause | Fix |
+|---|---|---|
+| Python | `logging.basicConfig()` is a no-op when a root handler already exists, and the Lambda runtime installs one before your module is imported — so the level never changes and `INFO` records are filtered out | `logging.getLogger().setLevel(logging.INFO)` |
+| Java | The SDK compiles against `slf4j-api` **1.7.36**; a 2.x provider (`slf4j-simple:2.x`, Logback 1.3+) does not bind to a 1.7 API and nothing is emitted | use a 1.7.x provider, e.g. `org.slf4j:slf4j-simple:1.7.36` |
+
+**Java — `NullPointerException` in `ShutdownManager` on every invocation (benign).** As of `temporal-aws-lambda` 1.38.0, a normal graceful shutdown logs a `WARN` with a full stack trace:
+
+```
+[main] WARN io.temporal.internal.worker.ShutdownManager - Exception during waiting for termination
+java.lang.NullPointerException: Cannot invoke "SuspendableWorker.awaitTermination(long, TimeUnit)"
+  because "this.workerCommandWorker" is null
+  at io.temporal.worker.WorkerFactory.lambda$awaitTermination$12(WorkerFactory.java:519)
+  at io.temporal.aws.lambda.DefaultLambdaWorkerRuntime$DefaultInvocation.awaitTermination(...:82)
+  at io.temporal.aws.lambda.LambdaWorker$Handler.shutdownInvocation(LambdaWorker.java:323)
+```
+
+This is **not** a failure. It appears *after* Tasks have completed, is followed by `Temporal Lambda worker stopped`, a clean `END`/`REPORT`, and no timeout; Workflows complete correctly. Do not change configuration, IAM, or timeouts in response to it. Confirm it is benign by checking that the Workflow completed and that `REPORT` shows a duration below the deadline, then ignore it.
+
+**Java — `ClassNotFoundException` / `NoClassDefFoundError` at first invocation.** The uber-jar was built without merging `META-INF/services`, or the handler string is wrong. Check the handler format first: Java uses `fully.qualified.Class::method`, not the `module.function` form every other SDK uses. Then verify the services merge — `unzip -p <jar> META-INF/services/io.grpc.ManagedChannelProvider` should list more than one provider. → `setup.md` (Java packaging).
+
+**Java — exec-format or `UnsupportedClassVersionError` at first invocation.** Bytecode targets a newer JDK than the runtime. Set `<maven.compiler.release>` (or the Gradle toolchain) to match `--runtime`.
+
 ### Check for Lambda timeout
 
 If the Lambda function reaches its configured timeout before the Worker finishes processing, AWS terminates the invocation. <!-- docs/troubleshooting/serverless-workers.mdx:147-148 -->
