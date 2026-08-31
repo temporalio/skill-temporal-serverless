@@ -110,7 +110,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 - Every Workflow must use a Worker Versioning behavior: `Pinned` or `AutoUpgrade`.
 - The deployment name and build ID in Worker code must exactly match the registered Worker Deployment Version.
 - Production releases should map each build ID to one immutable Lambda version.
-- Activities must finish within the Lambda invocation limit and configured shutdown buffer; Workflow duration remains unbounded.
+- Activities must finish within the compute provider's execution bound and configured shutdown buffer; Workflow duration remains unbounded. On AWS Lambda that bound is the invocation limit — see [`references/aws-lambda/constraints.md`](references/aws-lambda/constraints.md).
 - Secrets belong in a secret store for shared or production deployments, not plaintext environment variables.
 - Temporal creates and manages the Worker Controller Instance (WCI); this skill never creates or manages it directly.
 
@@ -123,6 +123,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/sdk-configuration.md`](references/sdk-configuration.md) | Go, Python, TypeScript, Java, and .NET packages, entry points, versioning behavior, and tuned defaults |
 | [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | End-to-end deployment, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
+| [`references/aws-lambda/constraints.md`](references/aws-lambda/constraints.md) | What follows from Lambda's per-invocation execution model — Worker lifetime, invocation deadline, timeout triple, Activity duration bounds — and what does not generalize to other providers |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |
 | [`references/aws-lambda/versioning.md`](references/aws-lambda/versioning.md) | Immutable releases, updates, and rollback |
 | [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | OpenTelemetry and ADOT configuration |
