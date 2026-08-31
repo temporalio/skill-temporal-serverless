@@ -153,7 +153,9 @@ javap -cp <same jar> 'io.temporal.aws.lambda.LambdaWorkerOptions$Builder'
 #   curl -O https://repo1.maven.org/maven2/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-lambda-<ver>-sources.jar
 ```
 
-**Java is the cautionary case that justifies this whole step.** The published Java docs use `LambdaWorker.run(version, callback)`. `javap` against 1.38.0 *and* 1.37.0 shows no such method: the real entry points are `define` and `newHandler`. Java catches this at compile time; a language that failed the same way at runtime would surface it as a failed first invocation instead.
+**Java is the cautionary case that justifies this whole step.** The published Java docs use `LambdaWorker.run(version, callback)`. `javap` against 1.38.0 *and* 1.37.0 shows no such method: the real entry points are `define` and `newHandler`, and Temporal's own [sample handler](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) calls `define`. Java catches this at compile time; a language that failed the same way at runtime would surface it as a failed first invocation instead.
+
+**A useful ordering when docs and code disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last.
 
 Specifics worth confirming this way, because they differ by SDK and are easy to get wrong from memory:
 
@@ -297,7 +299,7 @@ public final class LambdaFunction implements RequestHandler<Object, Void> {
 }
 ```
 
-**Use `define`, not `run`.** The published docs show `LambdaWorker.run(...)`; that method does not exist in 1.38.0 or 1.37.0. See "Verify the installed API before generating code" above.
+**Use `define`, not `run`.** The published docs show `LambdaWorker.run(...)`; that method does not exist in 1.38.0 or 1.37.0. Temporal's own sample handler — [`LambdaFunction.java`](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) — calls `define`, and being maintained code that has to compile it is the better reference of the two. See "Verify the installed API before generating code" above.
 
 Versioning behavior: annotate the Workflow **method** in the implementation class with `io.temporal.workflow.WorkflowVersioningBehavior`, or set a Worker-level default with `DefaultVersioningBehavior` in `DeploymentOptions`.
 
