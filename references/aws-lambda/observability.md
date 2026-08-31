@@ -128,6 +128,56 @@ Attach the ADOT Collector layer. Because the OpenTelemetry SDK arrives as an ord
 
 ---
 
+## .NET SDK
+
+### OTel package
+
+A **second NuGet package**, separate from the Lambda extension itself: <!-- verified against NuGet Temporalio.Extensions.Aws.Lambda.OpenTelemetry 1.18.0 and samples-dotnet@main -->
+
+```bash
+dotnet add package Temporalio.Extensions.Aws.Lambda.OpenTelemetry
+```
+
+Published in lockstep with `Temporalio` and `Temporalio.Extensions.Aws.Lambda` (all 1.18.0). Unlike Python, where OTel is an extra on the existing package (`temporalio[lambda-worker-otel]`), .NET requires the extra reference.
+
+### OTel functions
+
+The package contributes an extension method on the options object, applied inside the configure callback:
+
+```csharp
+TemporalLambdaWorker.CreateHandler(
+    new WorkerDeploymentVersion(deploymentName, buildId),
+    config =>
+    {
+        config.ApplyOpenTelemetryDefaults();
+        config.WorkerOptions.TaskQueue = taskQueue;
+        config.WorkerOptions.AddWorkflow<SampleWorkflow>().AddActivity(Activities.HelloActivity);
+    });
+```
+<!-- verified against samples-dotnet@main src/LambdaWorker/Worker/Function.cs -->
+
+`ApplyOpenTelemetryDefaults()` configures metrics and tracing against the ADOT layer's collector. As with the other SDKs, telemetry must be exported before the invocation ends — keep any metrics export interval shorter than the Lambda timeout.
+
+### ADOT layer setup (.NET)
+
+Attach an **ADOT Collector layer** for the target region and architecture. No language-specific auto-instrumentation layer is needed, because the OpenTelemetry SDK arrives as an ordinary package dependency — the same situation as Go and Java. The sample's prerequisites list the collector layer ARN as something you supply per region.
+
+### Telemetry IAM permissions (.NET)
+
+The sample ships an `enable-telemetry.sh` that adds an inline policy to the **execution** role and turns on active tracing — a concrete, copyable form of the permissions listed under "Required IAM permissions" below: <!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/enable-telemetry.sh -->
+
+- `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`, scoped to `arn:aws:logs:<region>:<account>:log-group:/aws/lambda/<function>:*`
+- `xray:PutTraceSegments`, `xray:PutTelemetryRecords` on `*`
+- `cloudwatch:PutMetricData` on `*`
+
+It then runs `aws lambda update-function-configuration --tracing-config Mode=Active`, without which traces do not appear under the `AWS::Lambda::Function` filter in X-Ray.
+
+### Collector config env var (.NET)
+
+`OPENTELEMETRY_COLLECTOR_CONFIG_URI=/var/task/otel-collector-config.yaml`. The sample copies `otel-collector-config.yaml` into the publish directory before zipping so it lands in the task root. <!-- inferred from the sample's deploy script copying the file into the publish output; the variable name is not stated in the .NET docs page read -->
+
+---
+
 ## TypeScript SDK
 
 ### OTel package
@@ -259,6 +309,7 @@ For Python, the `AWSXRayDaemonWriteAccess` managed policy can be attached instea
 | Python | `OPENTELEMETRY_COLLECTOR_CONFIG_FILE` |
 | TypeScript | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` |
 | Java | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` |
+| .NET | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` (config file copied into the task root by the sample's deploy script) |
 
 ### ADOT layer summary
 
@@ -268,6 +319,7 @@ For Python, the `AWSXRayDaemonWriteAccess` managed policy can be attached instea
 | Python | ADOT Python Lambda layer (includes collector and auto-instrumentation) |
 | TypeScript | ADOT JavaScript layer + ADOT Collector layer (`aws-otel-collector-amd64`) |
 | Java | ADOT Collector layer only (no language-specific layer; the OTel SDK is a Maven dependency of `temporal-aws-lambda`) |
+| .NET | ADOT Collector layer only (no language-specific layer; OTel arrives via `Temporalio.Extensions.Aws.Lambda.OpenTelemetry`) |
 
 <!-- Go: docs/develop/go/workers/serverless-workers/aws-lambda.mdx:175-177 -->
 <!-- Python: docs/develop/python/workers/serverless-workers/aws-lambda.mdx:168-169 -->

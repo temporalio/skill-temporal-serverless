@@ -16,7 +16,7 @@ This is the end-to-end golden path: connect, write the Worker, package and deplo
 - Every Workflow must declare a versioning behavior, or the Worker must set a default versioning behavior. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:42-43 -->
 - An AWS account with permissions to create and invoke Lambda functions and create IAM roles. For the exact operator actions and a preflight check, see `iam.md`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:44 -->
 - The AWS-specific steps require the `aws` CLI installed and configured with your AWS credentials. You may also use the AWS Console or the AWS SDKs. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:45-46 -->
-- The Go SDK, Python SDK, TypeScript SDK, or Java SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
+- The Go SDK, Python SDK, TypeScript SDK, Java SDK, or .NET SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
 - The `temporal` CLI, authenticated to the target Temporal Service — Steps 4–6 and the CLI troubleshooting paths use it. See "Temporal CLI and Cloud connection" below.
 
 Sample projects:
@@ -24,6 +24,7 @@ Sample projects:
 - Python: [Python Lambda Worker sample](https://github.com/temporalio/samples-python/tree/main/lambda_worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:55 -->
 - TypeScript: [TypeScript Lambda Worker sample](https://github.com/temporalio/samples-typescript/tree/main/lambda-worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:56 -->
 - Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
+- .NET: [.NET Lambda Worker sample](https://github.com/temporalio/samples-dotnet/tree/main/src/LambdaWorker) — `Worker/`, `Starter/`, and `Deploy/` (deploy, IAM-role, execution-role, and telemetry scripts plus a CloudFormation template), with a test project under `tests/LambdaWorker`. **The docs link to a branch (`blob/ea/aws-lambda`) that no longer exists; the sample is on `main` at `src/LambdaWorker`.** <!-- verified against samples-dotnet@main -->
 
 ## Temporal CLI and Cloud connection
 
@@ -129,6 +130,7 @@ The Worker handles the per-invocation lifecycle: connecting to Temporal, polling
 | Python | `pip install temporalio` | `temporalio.contrib.aws.lambda_worker` ships inside the main `temporalio` package. Use `temporalio[lambda-worker-otel]` to add OpenTelemetry. |
 | TypeScript | `npm install @temporalio/lambda-worker` | Separate npm package from `@temporalio/worker`, versioned independently. |
 | Java | `io.temporal:temporal-aws-lambda` (Maven/Gradle) | **Separate artifact** from `io.temporal:temporal-sdk`, but on the **same version line** (both 1.38.0). Import `io.temporal:temporal-bom` in `dependencyManagement` to keep them aligned. `aws-lambda-java-core` 1.4.0 comes transitively. |
+| .NET | `dotnet add package Temporalio.Extensions.Aws.Lambda` | **Separate NuGet package** from `Temporalio`, published in **lockstep** with it (both 1.18.0). OpenTelemetry is a *second* package, `Temporalio.Extensions.Aws.Lambda.OpenTelemetry`. Targets `netstandard2.0`; depends on `Amazon.Lambda.Core` 3.1.0. **Publish must be RID-specific** — the SDK carries a native Rust bridge. |
 
 ### Verify the installed API before generating code
 
@@ -151,6 +153,13 @@ javap -cp ~/.m2/repository/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-la
 javap -cp <same jar> 'io.temporal.aws.lambda.LambdaWorkerOptions$Builder'
 # or read the source directly — Maven Central publishes a sources jar:
 #   curl -O https://repo1.maven.org/maven2/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-lambda-<ver>-sources.jar
+
+# .NET — the .nupkg is a zip and ships full XML documentation for the public API
+curl -sO https://api.nuget.org/v3-flatcontainer/temporalio.extensions.aws.lambda/<ver>/temporalio.extensions.aws.lambda.<ver>.nupkg
+unzip -p temporalio.extensions.aws.lambda.<ver>.nupkg \
+  lib/netstandard2.0/Temporalio.Extensions.Aws.Lambda.xml
+# the .nuspec lists the exact dependency versions:
+unzip -p ...nupkg Temporalio.Extensions.Aws.Lambda.nuspec | grep dependency
 ```
 
 **A useful ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs — Java's is `define`, not "run"-shaped like the others — so check rather than pattern-match from another language.
@@ -311,6 +320,46 @@ public class MyWorkflowImpl implements MyWorkflow {
 
 **Logging needs an SLF4J 1.7.x provider.** The SDK compiles against `slf4j-api:1.7.36`; a 2.x provider will not bind and the Worker produces no logs. Add `org.slf4j:slf4j-simple:1.7.36`. With it, the module logs `Temporal Lambda worker started … taskQueue=… identity=…` unprompted. → `sdk-configuration.md` (Java SDK).
 
+### .NET
+
+Use the `Temporalio.Extensions.Aws.Lambda` package. A plain class exposes an async method that delegates to the handler returned by `TemporalLambdaWorker.CreateHandler`. <!-- verified against Temporalio.Extensions.Aws.Lambda 1.18.0 and samples-dotnet@main src/LambdaWorker/Worker/Function.cs -->
+
+```csharp
+namespace MyCompany.Temporal.Worker;
+
+using Amazon.Lambda.Core;
+using Temporalio.Common;
+using Temporalio.Extensions.Aws.Lambda;
+
+public class LambdaFunction
+{
+    private static readonly Func<object?, ILambdaContext, Task> WorkerHandler =
+        TemporalLambdaWorker.CreateHandler(
+            new WorkerDeploymentVersion("my-app", "build-1"),
+            config =>
+            {
+                config.WorkerOptions.TaskQueue = "my-task-queue";
+                config.WorkerOptions
+                    .AddWorkflow<MyWorkflow>()
+                    .AddActivity(Activities.MyActivity);
+            });
+
+    public Task HandlerAsync(Stream input, ILambdaContext context) =>
+        WorkerHandler(input, context);
+}
+```
+
+Registrations go through `config.WorkerOptions`, an ordinary `TemporalWorkerOptions` — the same API a long-lived Worker uses. Use the `Func<TemporalLambdaWorkerOptions, Task>` overload when setup must await.
+
+Versioning behavior: the `[Workflow]` attribute, or a Worker-level default via `DefaultVersioningBehavior` in `DeploymentOptions`.
+
+```csharp
+[Workflow(VersioningBehavior = VersioningBehavior.Pinned)]
+public class MyWorkflow { ... }
+```
+
+**The .NET Worker-level default is `AutoUpgrade`** (TypeScript's is `PINNED`). Set it explicitly per Workflow rather than relying on either. → `sdk-configuration.md` (.NET SDK).
+
 ## Step 2: Deploy Lambda function
 
 ### Build and package
@@ -439,6 +488,38 @@ Excluding the signature files matters too: signed-jar signatures are invalid ins
 
 **Match the bytecode target to the runtime.** Compiling on a newer JDK than the function's runtime needs an explicit target — `<maven.compiler.release>17</maven.compiler.release>` for `--runtime java17`. This is the Java form of the architecture/wheel mismatch: it fails at invocation, not at build.
 
+#### .NET
+
+Publish for an explicit Linux runtime identifier, then zip the publish output. <!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/deploy-lambda.sh -->
+
+```bash
+dotnet publish path/to/Worker.csproj \
+  --configuration Release \
+  --runtime linux-x64 \
+  --self-contained false \
+  --output ./publish
+
+# Guard: the SDK's native Rust bridge must be in the output, or the function
+# fails at FIRST INVOCATION, not at build time.
+[[ -f ./publish/libtemporalio_sdk_core_c_bridge.so ]] || {
+  echo "Publish output is missing the linux-x64 Temporal native bridge." >&2; exit 1; }
+
+# If you use a temporal.toml / otel-collector-config.yaml, copy them in so they
+# land in the Lambda task root:
+cp temporal.toml otel-collector-config.yaml ./publish/
+
+cd ./publish && zip -r ../function.zip . && cd ..
+```
+
+**The RID is not optional.** The .NET SDK wraps a native Rust core (`libtemporalio_sdk_core_c_bridge.so`); a portable publish omits the Linux build of it. This is .NET's equivalent of Python's `manylinux` wheels and Go's `GOARCH`, with the same late failure mode. Keep the RID consistent with `--architectures`:
+
+| `--runtime` | `--architectures` |
+|---|---|
+| `linux-x64` | `x86_64` |
+| `linux-arm64` | `arm64` |
+
+`--self-contained false` is correct: the `dotnet8` managed runtime supplies the framework.
+
 **Watch the artifact size — Java hits the 50 MB direct-upload ceiling early.** A hello-world Worker (one Workflow, one Activity, `slf4j-simple`) measured **41 MB**, versus ~14 MB for the equivalent Python package and 10–15 MB for Go. Anything with real dependencies will exceed 50 MB and must be uploaded via S3 (`--code S3Bucket=…,S3Key=…`) rather than `--zip-file fileb://`. Check before deploying:
 
 ```bash
@@ -550,6 +631,29 @@ aws lambda create-function \
 - `--memory-size`: the docs recommend starting at `1024` because "Java Workers typically need more memory than other runtimes," then adjusting from CloudWatch. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) --> A measured hello-world used **240 MB of 1024** (`Max Memory Used` in the invocation's REPORT line), so `512` is usually ample for small Workers — and since Lambda bills GB-seconds, halving memory halves the bill. Start at 1024, read the metric, then cut. <!-- measured, not documented -->
 
 <!-- Java create-function parameters above: docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line numbers unverified); --architectures, the S3 note, and the HOME finding are from a verified deployment, not the docs. -->
+
+#### .NET
+
+<!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/deploy-lambda.sh -->
+
+```bash
+aws lambda create-function \
+  --function-name my-temporal-worker \
+  --runtime dotnet8 \
+  --architectures x86_64 \
+  --handler 'MyAssembly::MyCompany.Temporal.Worker.LambdaFunction::HandlerAsync' \
+  --role <EXECUTION_ROLE_ARN> \
+  --zip-file fileb://function.zip \
+  --timeout 600 \
+  --memory-size 256 \
+  --environment file:///tmp/lambda-env.json
+```
+
+- `--runtime`: `dotnet8` (the sample targets `net8.0`). <!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/deploy-lambda.sh and Directory.Build.props -->
+- `--handler`: **`ASSEMBLY::NAMESPACE.TYPE::METHOD` — three colon-separated parts**, and the only SDK with that shape. Java uses two (`Class::method`); Go, Python and TypeScript use `module.function`-style. Getting this wrong presents as a handler-not-found error at first invocation.
+- `--timeout 600` / `--memory-size 256`: **the same values as Go, Python and TypeScript.** Only Java's example differs (90/1024), which supports reading that as a Java-specific choice rather than a documentation inconsistency.
+- `--architectures` must match the publish RID (`linux-x64` → `x86_64`, `linux-arm64` → `arm64`).
+- Temporal's deploy script retries `create-function` up to 12 times to absorb IAM propagation delay on a freshly created execution role — the same behavior described under "A freshly created execution role may not be assumable immediately" above.
 
 ### Wait for the function to become Active
 
