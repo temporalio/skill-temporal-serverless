@@ -649,6 +649,16 @@ aws lambda create-function \
   --environment file:///tmp/lambda-env.json
 ```
 
+**The environment block for .NET must include `SSL_CERT_FILE`**, in addition to the usual `TEMPORAL_*` variables:
+
+```json
+{"Variables":{
+  "TEMPORAL_ADDRESS":"...", "TEMPORAL_NAMESPACE":"...", "TEMPORAL_API_KEY":"...",
+  "SSL_CERT_FILE":"/etc/pki/tls/certs/ca-bundle.crt"}}
+```
+
+Without it the **first invocation fails**, the Task Queue is never bound, and the Worker is never invoked again — an otherwise-correct deployment that simply does not work. AWS's .NET 8 Lambda images force-override `SSL_CERT_FILE`, which stops the SDK's Rust core from loading system root CAs. `/etc/ssl/certs/ca-certificates.crt` also works; try the other if one fails. This is server-certificate verification, unrelated to your API key. → `<provider>/diagnostics.md`. <!-- verified: reproduced and fixed on a real deployment; cause per temporalio/sdk-dotnet README, "AWS Lambda .NET 8 CA Loading Issues" -->
+
 - `--runtime`: `dotnet8` (the sample targets `net8.0`). <!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/deploy-lambda.sh and Directory.Build.props -->
 - `--handler`: **`ASSEMBLY::NAMESPACE.TYPE::METHOD` — three colon-separated parts**, and the only SDK with that shape. Java uses two (`Class::method`); Go, Python and TypeScript use `module.function`-style. Getting this wrong presents as a handler-not-found error at first invocation.
 - `--timeout 600` / `--memory-size 256`: **the same values as Go, Python and TypeScript.** Only Java's example differs (90/1024), which supports reading that as a Java-specific choice rather than a documentation inconsistency.
@@ -711,6 +721,7 @@ Java's recommended memory is 4× Python's, so each second of polling costs 4× a
 | `TEMPORAL_TLS_CLIENT_CERT_PATH` | Path to the TLS client certificate file for mTLS authentication. |
 | `TEMPORAL_TLS_CLIENT_KEY_PATH` | Path to the TLS client key file for mTLS authentication. |
 | `TEMPORAL_API_KEY` | API key for API key authentication. Supplying it auto-enables TLS; mTLS cert paths are not needed. |
+| `SSL_CERT_FILE` | **Required for .NET on Lambda.** Path to the system CA bundle — `/etc/pki/tls/certs/ca-bundle.crt` or `/etc/ssl/certs/ca-certificates.crt`. AWS's .NET 8 images override this variable in a way that prevents the SDK's Rust core from loading root CAs, so TLS fails on the first invocation. Not needed for Go, Python, TypeScript, or Java. |
 
 The serverless Worker packages read environment variables and configuration files automatically at startup. For the full list of supported environment variables, config file format, and profiles, see the Environment configuration docs (`/develop/environment-configuration`). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:339-341 -->
 
