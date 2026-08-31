@@ -149,6 +149,12 @@ This is **not** a failure. It appears *after* Tasks have completed, is followed 
 
 **Java — exec-format or `UnsupportedClassVersionError` at first invocation.** Bytecode targets a newer JDK than the runtime. Set `<maven.compiler.release>` (or the Gradle toolchain) to match `--runtime`.
 
+**.NET — `DllNotFoundException` / missing `libtemporalio_sdk_core_c_bridge.so` at first invocation.** The .NET SDK wraps a native Rust core, and a portable (non-RID) publish omits its Linux build. Republish with an explicit runtime identifier matching the function's architecture (`--runtime linux-x64` for `x86_64`, `linux-arm64` for `arm64`) and check the file is in the publish output before zipping. → `setup.md` (.NET packaging).
+
+**.NET — TLS failure at first invocation despite correct address, Namespace and API key.** Some AWS Lambda .NET images override `SSL_CERT_FILE` in a way that prevents the SDK's Rust-based runtime from loading system root CAs. It looks like a connection or credential problem and is neither — the fix is the CA-loading workaround in the .NET SDK README, not changes to your Temporal configuration, IAM, or invocation role. Suspect it when the same credentials work from a local Worker against the same Namespace. <!-- docs/develop/dotnet/workers/serverless-workers/aws-lambda.mdx (line unverified) -->
+
+**.NET — handler not found at first invocation.** The .NET handler string has **three** colon-separated parts, `ASSEMBLY::NAMESPACE.TYPE::METHOD`, and is the only SDK with that shape — Java uses two, the rest use `module.function`. Compare against the assembly name (not the project name, if they differ) and the fully-qualified type.
+
 ### Check for Lambda timeout
 
 If the Lambda function reaches its configured timeout before the Worker finishes processing, AWS terminates the invocation. <!-- docs/troubleshooting/serverless-workers.mdx:147-148 -->

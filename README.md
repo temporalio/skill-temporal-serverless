@@ -10,7 +10,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 ## What the skill can do
 
-- Build Serverless Workers with the Go, Python, TypeScript, or Java SDK.
+- Build Serverless Workers with the Go, Python, TypeScript, Java, or .NET SDK.
 - Package and deploy Workers to AWS Lambda with the correct architecture, timeout, and shutdown settings.
 - Configure the separate AWS roles used by the Lambda function and by Temporal.
 - Register a Worker Deployment Version, validate its Task Queue binding, and set it current.
@@ -26,7 +26,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 |---|---|
 | Compute | AWS Lambda — Public Preview |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
-| SDKs | Go, Python, TypeScript, Java |
+| SDKs | Go, Python, TypeScript, Java, .NET |
 | Other compute providers | Not currently supported |
 
 For Temporal Cloud, the Namespace must be hosted on AWS. The Namespace and Lambda function may be in different AWS regions.
@@ -120,7 +120,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 |---|---|
 | [`SKILL.md`](SKILL.md) | Core workflow, safety gates, provider rules, and reference routing |
 | [`references/concepts.md`](references/concepts.md) | Architecture, invocation flow, autoscaling, lifecycle, constraints, and use cases |
-| [`references/sdk-configuration.md`](references/sdk-configuration.md) | Go, Python, TypeScript, and Java packages, entry points, versioning behavior, and tuned defaults |
+| [`references/sdk-configuration.md`](references/sdk-configuration.md) | Go, Python, TypeScript, Java, and .NET packages, entry points, versioning behavior, and tuned defaults |
 | [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | End-to-end deployment, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |

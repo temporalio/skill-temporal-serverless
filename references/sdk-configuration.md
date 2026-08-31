@@ -235,6 +235,107 @@ Resolution order (`LambdaWorkerOptions.resolveConfigFilePath`):
 
 ---
 
+## .NET SDK
+
+### Package
+
+Import: `using Temporalio.Extensions.Aws.Lambda;` plus `Temporalio.Common` (for `WorkerDeploymentVersion`) and `Amazon.Lambda.Core` (for `ILambdaContext`). <!-- verified against Temporalio.Extensions.Aws.Lambda 1.18.0 XML docs and samples-dotnet@main -->
+
+Install: `dotnet add package Temporalio.Extensions.Aws.Lambda` — a **separate NuGet package** from `Temporalio`, published in **lockstep** with it (both 1.18.0), the same relationship Java has. Published versions: 1.17.0 and 1.18.0. The package targets `netstandard2.0` and declares `Temporalio` 1.18.0 and `Amazon.Lambda.Core` 3.1.0.
+
+OpenTelemetry lives in a **second package**, `Temporalio.Extensions.Aws.Lambda.OpenTelemetry` (also 1.18.0) — unlike Python, where OTel is an extra on the same package. → `<provider>/observability.md`.
+
+### Entry point
+
+**`TemporalLambdaWorker.CreateHandler(version, configure)`** — returns a `Func<object?, ILambdaContext, Task>` that your handler method delegates to. Overloads take either a synchronous `Action<TemporalLambdaWorkerOptions>` or an asynchronous `Func<TemporalLambdaWorkerOptions, Task>` for setup that must await. A further overload takes `TemporalLambdaWorkerHandlerOptions`, which the XML docs describe as "internal test seams" — not for production use.
+
+```csharp
+public class LambdaFunction
+{
+    private static readonly Func<object?, ILambdaContext, Task> WorkerHandler =
+        TemporalLambdaWorker.CreateHandler(
+            new WorkerDeploymentVersion("my-app", "build-1"),
+            config =>
+            {
+                config.WorkerOptions.TaskQueue = "my-task-queue";
+                config.WorkerOptions
+                    .AddWorkflow<MyWorkflow>()
+                    .AddActivity(Activities.MyActivity);
+            });
+
+    public Task HandlerAsync(Stream input, ILambdaContext context) =>
+        WorkerHandler(input, context);
+}
+```
+
+`TemporalLambdaWorker.LoadClientConnectOptions(...)` is also public, for loading connection options with Lambda-aware config resolution outside the handler.
+
+### Configure callback
+
+Receives a `TemporalLambdaWorkerOptions` with `ClientOptions`, `WorkerOptions`, `ShutdownDeadlineBuffer`, `ShutdownHooks`, and `AddShutdownHook(Func<CancellationToken, Task>)`. The Task Queue and registrations go through `WorkerOptions` — an ordinary `TemporalWorkerOptions`, so `TaskQueue`, `AddWorkflow<T>()` and `AddActivity(...)` behave exactly as they do for a long-lived Worker. The callback runs **per invocation** (Java is the outlier that runs its at cold start).
+
+### Versioning behavior
+
+Per-Workflow via the `[Workflow]` attribute:
+
+```csharp
+[Workflow(VersioningBehavior = VersioningBehavior.Pinned)]
+public class MyWorkflow { ... }
+```
+
+Or a Worker-level default through `DefaultVersioningBehavior` in `DeploymentOptions`.
+
+**The .NET Worker-level default is `AutoUpgrade`**, whereas TypeScript's is `PINNED`. Defaults are not uniform across SDKs — never state one globally, and prefer setting the behavior explicitly per Workflow.
+
+### Lambda-tuned defaults
+
+<!-- docs/develop/dotnet/workers/serverless-workers/aws-lambda.mdx (line unverified); values are internal to the assembly and not artifact-verifiable -->
+
+| Setting | Lambda default |
+|---|---|
+| `MaxConcurrentActivities` | 2 |
+| `MaxConcurrentWorkflowTasks` | 10 |
+| `MaxConcurrentLocalActivities` | 2 |
+| `MaxConcurrentNexusTasks` | 5 |
+| `MaxConcurrentWorkflowTaskPolls` | 2 |
+| `MaxConcurrentActivityTaskPolls` | 1 |
+| `MaxConcurrentNexusTaskPolls` | 1 |
+| `MaxCachedWorkflows` | 30 |
+| `GracefulShutdownTimeout` | 5 seconds |
+| `ShutdownDeadlineBuffer` | 7 seconds |
+| `DisableEagerActivityExecution` | Always `true`, cannot be overridden |
+
+### Native dependency — publish must be RID-specific
+
+The .NET SDK wraps a **native Rust core** (`libtemporalio_sdk_core_c_bridge.so`). A portable publish does not include the Linux build of it, and the failure appears only at first invocation. Always publish for an explicit runtime identifier matching the function's architecture:
+
+| `--runtime` | `--architectures` |
+|---|---|
+| `linux-x64` | `x86_64` |
+| `linux-arm64` | `arm64` |
+
+This is .NET's equivalent of Python's `manylinux` wheels and Go's `GOARCH`. Temporal's own deploy script asserts the file is present before zipping, which is worth copying:
+
+```bash
+[[ -f "$PUBLISH_DIR/libtemporalio_sdk_core_c_bridge.so" ]] || {
+  echo "Publish output is missing the $TARGET_RUNTIME Temporal native bridge." >&2; exit 1; }
+```
+<!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/deploy-lambda.sh -->
+
+### Connection configuration
+
+Loaded automatically from environment variables and an optional TOML config file, with the same resolution order as the other SDKs:
+
+1. `TEMPORAL_CONFIG_FILE` environment variable, if set.
+2. `temporal.toml` in the Lambda task root (typically `/var/task`).
+3. `temporal.toml` in the current working directory.
+
+The sample copies a `temporal.toml` into the publish directory before zipping, so it lands in the task root, and keeps the API key in `TEMPORAL_API_KEY` rather than in the file. Supplying an API key enables TLS automatically.
+
+**TLS caveat specific to .NET:** some AWS Lambda .NET images override `SSL_CERT_FILE` in a way that prevents the SDK's Rust-based runtime from loading system root CAs. It surfaces as a TLS failure at first invocation. → `<provider>/diagnostics.md`.
+
+---
+
 ## TypeScript SDK
 
 ### Package
@@ -314,19 +415,23 @@ The file is optional. If absent, only environment variables are used. <!-- docs/
 
 ## Cross-SDK comparison: Lambda-tuned defaults
 
-| Concept | Go | Python | TypeScript | Java |
-|---|---|---|---|---|
-| Max concurrent activities | `MaxConcurrentActivityExecutionSize` = 2 | `max_concurrent_activities` = 2 | `maxConcurrentActivityTaskExecutions` = 2 | `MaxConcurrentActivityExecutionSize` = 2 |
-| Max concurrent workflow tasks | `MaxConcurrentWorkflowTaskExecutionSize` = 10 | `max_concurrent_workflow_tasks` = 10 | `maxConcurrentWorkflowTaskExecutions` = 10 | `MaxConcurrentWorkflowTaskExecutionSize` = 10 |
-| Sticky cache size | 100 | `max_cached_workflows` = 30 | `maxCachedWorkflows` = 30 | `WorkflowCacheSize` = 30 |
-| Worker stop timeout | `WorkerStopTimeout` = 5s | `graceful_shutdown_timeout` = 5s | `shutdownGraceTime` = 5s | `GracefulShutdownTimeout` = 5s |
-| Shutdown deadline buffer | `ShutdownDeadlineBuffer` = 7s | `shutdown_deadline_buffer` = 7s | `shutdownDeadlineBufferMs` = 7000 | `ShutdownDeadlineBuffer` = 7s |
-| Eager activities | `DisableEagerActivities` always true | `disable_eager_activity_execution` always `True` | Not supported | `setDisableEagerExecution(true)` |
-| Entry point | `RunWorker` | `run_worker` | `runWorker` | **`LambdaWorker.define`** (not `run`) |
-| Configure callback runs | per invocation | per invocation | per invocation | **at cold start**; separate `InvocationConfigurator` for per-invocation |
-| Package relationship to SDK | separate module, own version line | inside main SDK | separate npm package, own version line | separate artifact, **same version line** |
+| Concept | Go | Python | TypeScript | Java | .NET |
+|---|---|---|---|---|---|
+| Max concurrent activities | `MaxConcurrentActivityExecutionSize` = 2 | `max_concurrent_activities` = 2 | `maxConcurrentActivityTaskExecutions` = 2 | `MaxConcurrentActivityExecutionSize` = 2 | `MaxConcurrentActivities` = 2 |
+| Max concurrent workflow tasks | `MaxConcurrentWorkflowTaskExecutionSize` = 10 | `max_concurrent_workflow_tasks` = 10 | `maxConcurrentWorkflowTaskExecutions` = 10 | `MaxConcurrentWorkflowTaskExecutionSize` = 10 | `MaxConcurrentWorkflowTasks` = 10 |
+| Sticky cache size | 100 | `max_cached_workflows` = 30 | `maxCachedWorkflows` = 30 | `WorkflowCacheSize` = 30 | `MaxCachedWorkflows` = 30 |
+| Worker stop timeout | `WorkerStopTimeout` = 5s | `graceful_shutdown_timeout` = 5s | `shutdownGraceTime` = 5s | `GracefulShutdownTimeout` = 5s | `GracefulShutdownTimeout` = 5s |
+| Shutdown deadline buffer | `ShutdownDeadlineBuffer` = 7s | `shutdown_deadline_buffer` = 7s | `shutdownDeadlineBufferMs` = 7000 | `ShutdownDeadlineBuffer` = 7s | `ShutdownDeadlineBuffer` = 7s |
+| Eager activities | `DisableEagerActivities` always true | `disable_eager_activity_execution` always `True` | Not supported | `setDisableEagerExecution(true)` | `DisableEagerActivityExecution` always `true` |
+| Entry point | `RunWorker` | `run_worker` | `runWorker` | **`LambdaWorker.define`** (not `run`) | `TemporalLambdaWorker.CreateHandler` |
+| Configure callback runs | per invocation | per invocation | per invocation | **at cold start**; separate `InvocationConfigurator` for per-invocation | per invocation |
+| Package relationship to SDK | separate module, own version line | inside main SDK | separate npm package, own version line | separate artifact, **same version line** | separate package, **same version line** |
+| Default versioning behavior | set explicitly | set explicitly | `PINNED` | set explicitly | **`AutoUpgrade`** |
+| Platform-specific build artifact | `GOOS`/`GOARCH` static binary | `manylinux` wheels | none (JS) | none (bytecode; match `release` to runtime) | **native `libtemporalio_sdk_core_c_bridge.so`** — RID-specific publish |
 
 Java-only: `MaxWorkflowThreadCount` = 30 (no counterpart elsewhere — Java runs Workflow code on real threads).
+
+**Defaults are not uniform.** TypeScript defaults to `PINNED`, .NET to `AutoUpgrade`. Set the behavior explicitly per Workflow rather than relying on any of them.
 
 <!-- Go: docs/develop/go/workers/serverless-workers/aws-lambda.mdx:103-115 -->
 <!-- Python: docs/develop/python/workers/serverless-workers/aws-lambda.mdx:108-120 -->
