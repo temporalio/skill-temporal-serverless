@@ -332,7 +332,15 @@ Loaded automatically from environment variables and an optional TOML config file
 
 The sample copies a `temporal.toml` into the publish directory before zipping, so it lands in the task root, and keeps the API key in `TEMPORAL_API_KEY` rather than in the file. Supplying an API key enables TLS automatically.
 
-**TLS caveat specific to .NET:** some AWS Lambda .NET images override `SSL_CERT_FILE` in a way that prevents the SDK's Rust-based runtime from loading system root CAs. It surfaces as a TLS failure at first invocation. → `<provider>/diagnostics.md`.
+**TLS caveat specific to .NET — set `SSL_CERT_FILE` or the first invocation fails.** AWS's .NET 8 Lambda images force-override `SSL_CERT_FILE`, which prevents the SDK's Rust core from loading system root CAs. Set it explicitly on the function:
+
+```
+SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt     # or /etc/ssl/certs/ca-certificates.crt
+```
+
+**This is server-certificate verification, not client credentials.** The API key is unaffected and is not the problem — an API key auto-enables TLS, and TLS requires verifying Temporal Cloud's certificate chain against root CAs. The connection fails before authentication is ever attempted.
+
+Python shares the same Rust core (`temporalio/bridge/temporal_sdk_bridge.abi3.so`) but its Lambda image does not override the variable; Java uses gRPC/Netty and the JVM truststore, so neither is affected. → `<provider>/diagnostics.md`. <!-- verified: reproduced and fixed on a real deployment -->
 
 ---
 

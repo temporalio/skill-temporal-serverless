@@ -131,6 +131,9 @@ Common errors include: <!-- docs/troubleshooting/serverless-workers.mdx:136 -->
 |---|---|---|
 | Python | `logging.basicConfig()` is a no-op when a root handler already exists, and the Lambda runtime installs one before your module is imported — so the level never changes and `INFO` records are filtered out | `logging.getLogger().setLevel(logging.INFO)` |
 | Java | The SDK compiles against `slf4j-api` **1.7.36**; a 2.x provider (`slf4j-simple:2.x`, Logback 1.3+) does not bind to a 1.7 API and nothing is emitted | use a 1.7.x provider, e.g. `org.slf4j:slf4j-simple:1.7.36` |
+| .NET | `TemporalWorkerOptions.LoggerFactory` is unset and "defaults to the client logger factory", which is also unset — so `Workflow.Logger` output is discarded. Activity `Console.WriteLine` still reaches CloudWatch, which makes the gap look selective rather than total | set `config.WorkerOptions.LoggerFactory` (e.g. `LoggerFactory.Create(b => b.AddSimpleConsole().SetMinimumLevel(LogLevel.Information))`) |
+
+Three SDKs, three unrelated mechanisms, one symptom. Confirm invocation health from Lambda's runtime markers and metrics before concluding the Worker is broken — in every one of these cases it was not.
 
 **Java — `NullPointerException` in `ShutdownManager` on every invocation (benign).** As of `temporal-aws-lambda` 1.38.0, a normal graceful shutdown logs a `WARN` with a full stack trace:
 
@@ -151,7 +154,20 @@ This is **not** a failure. It appears *after* Tasks have completed, is followed 
 
 **.NET — `DllNotFoundException` / missing `libtemporalio_sdk_core_c_bridge.so` at first invocation.** The .NET SDK wraps a native Rust core, and a portable (non-RID) publish omits its Linux build. Republish with an explicit runtime identifier matching the function's architecture (`--runtime linux-x64` for `x86_64`, `linux-arm64` for `arm64`) and check the file is in the publish output before zipping. → `setup.md` (.NET packaging).
 
-**.NET — TLS failure at first invocation despite correct address, Namespace and API key.** Some AWS Lambda .NET images override `SSL_CERT_FILE` in a way that prevents the SDK's Rust-based runtime from loading system root CAs. It looks like a connection or credential problem and is neither — the fix is the CA-loading workaround in the .NET SDK README, not changes to your Temporal configuration, IAM, or invocation role. Suspect it when the same credentials work from a local Worker against the same Namespace. <!-- docs/develop/dotnet/workers/serverless-workers/aws-lambda.mdx (line unverified) -->
+**.NET — `NativeCertsNotFound` at first invocation, despite a correct address, Namespace, and API key.** Observed verbatim on a real deployment:
+
+```
+System.InvalidOperationException: Connection failed: Server connection error:
+  tonic::transport::Error(Transport, NativeCertsNotFound)
+   at Temporalio.Bridge.Client.ConnectAsync(...)
+   at Temporalio.Client.TemporalConnection.ConnectAsync(...)
+```
+
+*Cause:* AWS's .NET 8 Lambda images force-override `SSL_CERT_FILE`, so the SDK's Rust core cannot load system root CAs. *Fix:* set `SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt` (or `/etc/ssl/certs/ca-certificates.crt`) on the function, then recover the binding as described under "Failed first invocation" — the failed validation invocation means no Task Queue was bound and Temporal will not retry on its own.
+
+**Do not read "certs not found" as a credentials problem.** It refers to the *operating system's root CA store*, not to any certificate of yours, and the failure happens before authentication is attempted. Chasing the API key, the Namespace, the invocation role, or the External ID is wasted effort. Two discriminators: the same credentials work from a local Worker against the same Namespace, and the stack trace terminates in `ConnectAsync` rather than in any Temporal API call. An API key auto-enables TLS, and TLS requires verifying the *server's* certificate chain — so supplying credentials is what creates the requirement, not what satisfies it.
+
+Only .NET is affected. Python uses the same Rust core (`temporalio/bridge/temporal_sdk_bridge.abi3.so`) but its runtime image does not override the variable; Java uses gRPC/Netty with the JVM truststore. <!-- verified: reproduced and fixed on a real deployment; cause per temporalio/sdk-dotnet README, "AWS Lambda .NET 8 CA Loading Issues", referencing aws/aws-lambda-dotnet#1661 -->
 
 **.NET — handler not found at first invocation.** The .NET handler string has **three** colon-separated parts, `ASSEMBLY::NAMESPACE.TYPE::METHOD`, and is the only SDK with that shape — Java uses two, the rest use `module.function`. Compare against the assembly name (not the project name, if they differ) and the fully-qualified type.
 

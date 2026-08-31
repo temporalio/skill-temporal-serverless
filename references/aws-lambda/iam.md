@@ -210,6 +210,16 @@ Notes on the parameters above:
   EXTERNAL_ID=$(openssl rand -hex 16)
   ```
 
+**After any `update-stack` that changes `LambdaFunctionARNs`, read the resulting policy back — `UPDATE_COMPLETE` does not mean the ARNs are correct.** CloudFormation validates the template, not the semantics of a `CommaDelimitedList`, so malformed ARNs deploy cleanly and silently revoke access for every function whose ARN was mangled. The failure then looks like a Worker that stopped being invoked for no reason.
+
+```bash
+aws iam get-role-policy --role-name <ROLE_NAME> \
+  --policy-name Temporal-Cloud-Lambda-Invoke-Permissions \
+  --query 'PolicyDocument.Statement[0].Resource' --output text | tr '\t' '\n'
+```
+
+Every entry must read `arn:aws:lambda:<region>:<account>:function:<name>` (and the `:*` form). **Build these ARNs from literal strings, not by concatenating a shell variable with a `:`-prefixed suffix.** In zsh, `$VAR:l` is the lowercase modifier: `"$PREFIX:lambda-my-worker"` silently expands to `<prefix>` + `ambda-my-worker`, losing the `:l`, and produces exactly the kind of plausible-looking-but-wrong ARN this check catches. Remember the list is **replaced, not merged**, so a partial list revokes the functions it omits.
+
 Retrieve the IAM role ARN from the stack outputs: <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:519 -->
 
 ```bash
