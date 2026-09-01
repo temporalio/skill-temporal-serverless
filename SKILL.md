@@ -1,6 +1,6 @@
 ---
 name: temporal-serverless
-description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal".'
+description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "Worker Pool", "deploy Temporal worker on Cloud Run", "gcloud run worker-pools", "invoker service account".'
 metadata:
   version: "0.7.0"
 ---
@@ -16,9 +16,13 @@ This skill helps users deploy and operate Temporal Workers on serverless compute
 | Cloud provider | Compute service | Support | Reference directory |
 |---|---|---|---|
 | AWS | Lambda | Supported — Public Preview, open to all Temporal Cloud customers | `references/aws-lambda/` |
-| GCP | Cloud Run | Not supported | — |
+| GCP | Cloud Run | Supported — **Pre-release, access-gated**; APIs may change incompatibly | `references/gcp-cloud-run/` |
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is confirmed in the step 1 questions, not silently defaulted.
+
+**The two providers have different execution models, and the difference is load-bearing.** Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is (a handler against a provider package, versus an ordinary long-lived Worker), what bounds an Activity, what there is to tune, and how failures present. Read the chosen provider's `constraints.md` before advising on any of it, and never carry a fact from one provider to the other.
+
+**Cloud Run access is gated.** It is not open to all customers — the user creates a support ticket or contacts their account team. Confirm access before planning a Cloud Run deployment; no amount of correct configuration substitutes for it.
 
 Every supported provider's directory carries the same layout — `setup.md`, `iam.md`, `constraints.md`, `versioning.md`, `diagnostics.md`, `observability.md`, `self-hosted.md`. `constraints.md` is the provider "diff surface": what follows from that provider's execution model, and therefore what does *not* carry across to another one. Paths below are written `references/<provider>/…`; substitute the directory from the table. Provider-specific commands, templates, permissions, and defaults live there — this file stays at the workflow level. When a step needs concrete commands, go to the reference file named at the end of that step.
 
@@ -84,9 +88,11 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 **A step is complete when its verification passed — not when its command exited zero.** Several commands in this workflow exit clean having done nothing: the traffic-shifting and key-revocation commands no-op when their confirmation prompt goes unanswered, and providers return from create and update calls while the resource is still settling. Check an item off against state you read back, not against an exit code. When a step's verification fails, say which step you are on and what it is blocked on rather than moving down the list.
 
-1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
+1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, .NET, and on Cloud Run also Ruby or Rust — **SDK support differs by provider**), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
 
-   **Put the compute provider in that batch of questions as a confirmable default, not a free choice.** Pre-select the supported provider from the table above and carry its support status in the option's description. The user confirms rather than chooses, so it costs no extra turn, but the provider is never something they were assumed into. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
+   **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description** — AWS Lambda is Public Preview and open to everyone; GCP Cloud Run is Pre-release, access-gated, and its APIs may change incompatibly. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
+
+   **The Namespace usually settles it, so ask them together.** A Serverless Worker runs only on the cloud provider hosting its Namespace, so a user with only AWS Namespaces has no Cloud Run option. Where the user genuinely has both, the deciding factors are: **Activity duration** (anything over Lambda's 15-minute ceiling rules Lambda out), **SDK** (Ruby and Rust are Cloud Run only), and **tolerance for Pre-release APIs**. Say which factor decided it rather than presenting the choice as arbitrary.
 
    **Let the user pick the Namespace from a list; never make them retype one.** Namespace names are long and error-prone — a generated suffix on an account ID, `<name>-<suffix>.<account>`. Where control-plane access is available, `tcld namespace list` returns the full Namespace objects, so one call gives every name with its region — and a region ID is provider-prefixed (`aws-…`, `gcp-…`), so the same response tells you each Namespace's provider. Only the prefix carries meaning; the region itself imposes no constraint.
 
@@ -211,10 +217,11 @@ Most questions need 2–3 reference files.
 |---|---|
 | What is a Serverless Worker / the WCI? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
 | Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` (+ `references/concepts.md`) |
-| Operator permissions and preflight; execution role vs Temporal invocation role; CloudFormation (Cloud + self-hosted). | `references/<provider>/iam.md` |
-| Update or redeploy; version the build, use a qualified ARN, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
-| Self-hosted server enablement (dynamic config, WCI, server AWS credentials). | `references/<provider>/self-hosted.md` (+ `references/<provider>/iam.md`) |
-| SDK-specific options and tuned defaults, which package to install and how it is distributed, imports, versioning-behavior configuration, connection config (TOML, env vars). Reduce cold start / pre-bundle Workflow code. | `references/sdk-configuration.md` |
+| Operator permissions and preflight; the compute unit's own identity vs the identity Temporal uses; infrastructure-as-code (CloudFormation on Lambda, Terraform on Cloud Run). | `references/<provider>/iam.md` |
+| Update or redeploy; make each build immutable, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
+| Self-hosted server enablement (dynamic config, WCI, the server's cloud credentials). | `references/<provider>/self-hosted.md` (+ `references/<provider>/iam.md`) |
+| **AWS Lambda only** — SDK-specific options and tuned defaults, which package to install and how it is distributed, imports, versioning-behavior configuration, connection config (TOML, env vars). Reduce cold start / pre-bundle Workflow code. | `references/sdk-configuration.md` |
+| Cloud Run Worker code, container image, Worker Pool creation (there is no Cloud Run Worker package — it is an ordinary long-lived Worker). | `references/gcp-cloud-run/setup.md` |
 | Add OpenTelemetry observability, collector config, tracing. | `references/<provider>/observability.md` |
 | Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` (+ `references/concepts.md`) |
 | Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/<provider>/constraints.md` (+ `references/concepts.md`, `references/sdk-configuration.md`) |

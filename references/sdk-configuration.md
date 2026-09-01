@@ -6,6 +6,8 @@
   docs/develop/typescript/workers/serverless-workers/aws-lambda.mdx
 -->
 
+> **This file is AWS Lambda only.** Every package, entry point, and tuned default below belongs to a Lambda serverless Worker package. **On GCP Cloud Run none of it applies** — there is no Cloud Run Worker package, and you write an ordinary long-lived Worker with Worker Versioning enabled. For Cloud Run use `aws-lambda`'s counterpart directory instead: `gcp-cloud-run/setup.md`, plus the SDK's own Cloud Run guide. Cloud Run additionally supports Ruby and Rust, which have no Lambda packages and so no sections here.
+
 ## Go SDK
 
 ### Package
