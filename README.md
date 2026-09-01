@@ -139,7 +139,7 @@ Factual lines in the reference files carry an HTML comment naming their source, 
 | `<!-- verified against <artifact>:<version> -->` | Read from the published package itself (`javap`, sources jar, XML docs) |
 | `<!-- measured -->` / `<!-- inferred … -->` | Observed in a real deployment, or reasoned from evidence — not documented |
 
-The second form exists because the documentation and the shipped artifact can disagree: as of `temporal-aws-lambda` 1.38.0 the docs' Java entry point (`LambdaWorker.run`) does not exist in the artifact. **Where they conflict, the artifact wins and the disagreement is stated in the text.** Add `(line unverified)` when citing a documentation page whose line numbers have not been checked against the source tree, rather than guessing a number.
+The second form exists because documentation and a shipped artifact can drift apart between releases. **Where they conflict, the artifact wins and the disagreement is stated in the text.** Add `(line unverified)` when citing a documentation page whose line numbers have not been checked against the source tree, rather than guessing a number.
 
 ## Feedback
 
