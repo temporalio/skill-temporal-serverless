@@ -162,9 +162,7 @@ unzip -p temporalio.extensions.aws.lambda.<ver>.nupkg \
 unzip -p ...nupkg Temporalio.Extensions.Aws.Lambda.nuspec | grep dependency
 ```
 
-**Java is the cautionary case that justifies this whole step.** The published Java docs use `LambdaWorker.run(version, callback)`. `javap` against 1.38.0 *and* 1.37.0 shows no such method: the real entry points are `define` and `newHandler`, and Temporal's own [sample handler](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) calls `define`. Java catches this at compile time; a language that failed the same way at runtime would surface it as a failed first invocation instead.
-
-**A useful ordering when docs and code disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last.
+**A useful ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs — Java's is `define`, not "run"-shaped like the others — so check rather than pattern-match from another language.
 
 Specifics worth confirming this way, because they differ by SDK and are easy to get wrong from memory:
 
@@ -308,7 +306,7 @@ public final class LambdaFunction implements RequestHandler<Object, Void> {
 }
 ```
 
-**Use `define`, not `run`.** The published docs show `LambdaWorker.run(...)`; that method does not exist in 1.38.0 or 1.37.0. Temporal's own sample handler — [`LambdaFunction.java`](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) — calls `define`, and being maintained code that has to compile it is the better reference of the two. See "Verify the installed API before generating code" above.
+The entry point is `define` (or `newHandler` for pre-built options) — not a "run"-shaped name like the other SDKs use. Temporal's [sample handler](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) is the reference implementation.
 
 Versioning behavior: annotate the Workflow **method** in the implementation class with `io.temporal.workflow.WorkflowVersioningBehavior`, or set a Worker-level default with `DefaultVersioningBehavior` in `DeploymentOptions`.
 

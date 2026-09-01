@@ -151,11 +151,7 @@ Install: `io.temporal:temporal-aws-lambda` — a **separate Maven artifact** fro
 
 **`LambdaWorker.define(version, configure)`** — returns a `RequestHandler<Object, Void>` that your handler class delegates to. There are four public overloads: `define` (2- and 3-arg) and `newHandler` (2- and 3-arg, taking a pre-built `LambdaWorkerOptions`).
 
-> **The published docs show `LambdaWorker.run(...)`. That method does not exist** in 1.38.0 or 1.37.0 — verified with `javap` against both jars. Use `define`.
->
-> Temporal's own sample agrees, and it is the authoritative reference because it is maintained code that has to compile: [`samples-java/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java`](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) calls `LambdaWorker.define`. The docs snippet was evidently written from that file — same class name, same `LambdaWorkerSample.deploymentName()` / `.buildId()` calls — with the method renamed, most likely assimilated to the "run"-shaped entry points of the other three SDKs (`RunWorker`, `run_worker`, `runWorker`). Java is the exception.
->
-> **When in doubt, prefer the sample over the prose docs**, then confirm against the version you actually install. <!-- verified against io.temporal:temporal-aws-lambda:1.37.0 and 1.38.0, and samples-java@main -->
+Note that Java's entry point is not "run"-shaped like the other SDKs' (`RunWorker`, `run_worker`, `runWorker`) — confirm the method name against the version you install. <!-- verified against io.temporal:temporal-aws-lambda:1.37.0 and 1.38.0, and samples-java@main -->
 
 ### Configure callback — two phases, unlike the other SDKs
 
@@ -431,7 +427,7 @@ The file is optional. If absent, only environment variables are used. <!-- docs/
 | Worker stop timeout | `WorkerStopTimeout` = 5s | `graceful_shutdown_timeout` = 5s | `shutdownGraceTime` = 5s | `GracefulShutdownTimeout` = 5s | `GracefulShutdownTimeout` = 5s |
 | Shutdown deadline buffer | `ShutdownDeadlineBuffer` = 7s | `shutdown_deadline_buffer` = 7s | `shutdownDeadlineBufferMs` = 7000 | `ShutdownDeadlineBuffer` = 7s | `ShutdownDeadlineBuffer` = 7s |
 | Eager activities | `DisableEagerActivities` always true | `disable_eager_activity_execution` always `True` | Not supported | `setDisableEagerExecution(true)` | `DisableEagerActivityExecution` always `true` |
-| Entry point | `RunWorker` | `run_worker` | `runWorker` | **`LambdaWorker.define`** (not `run`) | `TemporalLambdaWorker.CreateHandler` |
+| Entry point | `RunWorker` | `run_worker` | `runWorker` | `LambdaWorker.define` | `TemporalLambdaWorker.CreateHandler` |
 | Configure callback runs | per invocation | per invocation | per invocation | **at cold start**; separate `InvocationConfigurator` for per-invocation | per invocation |
 | Package relationship to SDK | separate module, own version line | inside main SDK | separate npm package, own version line | separate artifact, **same version line** | separate package, **same version line** |
 | Default versioning behavior | set explicitly | set explicitly | `PINNED` | set explicitly | **`AutoUpgrade`** |
