@@ -693,20 +693,22 @@ aws lambda get-function --function-name my-temporal-worker \
 
 **Caution:** AWS Lambda functions default to a 3-second timeout, which is too short for the Worker to start, connect to Temporal, and register the Task Queue. If the first invocation times out before the Worker polls, the Task Queue binding is never created and the Lambda is never invoked again. Always set `--timeout` high enough for the Worker to start, process Tasks, and shut down gracefully. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:328-337 -->
 
-**There is no single right `--timeout`, and the docs' per-SDK examples differ deliberately** — 600 for Go, Python and TypeScript, 90 for Java. Neither is a typo, and 90 is not dangerous: a measured Java Worker bound its Task Queue about 10 seconds after `create-version`, JVM cold start included, against 83 seconds of available polling. Solve for the constraints rather than copying a number:
+**`--timeout` is a cost setting once it clears startup.** The per-SDK examples differ deliberately — 600 for Go, Python and TypeScript; 90 for Java — and both clear startup easily: a measured Java Worker bound its Task Queue **~10s** after `create-version`, JVM cold start included, against the 83s of polling a 90s deadline allows. Lambda's 3-second default is what fails this; 90 does not.
 
-1. **deadline > cold start + connect + Task Queue registration.** This is the binding requirement, and what rules out the 3-second default. Measured cold starts are ~1s for both Python and Java (`Init Duration` in the REPORT line), so single-digit seconds suffices — but leave real headroom.
-2. **deadline > longest Activity + shutdown deadline buffer.** The timeout-triple requirement (see `SKILL.md`). An Activity still running when the Worker drains gets abandoned and retried.
-3. **Then trade off.** A **longer** deadline means fewer invocations, fewer cold starts, a warmer sticky cache, and room for longer Activities. A **shorter** deadline means a smaller idle tail: when work stops arriving the Worker keeps polling until its deadline, so the trailing waste is one deadline's worth by definition.
+Set it from three constraints:
 
-The tie-breaker is cost, because Lambda bills **GB-seconds** — allocated memory × billed duration, regardless of how idle the Worker was:
+1. **> cold start + connect + Task Queue registration.** The binding requirement, and what rules out the 3s default. Measured cold starts are ~1s for Python and Java alike (`Init Duration` in the REPORT line).
+2. **> longest Activity + shutdown deadline buffer.** An Activity still running when the Worker drains is abandoned and retried.
+3. **Beyond those, pure cost.** Longer: fewer invocations and cold starts, warmer sticky cache, room for longer Activities. Shorter: a smaller idle tail — when work stops the Worker polls on until its deadline, so the waste is one deadline's worth.
+
+Lambda bills **GB-seconds** — allocated memory × billed duration, however idle the Worker was:
 
 | SDK example | Memory | Full invocation | GB-seconds |
 |---|---|---|---|
 | Python 600s / 256 MB | 0.25 GB | ~594 s billed | ~149 |
 | Java 90s / 1024 MB | 1 GB | ~84 s billed | ~84 |
 
-Java's recommended memory is 4× Python's, so each second of polling costs 4× as much — which makes capping the idle tail worth 4× more, and is the likely reason its example uses 90s. Note also that **`Init Duration` is billed**: in measured runs `Billed Duration` equalled `Duration + Init Duration`.
+**Memory is the multiplier, not the deadline.** 1024 MB costs 4× per second at *any* deadline; the deadline only sets how many idle seconds you buy. That is the likeliest reason Java's example caps the tail at 90s, though it is inference rather than a documented rationale. Right-sizing beats it either way — the measured Worker used **240 MB of 1024**, so read `Max Memory Used` and cut. And `Init Duration` is billed, so a shorter deadline buys proportionally more billed inits.
 
 ### Environment variables
 
