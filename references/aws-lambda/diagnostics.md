@@ -154,7 +154,7 @@ This is **not** a failure. It appears *after* Tasks have completed, is followed 
 
 **.NET — `DllNotFoundException` / missing `libtemporalio_sdk_core_c_bridge.so` at first invocation.** The .NET SDK wraps a native Rust core, and a portable (non-RID) publish omits its Linux build. Republish with an explicit runtime identifier matching the function's architecture (`--runtime linux-x64` for `x86_64`, `linux-arm64` for `arm64`) and check the file is in the publish output before zipping. → `setup.md` (.NET packaging).
 
-**.NET — `NativeCertsNotFound` at first invocation, despite a correct address, Namespace, and API key.** Observed verbatim on a real deployment:
+**.NET — `NativeCertsNotFound` at first invocation, despite a correct address, Namespace, and API key.**
 
 ```
 System.InvalidOperationException: Connection failed: Server connection error:
@@ -165,7 +165,7 @@ System.InvalidOperationException: Connection failed: Server connection error:
 
 *Cause:* AWS's .NET 8 Lambda images force-override `SSL_CERT_FILE`, so the SDK's Rust core cannot load system root CAs. *Fix:* set `SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt` (or `/etc/ssl/certs/ca-certificates.crt`) on the function, then recover the binding as described under "Failed first invocation" — the failed validation invocation means no Task Queue was bound and Temporal will not retry on its own.
 
-**Do not read "certs not found" as a credentials problem.** It refers to the *operating system's root CA store*, not to any certificate of yours, and the failure happens before authentication is attempted. Chasing the API key, the Namespace, the invocation role, or the External ID is wasted effort. Two discriminators: the same credentials work from a local Worker against the same Namespace, and the stack trace terminates in `ConnectAsync` rather than in any Temporal API call. An API key auto-enables TLS, and TLS requires verifying the *server's* certificate chain — so supplying credentials is what creates the requirement, not what satisfies it.
+"Certs" here means the operating system's root CA store, not any credential of yours: an API key auto-enables TLS, and TLS requires verifying the *server's* certificate chain. The connection fails before authentication is attempted, so the API key, Namespace, invocation role, and External ID are all irrelevant. Two discriminators: the same credentials work from a local Worker against the same Namespace, and the stack trace ends in `ConnectAsync` rather than a Temporal API call.
 
 Only .NET is affected. Python uses the same Rust core (`temporalio/bridge/temporal_sdk_bridge.abi3.so`) but its runtime image does not override the variable; Java uses gRPC/Netty with the JVM truststore. <!-- verified: reproduced and fixed on a real deployment; cause per temporalio/sdk-dotnet README, "AWS Lambda .NET 8 CA Loading Issues", referencing aws/aws-lambda-dotnet#1661 -->
 

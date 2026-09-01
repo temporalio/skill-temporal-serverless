@@ -24,7 +24,7 @@ Sample projects:
 - Python: [Python Lambda Worker sample](https://github.com/temporalio/samples-python/tree/main/lambda_worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:55 -->
 - TypeScript: [TypeScript Lambda Worker sample](https://github.com/temporalio/samples-typescript/tree/main/lambda-worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:56 -->
 - Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:46 -->
-- .NET: [.NET Lambda Worker sample](https://github.com/temporalio/samples-dotnet/tree/main/src/LambdaWorker) — `Worker/`, `Starter/`, and `Deploy/` (deploy, IAM-role, execution-role, and telemetry scripts plus a CloudFormation template), with a test project under `tests/LambdaWorker`. **The docs link to a branch (`blob/ea/aws-lambda`) that no longer exists; the sample is on `main` at `src/LambdaWorker`.** <!-- verified against samples-dotnet@main -->
+- .NET: [.NET Lambda Worker sample](https://github.com/temporalio/samples-dotnet/tree/main/src/LambdaWorker) — `Worker/`, `Starter/`, and `Deploy/` (deploy, IAM-role, execution-role, and telemetry scripts plus a CloudFormation template), with a test project under `tests/LambdaWorker`. <!-- verified against samples-dotnet@main -->
 
 ## Temporal CLI and Cloud connection
 
@@ -511,7 +511,7 @@ cp temporal.toml otel-collector-config.yaml ./publish/
 cd ./publish && zip -r ../function.zip . && cd ..
 ```
 
-**The RID is not optional.** The .NET SDK wraps a native Rust core (`libtemporalio_sdk_core_c_bridge.so`); a portable publish omits the Linux build of it. This is .NET's equivalent of Python's `manylinux` wheels and Go's `GOARCH`, with the same late failure mode. Keep the RID consistent with `--architectures`:
+The .NET SDK wraps a native Rust core (`libtemporalio_sdk_core_c_bridge.so`). A portable publish omits the Linux build of it and the function fails at first invocation, not at build time — the same late failure mode as Python's `manylinux` wheels and Go's `GOARCH`. Keep the RID consistent with `--architectures`:
 
 | `--runtime` | `--architectures` |
 |---|---|
