@@ -285,7 +285,7 @@ Or a Worker-level default through `DefaultVersioningBehavior` in `DeploymentOpti
 
 ### Lambda-tuned defaults
 
-<!-- docs/develop/dotnet/workers/serverless-workers/aws-lambda.mdx (line unverified); values are internal to the assembly and not artifact-verifiable -->
+<!-- docs/develop/dotnet/workers/serverless-workers/aws-lambda.mdx:125-137 -->
 
 | Setting | Lambda default |
 |---|---|
