@@ -126,6 +126,111 @@ The file is optional. If absent, only environment variables are used. <!-- docs/
 
 ---
 
+## Java SDK
+
+### Package
+
+Import: `io.temporal.aws.lambda.LambdaWorker`, `io.temporal.aws.lambda.LambdaWorkerOptions`, `io.temporal.common.WorkerDeploymentVersion` <!-- verified against io.temporal:temporal-aws-lambda:1.38.0 sources jar -->
+
+Install: `io.temporal:temporal-aws-lambda` — a **separate Maven artifact** from `io.temporal:temporal-sdk`, but published on the **same version line** (both 1.38.0). This is a third packaging pattern: unlike Go and TypeScript it is not independently versioned, and unlike Python it does not ship inside the main SDK. Use `io.temporal:temporal-bom` in `dependencyManagement` to keep them aligned.
+
+```xml
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.temporal</groupId><artifactId>temporal-bom</artifactId>
+      <version>1.38.0</version><type>pom</type><scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+```
+
+`aws-lambda-java-core` (1.4.0) arrives transitively from `temporal-aws-lambda`; declare it explicitly if you compile against `RequestHandler`/`Context`.
+
+### Entry point
+
+**`LambdaWorker.define(version, configure)`** — returns a `RequestHandler<Object, Void>` that your handler class delegates to. There are four public overloads: `define` (2- and 3-arg) and `newHandler` (2- and 3-arg, taking a pre-built `LambdaWorkerOptions`).
+
+Note that Java's entry point is not "run"-shaped like the other SDKs' (`RunWorker`, `run_worker`, `runWorker`) — confirm the method name against the version you install. <!-- verified against io.temporal:temporal-aws-lambda:1.37.0 and 1.38.0, and samples-java@main -->
+
+### Configure callback — two phases, unlike the other SDKs
+
+Java splits configuration in a way no other SDK does, and the distinction matters:
+
+- The `Consumer<LambdaWorkerOptions.Builder>` passed to `define` is *"invoked once while the Lambda handler is constructed"* — i.e. at **cold start**, once per container, **not** per invocation.
+- Per-invocation configuration is a **separate** callback, `LambdaWorker.InvocationConfigurator`, taking `(LambdaWorkerOptions.Builder, com.amazonaws.services.lambda.runtime.Context)`, *"invoked for each Lambda invocation before Temporal service stubs, client, and worker are created."* Use the 3-arg `define` overload for it.
+
+Contrast Python, whose `configure` runs **once per invocation**. Do not describe them as equivalent, and do not carry per-invocation logic into Java's cold-start callback.
+
+Registration methods on `LambdaWorkerOptions.Builder`: `setTaskQueue`, `registerWorkflowImplementationTypes`, `registerDynamicWorkflowImplementationType`, `registerWorkflowImplementationFactory` (3 overloads), `registerActivitiesImplementations`, `registerDynamicActivityImplementation`, `registerNexusServiceImplementation`, `addShutdownHook`, plus `getWorkerOptionsBuilder()` / `getWorkflowClientOptionsBuilder()` / `getWorkflowServiceStubsOptionsBuilder()` for lower-level tuning.
+
+### Versioning behavior
+
+Per-Workflow via the **annotation** `io.temporal.workflow.WorkflowVersioningBehavior` on the workflow method, taking `io.temporal.common.VersioningBehavior.PINNED` or `.AUTO_UPGRADE`:
+
+```java
+public class GreetingWorkflowImpl implements GreetingWorkflow {
+  @Override
+  @WorkflowVersioningBehavior(VersioningBehavior.PINNED)
+  public String getGreeting(String name) { ... }
+}
+```
+
+Or a Worker-level default with `DefaultVersioningBehavior` in `DeploymentOptions`.
+
+### Lambda-tuned defaults
+
+<!-- verified in io.temporal:temporal-aws-lambda:1.38.0, LambdaWorkerOptions.java:40-53 -->
+
+| Setting | Lambda default |
+|---|---|
+| `MaxConcurrentActivityExecutionSize` | 2 |
+| `MaxConcurrentWorkflowTaskExecutionSize` | 10 |
+| `MaxConcurrentLocalActivityExecutionSize` | 2 |
+| `MaxConcurrentNexusExecutionSize` | 5 |
+| `MaxConcurrentWorkflowTaskPollers` | 2 |
+| `MaxConcurrentActivityTaskPollers` | 1 |
+| `MaxConcurrentNexusTaskPollers` | 1 |
+| `WorkflowCacheSize` | 30 |
+| `MaxWorkflowThreadCount` | 30 |
+| `GracefulShutdownTimeout` | 5 seconds |
+| `ShutdownDeadlineBuffer` | 7 seconds |
+
+`MaxWorkflowThreadCount` has no counterpart in the other SDKs — Java runs Workflow code on real threads.
+
+Eager Activities are disabled: `builder.setDisableEagerExecution(true)` (`LambdaWorkerOptions.java:258`). `ShutdownDeadlineBuffer` defaults to `GracefulShutdownTimeout` + 2s, the same relationship as the other SDKs.
+
+### Logging — the binding must be SLF4J 1.7.x
+
+The Java SDK compiles against `org.slf4j:slf4j-api:1.7.36`. A 2.x provider (`slf4j-simple:2.x`, Logback 1.3+) **will not bind to a 1.7 API**, and the Worker runs with no logs at all — the same silent outcome as Python's `logging.basicConfig()` no-op, by a different mechanism. Use a 1.7.x provider:
+
+```xml
+<dependency>
+  <groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId><version>1.7.36</version>
+</dependency>
+```
+
+With a correct binding the module logs its own lifecycle unprompted, which is more than the other SDKs give you by default:
+
+```
+[main] INFO io.temporal.aws.lambda.LambdaWorker - Temporal Lambda worker started
+  awsRequestId=<id> invokedFunctionArn=<arn> taskQueue=<tq> identity=<id>@<arn>
+```
+
+### Connection configuration
+
+Loaded automatically from environment variables and an optional TOML config file. Public constants on `LambdaWorkerOptions`: `TEMPORAL_TASK_QUEUE`, `TEMPORAL_CONFIG_FILE`, `LAMBDA_TASK_ROOT`.
+
+Resolution order (`LambdaWorkerOptions.resolveConfigFilePath`):
+
+1. `TEMPORAL_CONFIG_FILE` environment variable, if set.
+2. `temporal.toml` in `$LAMBDA_TASK_ROOT` (typically `/var/task`).
+3. `temporal.toml` in the current working directory.
+
+**`HOME=/tmp` is not required for Java** — unlike the Go and TypeScript examples. The module never reads `HOME`; when no file is found it passes a null path to `ClientConfig.load`, which falls back to `<user.home>/.config/temporalio/temporal.toml` and treats both a missing home directory and a `FileNotFoundException` as "empty config, no error". It is a read, not a write, so Lambda's read-only filesystem is not involved. Note also that Java reads the `user.home` **system property**, not the `HOME` environment variable, so setting `HOME` is not even the right lever — use `-Duser.home` via `JAVA_TOOL_OPTIONS` if you ever need to steer it.
+
+---
+
 ## TypeScript SDK
 
 ### Package
@@ -205,14 +310,19 @@ The file is optional. If absent, only environment variables are used. <!-- docs/
 
 ## Cross-SDK comparison: Lambda-tuned defaults
 
-| Concept | Go | Python | TypeScript |
-|---|---|---|---|
-| Max concurrent activities | `MaxConcurrentActivityExecutionSize` = 2 | `max_concurrent_activities` = 2 | `maxConcurrentActivityTaskExecutions` = 2 |
-| Max concurrent workflow tasks | `MaxConcurrentWorkflowTaskExecutionSize` = 10 | `max_concurrent_workflow_tasks` = 10 | `maxConcurrentWorkflowTaskExecutions` = 10 |
-| Sticky cache size | 100 | `max_cached_workflows` = 30 | `maxCachedWorkflows` = 30 |
-| Worker stop timeout | `WorkerStopTimeout` = 5s | `graceful_shutdown_timeout` = 5s | `shutdownGraceTime` = 5s |
-| Shutdown deadline buffer | `ShutdownDeadlineBuffer` = 7s | `shutdown_deadline_buffer` = 7s | `shutdownDeadlineBufferMs` = 7000 |
-| Eager activities | `DisableEagerActivities` always true | `disable_eager_activity_execution` always `True` | Not supported |
+| Concept | Go | Python | TypeScript | Java |
+|---|---|---|---|---|
+| Max concurrent activities | `MaxConcurrentActivityExecutionSize` = 2 | `max_concurrent_activities` = 2 | `maxConcurrentActivityTaskExecutions` = 2 | `MaxConcurrentActivityExecutionSize` = 2 |
+| Max concurrent workflow tasks | `MaxConcurrentWorkflowTaskExecutionSize` = 10 | `max_concurrent_workflow_tasks` = 10 | `maxConcurrentWorkflowTaskExecutions` = 10 | `MaxConcurrentWorkflowTaskExecutionSize` = 10 |
+| Sticky cache size | 100 | `max_cached_workflows` = 30 | `maxCachedWorkflows` = 30 | `WorkflowCacheSize` = 30 |
+| Worker stop timeout | `WorkerStopTimeout` = 5s | `graceful_shutdown_timeout` = 5s | `shutdownGraceTime` = 5s | `GracefulShutdownTimeout` = 5s |
+| Shutdown deadline buffer | `ShutdownDeadlineBuffer` = 7s | `shutdown_deadline_buffer` = 7s | `shutdownDeadlineBufferMs` = 7000 | `ShutdownDeadlineBuffer` = 7s |
+| Eager activities | `DisableEagerActivities` always true | `disable_eager_activity_execution` always `True` | Not supported | `setDisableEagerExecution(true)` |
+| Entry point | `RunWorker` | `run_worker` | `runWorker` | `LambdaWorker.define` |
+| Configure callback runs | per invocation | per invocation | per invocation | **at cold start**; separate `InvocationConfigurator` for per-invocation |
+| Package relationship to SDK | separate module, own version line | inside main SDK | separate npm package, own version line | separate artifact, **same version line** |
+
+Java-only: `MaxWorkflowThreadCount` = 30 (no counterpart elsewhere — Java runs Workflow code on real threads).
 
 <!-- Go: docs/develop/go/workers/serverless-workers/aws-lambda.mdx:103-115 -->
 <!-- Python: docs/develop/python/workers/serverless-workers/aws-lambda.mdx:108-120 -->

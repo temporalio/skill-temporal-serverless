@@ -16,13 +16,14 @@ This is the end-to-end golden path: connect, write the Worker, package and deplo
 - Every Workflow must declare a versioning behavior, or the Worker must set a default versioning behavior. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:42-43 -->
 - An AWS account with permissions to create and invoke Lambda functions and create IAM roles. For the exact operator actions and a preflight check, see `iam.md`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:44 -->
 - The AWS-specific steps require the `aws` CLI installed and configured with your AWS credentials. You may also use the AWS Console or the AWS SDKs. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:45-46 -->
-- The Go SDK, Python SDK, or TypeScript SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
+- The Go SDK, Python SDK, TypeScript SDK, or Java SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
 - The `temporal` CLI, authenticated to the target Temporal Service — Steps 4–6 and the CLI troubleshooting paths use it. See "Temporal CLI and Cloud connection" below.
 
 Sample projects:
 - Go: [Go Lambda Worker sample](https://github.com/temporalio/samples-go/tree/main/lambda-worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:54 -->
 - Python: [Python Lambda Worker sample](https://github.com/temporalio/samples-python/tree/main/lambda_worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:55 -->
 - TypeScript: [TypeScript Lambda Worker sample](https://github.com/temporalio/samples-typescript/tree/main/lambda-worker) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:56 -->
+- Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
 
 ## Temporal CLI and Cloud connection
 
@@ -127,6 +128,7 @@ The Worker handles the per-invocation lifecycle: connecting to Temporal, polling
 | Go | `go get go.temporal.io/sdk/contrib/aws/lambdaworker` | **Separate Go module** from `go.temporal.io/sdk`, with its own version line (`v0.1.1` at the time of writing). It is *not* pulled in by the main SDK — `go get` it directly, then `go mod tidy`. |
 | Python | `pip install temporalio` | `temporalio.contrib.aws.lambda_worker` ships inside the main `temporalio` package. Use `temporalio[lambda-worker-otel]` to add OpenTelemetry. |
 | TypeScript | `npm install @temporalio/lambda-worker` | Separate npm package from `@temporalio/worker`, versioned independently. |
+| Java | `io.temporal:temporal-aws-lambda` (Maven/Gradle) | **Separate artifact** from `io.temporal:temporal-sdk`, but on the **same version line** (both 1.38.0). Import `io.temporal:temporal-bom` in `dependencyManagement` to keep them aligned. `aws-lambda-java-core` 1.4.0 comes transitively. |
 
 ### Verify the installed API before generating code
 
@@ -142,11 +144,21 @@ python -c "import temporalio.contrib.aws.lambda_worker as m; help(m.LambdaWorker
 
 # TypeScript — check the installed version, then read its type declarations
 npm ls @temporalio/lambda-worker
+
+# Java — list the real public API of the resolved artifact
+javap -cp ~/.m2/repository/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-lambda-<ver>.jar \
+  io.temporal.aws.lambda.LambdaWorker
+javap -cp <same jar> 'io.temporal.aws.lambda.LambdaWorkerOptions$Builder'
+# or read the source directly — Maven Central publishes a sources jar:
+#   curl -O https://repo1.maven.org/maven2/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-lambda-<ver>-sources.jar
 ```
+
+**A useful ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs — Java's is `define`, not "run"-shaped like the others — so check rather than pattern-match from another language.
 
 Specifics worth confirming this way, because they differ by SDK and are easy to get wrong from memory:
 
-- **Where the Task Queue lives.** In Go it is a direct field on the options object (`opts.TaskQueue`). In Python it goes through the worker-config mapping (`config.worker_config["task_queue"]`), and in TypeScript through worker options (`config.workerOptions.taskQueue`). Do not carry one shape over to another language.
+- **Where the Task Queue lives.** In Go it is a direct field on the options object (`opts.TaskQueue`). In Python it goes through the worker-config mapping (`config.worker_config["task_queue"]`), in TypeScript through worker options (`config.workerOptions.taskQueue`), and in Java through a builder setter (`builder.setTaskQueue(...)`). Do not carry one shape over to another language.
+- **When the configure callback runs.** Go, Python and TypeScript invoke it per invocation. **Java invokes it once, at cold start**, and offers a separate `LambdaWorker.InvocationConfigurator` for per-invocation work. Putting per-invocation logic in Java's cold-start callback silently runs it once for the life of the container.
 - **Where registration happens.** In Go the `Register*` methods hang off the same options object; Python and TypeScript pass Workflow and Activity collections into the worker config.
 - **You do not construct a client.** Connection details (address, namespace, API key) load automatically from the process environment, so `TEMPORAL_*` variables set on the function flow straight through with no client code. In a Lambda that means the `--environment` block at deploy time: no config file is bundled unless you put one there, and the operator's own CLI configuration never reaches the function (see "Operator CLI config does not reach the function" below).
 - **Worker Versioning is always on.** The run-worker entry point enables it, so the only remaining decision is `Pinned` vs `AutoUpgrade` per Workflow (or a Worker-level default).
@@ -252,6 +264,53 @@ Use `workflowBundle` with pre-bundled code instead of `workflowsPath` to avoid w
 
 Versioning behavior: set per-Workflow with `setWorkflowOptions` in the Workflow file, or set a default for all Workflows with `defaultVersioningBehavior` in the configure callback. Values are `'AUTO_UPGRADE'` or `'PINNED'`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:172-174 -->
 
+### Java
+
+Use the `temporal-aws-lambda` module. The handler class implements `RequestHandler<Object, Void>` and delegates to the handler returned by `LambdaWorker.define`. <!-- verified against io.temporal:temporal-aws-lambda:1.38.0 -->
+
+```java
+package com.example.temporal;
+
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+import io.temporal.aws.lambda.LambdaWorker;
+import io.temporal.common.WorkerDeploymentVersion;
+
+public final class LambdaFunction implements RequestHandler<Object, Void> {
+
+  // The callback below runs ONCE, at cold start, when the handler is constructed --
+  // not per invocation. Use the 3-arg define(...) overload with an
+  // InvocationConfigurator for anything that must run per invocation.
+  private static final RequestHandler<Object, Void> WORKER =
+      LambdaWorker.define(
+          new WorkerDeploymentVersion("my-app", "build-1"),
+          builder -> {
+            builder.setTaskQueue("my-task-queue");
+            builder.registerWorkflowImplementationTypes(MyWorkflowImpl.class);
+            builder.registerActivitiesImplementations(new MyActivitiesImpl());
+          });
+
+  @Override
+  public Void handleRequest(Object input, Context context) {
+    return WORKER.handleRequest(input, context);
+  }
+}
+```
+
+The entry point is `define` (or `newHandler` for pre-built options) — not a "run"-shaped name like the other SDKs use. Temporal's [sample handler](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) is the reference implementation.
+
+Versioning behavior: annotate the Workflow **method** in the implementation class with `io.temporal.workflow.WorkflowVersioningBehavior`, or set a Worker-level default with `DefaultVersioningBehavior` in `DeploymentOptions`.
+
+```java
+public class MyWorkflowImpl implements MyWorkflow {
+  @Override
+  @WorkflowVersioningBehavior(VersioningBehavior.PINNED)
+  public String getGreeting(String name) { ... }
+}
+```
+
+**Logging needs an SLF4J 1.7.x provider.** The SDK compiles against `slf4j-api:1.7.36`; a 2.x provider will not bind and the Worker produces no logs. Add `org.slf4j:slf4j-simple:1.7.36`. With it, the module logs `Temporal Lambda worker started … taskQueue=… identity=…` unprompted. → `sdk-configuration.md` (Java SDK).
+
 ## Step 2: Deploy Lambda function
 
 ### Build and package
@@ -327,6 +386,64 @@ npm install --omit=dev
 zip -r function.zip lib/ node_modules/ workflow-bundle.js
 ```
 <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:236-237 -->
+
+#### Java
+
+Build an uber-jar with all dependencies bundled. A JAR is a valid zip, so it uploads directly with no extra packaging step.
+
+**Gradle** (what the official sample uses): `./gradlew shadowJar` → `build/libs/<name>-all.jar`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx -->
+
+**Maven**: `maven-shade-plugin`, bound to `package` → `target/<finalName>.jar`.
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-shade-plugin</artifactId>
+  <version>3.6.0</version>
+  <executions>
+    <execution>
+      <phase>package</phase>
+      <goals><goal>shade</goal></goals>
+      <configuration>
+        <createDependencyReducedPom>false</createDependencyReducedPom>
+        <transformers>
+          <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+        </transformers>
+        <filters>
+          <filter>
+            <artifact>*:*</artifact>
+            <excludes>
+              <exclude>META-INF/*.SF</exclude>
+              <exclude>META-INF/*.DSA</exclude>
+              <exclude>META-INF/*.RSA</exclude>
+              <exclude>module-info.class</exclude>
+            </excludes>
+          </filter>
+        </filters>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
+```
+
+**`ServicesResourceTransformer` is mandatory, not hygiene.** The Temporal client is gRPC-based, and gRPC discovers channel providers, name resolvers, and load balancers through `META-INF/services` files that several jars each contribute to. Without merging, later copies overwrite earlier ones and the client fails at the **first invocation** with a "no functional channel service provider found"-class error — never at build time. Verify the merge before uploading:
+
+```bash
+unzip -p target/<name>.jar META-INF/services/io.grpc.ManagedChannelProvider
+# expect MORE THAN ONE provider line, e.g.:
+#   io.grpc.netty.shaded.io.grpc.netty.NettyChannelProvider
+#   io.grpc.netty.shaded.io.grpc.netty.UdsNettyChannelProvider
+```
+
+Excluding the signature files matters too: signed-jar signatures are invalid inside an uber-jar and produce a `SecurityException` at class load.
+
+**Match the bytecode target to the runtime.** Compiling on a newer JDK than the function's runtime needs an explicit target — `<maven.compiler.release>17</maven.compiler.release>` for `--runtime java17`. This is the Java form of the architecture/wheel mismatch: it fails at invocation, not at build.
+
+**Watch the artifact size — Java hits the 50 MB direct-upload ceiling early.** A hello-world Worker (one Workflow, one Activity, `slf4j-simple`) measured **41 MB**, versus ~14 MB for the equivalent Python package and 10–15 MB for Go. Anything with real dependencies will exceed 50 MB and must be uploaded via S3 (`--code S3Bucket=…,S3Key=…`) rather than `--zip-file fileb://`. Check before deploying:
+
+```bash
+ls -lh target/<name>.jar
+```
 
 ### Deploy the Lambda function
 
@@ -411,6 +528,29 @@ aws lambda create-function \
 - `--runtime`: `nodejs22.x` (or another supported Node.js version, 20+). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:307 -->
 - `--handler`: `lib/index.handler` (entry point in `module.export` format, must point to the handler exported by `runWorker`). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:308 -->
 
+#### Java
+
+```bash
+aws lambda create-function \
+  --function-name my-temporal-worker \
+  --runtime java17 \
+  --architectures x86_64 \
+  --handler com.example.temporal.LambdaFunction::handleRequest \
+  --role <EXECUTION_ROLE_ARN> \
+  --zip-file fileb://target/my-worker.jar \
+  --timeout 90 \
+  --memory-size 1024 \
+  --environment file:///tmp/lambda-env.json
+```
+
+- `--runtime`: `java17` (or another supported Java version). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
+- `--handler`: `fully.qualified.Class::method` — **a different format from every other SDK**, which use `module.function` / `module.export`. Point it at the method that delegates to the `LambdaWorker.define` handler. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
+- `--zip-file`: the shaded jar directly; no separate zip step. Switch to `--code S3Bucket=…,S3Key=…` once the jar exceeds 50 MB, which happens early in Java (see packaging above).
+- **`HOME=/tmp` is not needed** — unlike the Go and TypeScript examples. Verified: the Java module never reads `HOME`, and a missing config file is non-fatal. → `sdk-configuration.md` (Java SDK, Connection configuration).
+- `--memory-size`: the docs recommend starting at `1024` because "Java Workers typically need more memory than other runtimes," then adjusting from CloudWatch. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) --> A measured hello-world used **240 MB of 1024** (`Max Memory Used` in the invocation's REPORT line), so `512` is usually ample for small Workers — and since Lambda bills GB-seconds, halving memory halves the bill. Start at 1024, read the metric, then cut. <!-- measured, not documented -->
+
+<!-- Java create-function parameters above: docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line numbers unverified); --architectures, the S3 note, and the HOME finding are from a verified deployment, not the docs. -->
+
 ### Wait for the function to become Active
 
 `create-function` returns immediately with `"State": "Pending"`. The function cannot be invoked and `publish-version` fails while it is pending, so block on the state transition before the next step rather than sleeping a guessed interval:
@@ -438,6 +578,23 @@ aws lambda get-function --function-name my-temporal-worker \
 | `--memory-size` | Memory in MB allocated to each invocation. |
 
 **Caution:** AWS Lambda functions default to a 3-second timeout, which is too short for the Worker to start, connect to Temporal, and register the Task Queue. If the first invocation times out before the Worker polls, the Task Queue binding is never created and the Lambda is never invoked again. Always set `--timeout` high enough for the Worker to start, process Tasks, and shut down gracefully. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:328-337 -->
+
+**`--timeout` is a cost setting once it clears startup.** The per-SDK examples differ deliberately — 600 for Go, Python and TypeScript; 90 for Java — and both clear startup easily: a measured Java Worker bound its Task Queue **~10s** after `create-version`, JVM cold start included, against the 83s of polling a 90s deadline allows. Lambda's 3-second default is what fails this; 90 does not.
+
+Set it from three constraints:
+
+1. **> cold start + connect + Task Queue registration.** The binding requirement, and what rules out the 3s default. Measured cold starts are ~1s for Python and Java alike (`Init Duration` in the REPORT line).
+2. **> longest Activity + shutdown deadline buffer.** An Activity still running when the Worker drains is abandoned and retried.
+3. **Beyond those, pure cost.** Longer: fewer invocations and cold starts, warmer sticky cache, room for longer Activities. Shorter: a smaller idle tail — when work stops the Worker polls on until its deadline, so the waste is one deadline's worth.
+
+Lambda bills **GB-seconds** — allocated memory × billed duration, however idle the Worker was:
+
+| SDK example | Memory | Full invocation | GB-seconds |
+|---|---|---|---|
+| Python 600s / 256 MB | 0.25 GB | ~594 s billed | ~149 |
+| Java 90s / 1024 MB | 1 GB | ~84 s billed | ~84 |
+
+**Memory is the multiplier, not the deadline.** 1024 MB costs 4× per second at *any* deadline; the deadline only sets how many idle seconds you buy. That is the likeliest reason Java's example caps the tail at 90s, though it is inference rather than a documented rationale. Right-sizing beats it either way — the measured Worker used **240 MB of 1024**, so read `Max Memory Used` and cut. And `Init Duration` is billed, so a shorter deadline buys proportionally more billed inits.
 
 ### Environment variables
 
