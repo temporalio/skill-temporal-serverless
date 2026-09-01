@@ -6,16 +6,24 @@
 
 **AWS Lambda — Public Preview since July 30, 2026.** Open to all Temporal Cloud customers. There is no access request, no support ticket, and no manual toggle to enable: a customer selects "AWS Lambda (Public Preview)" as the compute provider in the UI and sets up their Worker Deployment directly. Never route a user to support to "get access" for Lambda.
 
-AWS Lambda is the only compute provider this skill supports. Do not adapt the Lambda material to any other provider.
+**GCP Cloud Run — Pre-release.** Its APIs may change in backwards-incompatible ways, and **access is gated**: the customer creates a support ticket or contacts their account team. Unlike Lambda, routing a user to support *is* correct here.
+
+Those are the two supported providers. Do not adapt either one's material to a third.
+
+**Do not carry facts between them.** Anything about Worker lifetime, Activity duration bounds, timeouts, packaging, or tuning is provider-specific — see `<provider>/constraints.md`. Where this file says "invoke" or "invocation" below, read it as Lambda's model; the Cloud Run equivalent is the WCI raising a pool's instance count.
 
 Public Preview is not General Availability. APIs are still evolving and may be subject to backwards-incompatible changes between versions — pin SDK and CLI versions for anything long-lived, and read the installed package's real API surface rather than writing from memory.
 
 ## What is a Serverless Worker?
 
 A Serverless Worker is a Temporal Worker that runs on serverless compute instead of a long-lived process. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43 -->
-There is no always-on infrastructure to provision or scale. Temporal invokes the Worker when Tasks arrive on a Task Queue, and the Worker shuts down when the work is done. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43-45 -->
+There is no always-on infrastructure to provision or scale. Temporal starts the Worker when Tasks arrive on a Task Queue, and the compute scales back to zero when the work is done. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43-45 -->
 
-A Serverless Worker uses the same Temporal SDKs as a traditional long-lived Worker. It registers Workflows and Activities the same way. The difference is in the lifecycle: instead of the Worker starting and polling continuously, Temporal invokes the Serverless Worker on demand, the Worker starts, processes available Tasks, and then shuts down. <!-- docs/encyclopedia/workers/serverless-workers.mdx:47-49 -->
+**"Starts" means different things per provider, and this is the central distinction in the whole skill.** On AWS Lambda, Temporal invokes a function per unit of work and the Worker exits when that invocation ends. On GCP Cloud Run, Temporal resizes a pool of long-lived instances, each running an ordinary Worker that polls for its whole lifetime. Both scale to zero when idle; almost nothing else about their lifecycles is the same.
+
+A Serverless Worker uses the same Temporal SDKs as a traditional long-lived Worker. It registers Workflows and Activities the same way. <!-- docs/encyclopedia/workers/serverless-workers.mdx:47-49 -->
+
+What changes is the lifecycle, and only on Lambda does it change much: instead of polling continuously, the Worker is invoked on demand, starts, processes available Tasks, and shuts down — which is why Lambda needs a dedicated serverless Worker package (`sdk-configuration.md`). **On Cloud Run the Worker code is unchanged from a long-lived Worker**; the only addition is Worker Versioning, and there is no Cloud Run Worker package at all.
 
 Serverless Workers require Worker Versioning. Each Serverless Worker must be associated with a Worker Deployment Version that has a compute provider configured. <!-- docs/encyclopedia/workers/serverless-workers.mdx:51-52 -->
 
