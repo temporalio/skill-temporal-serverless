@@ -129,18 +129,6 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/aws-lambda/self-hosted.md`](references/aws-lambda/self-hosted.md) | Self-hosted Temporal prerequisites and configuration |
 | [`assets/`](assets/) | CloudFormation templates for Temporal invocation roles |
 
-### Provenance comments
-
-Factual lines in the reference files carry an HTML comment naming their source, so claims stay auditable. There are three forms:
-
-| Form | Meaning |
-|---|---|
-| `<!-- docs/<path>.mdx:NN -->` | Taken from Temporal's documentation, with the source line |
-| `<!-- verified against <artifact>:<version> -->` | Read from the published package itself (`javap`, sources jar, XML docs) |
-| `<!-- measured -->` / `<!-- inferred … -->` | Observed in a real deployment, or reasoned from evidence — not documented |
-
-The second form exists because documentation and a shipped artifact can drift apart between releases. **Where they conflict, the artifact wins and the disagreement is stated in the text.** Add `(line unverified)` when citing a documentation page whose line numbers have not been checked against the source tree, rather than guessing a number.
-
 ## Feedback
 
 Feedback is welcome in the [Temporal Community Slack](https://t.mp/slack), in the [`#topic-ai` channel](https://temporalio.slack.com/archives/C0818FQPYKY), or through [GitHub issues](https://github.com/temporalio/skill-temporal-serverless/issues).
