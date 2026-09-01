@@ -94,6 +94,10 @@ Add OpenTelemetry tracing to my Go Serverless Worker on Lambda.
 Package this Java Worker as a shaded jar and deploy it to Lambda.
 ```
 
+```text
+Deploy this .NET Worker to Lambda with a runtime-specific publish.
+```
+
 For a new deployment, the skill follows five stages:
 
 1. **Scope** — confirm the SDK, compute provider, Namespace, region, and resource-naming prefix.

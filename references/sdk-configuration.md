@@ -440,5 +440,7 @@ Java-only: `MaxWorkflowThreadCount` = 30 (no counterpart elsewhere — Java runs
 <!-- Go: docs/develop/go/workers/serverless-workers/aws-lambda.mdx:103-115 -->
 <!-- Python: docs/develop/python/workers/serverless-workers/aws-lambda.mdx:108-120 -->
 <!-- TypeScript: docs/develop/typescript/workers/serverless-workers/aws-lambda.mdx:104-115 -->
+<!-- Java: docs/develop/java/workers/serverless-workers/aws-lambda.mdx:121-133 -->
+<!-- .NET: docs/develop/dotnet/workers/serverless-workers/aws-lambda.mdx:125-137 -->
 
 Note: Go sticky cache size is 100, while Python and TypeScript are 30. These values come from each SDK's own docs and are not interchangeable.
