@@ -17,6 +17,7 @@ This is the end-to-end golden path: connect, write the Worker, package and deplo
 - An AWS account with permissions to create and invoke Lambda functions and create IAM roles. For the exact operator actions and a preflight check, see `iam.md`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:44 -->
 - The AWS-specific steps require the `aws` CLI installed and configured with your AWS credentials. You may also use the AWS Console or the AWS SDKs. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:45-46 -->
 - The Go SDK, Python SDK, TypeScript SDK, Java SDK, or .NET SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
+- The build toolchain for that SDK, because Step 2 packages the Worker with it: `go`, `pip`, `npm`, Maven or Gradle, or the `dotnet` CLI. Having the SDK as a dependency is not enough — confirm the toolchain is installed before starting.
 - The `temporal` CLI, authenticated to the target Temporal Service — Steps 4–6 and the CLI troubleshooting paths use it. See "Temporal CLI and Cloud connection" below.
 
 Sample projects:
@@ -341,7 +342,7 @@ public class LambdaFunction
                 config.WorkerOptions.TaskQueue = "my-task-queue";
                 config.WorkerOptions
                     .AddWorkflow<MyWorkflow>()
-                    .AddActivity(Activities.MyActivity);
+                    .AddActivity(MyActivities.MyActivity);
             });
 
     public Task HandlerAsync(Stream input, ILambdaContext context) =>
@@ -355,7 +356,11 @@ Versioning behavior: the `[Workflow]` attribute, or a Worker-level default via `
 
 ```csharp
 [Workflow(VersioningBehavior = VersioningBehavior.Pinned)]
-public class MyWorkflow { ... }
+public class MyWorkflow
+{
+    [WorkflowRun]
+    public async Task<string> RunAsync(string name) => /* ... */;
+}
 ```
 
 **The .NET Worker-level default is `AutoUpgrade`** (TypeScript's is `PINNED`). Set it explicitly per Workflow rather than relying on either. → `sdk-configuration.md` (.NET SDK).

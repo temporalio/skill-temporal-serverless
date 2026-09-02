@@ -146,12 +146,12 @@ The package contributes an extension method on the options object, applied insid
 
 ```csharp
 TemporalLambdaWorker.CreateHandler(
-    new WorkerDeploymentVersion(deploymentName, buildId),
+    new WorkerDeploymentVersion("my-app", "build-1"),
     config =>
     {
         config.ApplyOpenTelemetryDefaults();
-        config.WorkerOptions.TaskQueue = taskQueue;
-        config.WorkerOptions.AddWorkflow<SampleWorkflow>().AddActivity(Activities.HelloActivity);
+        config.WorkerOptions.TaskQueue = "my-task-queue";
+        config.WorkerOptions.AddWorkflow<MyWorkflow>().AddActivity(MyActivities.MyActivity);
     });
 ```
 <!-- verified against samples-dotnet@main src/LambdaWorker/Worker/Function.cs -->

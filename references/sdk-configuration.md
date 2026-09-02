@@ -256,7 +256,7 @@ public class LambdaFunction
                 config.WorkerOptions.TaskQueue = "my-task-queue";
                 config.WorkerOptions
                     .AddWorkflow<MyWorkflow>()
-                    .AddActivity(Activities.MyActivity);
+                    .AddActivity(MyActivities.MyActivity);
             });
 
     public Task HandlerAsync(Stream input, ILambdaContext context) =>
@@ -276,7 +276,11 @@ Per-Workflow via the `[Workflow]` attribute:
 
 ```csharp
 [Workflow(VersioningBehavior = VersioningBehavior.Pinned)]
-public class MyWorkflow { ... }
+public class MyWorkflow
+{
+    [WorkflowRun]
+    public async Task<string> RunAsync(string name) => /* ... */;
+}
 ```
 
 Or a Worker-level default through `DefaultVersioningBehavior` in `DeploymentOptions`.
