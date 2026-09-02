@@ -23,7 +23,7 @@ Install: `io.temporal:temporal-aws-lambda` — a **separate Maven artifact** fro
 
 `aws-lambda-java-core` (1.4.0) arrives transitively from `temporal-aws-lambda`; declare it explicitly if you compile against `RequestHandler`/`Context`.
 
-- Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
+- Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:46 -->
 
 List the real public API of the resolved artifact before generating code:
 
@@ -239,11 +239,11 @@ aws lambda create-function \
   --environment file:///tmp/lambda-env.json
 ```
 
-- `--runtime`: `java17` (or another supported Java version). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
-- `--handler`: `fully.qualified.Class::method` — **a different format from every other SDK**, which use `module.function` / `module.export`. Point it at the method that delegates to the `LambdaWorker.define` handler. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
+- `--runtime`: `java17` (or another supported Java version). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:433 -->
+- `--handler`: `fully.qualified.Class::method` — **a different format from every other SDK**, which use `module.function` / `module.export`. Point it at the method that delegates to the `LambdaWorker.define` handler. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:422 -->
 - `--zip-file`: the shaded jar directly; no separate zip step. Switch to `--code S3Bucket=…,S3Key=…` once the jar exceeds 50 MB, which happens early in Java (see packaging above).
 - **`HOME=/tmp` is not needed** — unlike the Go and TypeScript examples. Verified: the Java module never reads `HOME`, and a missing config file is non-fatal. → Connection configuration above.
-- `--memory-size`: the docs recommend starting at `1024` because "Java Workers typically need more memory than other runtimes," then adjusting from CloudWatch. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) --> A measured hello-world used **240 MB of 1024** (`Max Memory Used` in the invocation's REPORT line), so `512` is usually ample for small Workers — and since Lambda bills GB-seconds, halving memory halves the bill. Start at 1024, read the metric, then cut. <!-- measured, not documented -->
+- `--memory-size`: the docs recommend starting at `1024` because "Java Workers typically need more memory than other runtimes," then adjusting from CloudWatch. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:436 --> A measured hello-world used **240 MB of 1024** (`Max Memory Used` in the invocation's REPORT line), so `512` is usually ample for small Workers — and since Lambda bills GB-seconds, halving memory halves the bill. Start at 1024, read the metric, then cut. <!-- measured, not documented -->
 
 <!-- Java create-function parameters above: docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line numbers unverified); --architectures, the S3 note, and the HOME finding are from a verified deployment, not the docs. -->
 
