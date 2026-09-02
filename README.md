@@ -120,12 +120,15 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 |---|---|
 | [`SKILL.md`](SKILL.md) | Core workflow, safety gates, provider rules, and reference routing |
 | [`references/concepts.md`](references/concepts.md) | Architecture, invocation flow, autoscaling, lifecycle, constraints, and use cases |
-| [`references/sdk-configuration.md`](references/sdk-configuration.md) | Go, Python, TypeScript, and Java packages, entry points, versioning behavior, and tuned defaults |
-| [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | End-to-end deployment, verification, and teardown workflow |
+| [`references/aws-lambda/sdk-go.md`](references/aws-lambda/sdk-go.md) | Go package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
+| [`references/aws-lambda/sdk-python.md`](references/aws-lambda/sdk-python.md) | Python package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, and diagnostics |
+| [`references/aws-lambda/sdk-typescript.md`](references/aws-lambda/sdk-typescript.md) | TypeScript package, API, handler, Workflow pre-bundling, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
+| [`references/aws-lambda/sdk-java.md`](references/aws-lambda/sdk-java.md) | Java artifact, API, handler, callbacks, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, logging, and diagnostics |
+| [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | Shared AWS and Temporal deployment lifecycle, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |
 | [`references/aws-lambda/versioning.md`](references/aws-lambda/versioning.md) | Immutable releases, updates, and rollback |
-| [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | OpenTelemetry and ADOT configuration |
+| [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | Shared ADOT Collector configuration, X-Ray enablement, and IAM permissions |
 | [`references/aws-lambda/self-hosted.md`](references/aws-lambda/self-hosted.md) | Self-hosted Temporal prerequisites and configuration |
 | [`assets/`](assets/) | CloudFormation templates for Temporal invocation roles |
 
