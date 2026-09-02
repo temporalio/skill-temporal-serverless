@@ -51,7 +51,7 @@ Follow these steps in order. Each step is provider-neutral; the concrete command
 > - Nothing gets created before you approve that list. After approval the middle stretch runs unattended.
 > - At the end you get a Workflow you can watch execute, a full inventory of everything created, and an offer to remove it all.
 
-**Write the summary provider-neutral, because at that point you do not know the provider.** It is one of the things step 1 asks. Say "your cloud account", never the name of a provider you have not been told. The same applies to the account, Namespace, and region: leave out what you have not been told rather than filling it in with a plausible guess. The summary is the first thing in the run — it precedes the Namespace lookup, not the other way round.
+**Write the summary provider-neutral, because at that point you do not know the provider.** Say "your cloud account", never the name of a provider you have not been told. The same applies to the account, Namespace, and region: leave out what you have not been told rather than filling it in with a plausible guess.
 
 Skip the summary for troubleshooting, inspection, and configuration-change tasks. Someone whose Worker is not being invoked does not need an overview of a deployment they have already done.
 
@@ -93,7 +93,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 1. **Scope the task.** **Ask** — never infer — the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
 
-   **Nothing but the Namespace lookup runs before these questions.** The order is: summary, then `tcld namespace list` to populate the Namespace options, then one batch of questions. Do not probe the environment first — which CLIs are installed, what the working directory contains, which account a credential resolves to, which SDKs are on the machine. None of it answers what the user wants built, step 2 re-checks all of it properly, and running it first tells the user you have started work they have not scoped yet. A directory listing is never evidence of an SDK preference.
+   **Nothing but the Namespace lookup runs before these questions.** The order is: summary, then `tcld namespace list` to populate the Namespace options, then one batch of questions. Do not probe the environment first — which CLIs are installed, what the working directory contains, which account a credential resolves to, which SDKs are on the machine; steps 2 and 3 re-check what matters. A directory listing is never evidence of an SDK preference.
 
    **Put the compute provider in that batch of questions as a confirmable default, not a free choice.** Pre-select the supported provider from the table above and carry its support status in the option's description. The user confirms rather than chooses, so it costs no extra turn, but the provider is never something they were assumed into. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
 
@@ -105,7 +105,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
    - **Summarize the ineligible ones in a single line** — "you also have 2 Namespaces on \<provider\>, which this skill does not support" — rather than listing them individually or hiding them. A user who knows they have a Namespace and cannot find it in the list concludes the tool is broken; one line keeps them informed and explains the constraint.
    - **Name the account you are listing from and confirm it is the intended one** before showing anything. A stale credential lists a real account that is not the one the user means to deploy into, and every option under it looks authoritative.
    - **If more Namespaces are eligible than the question format can hold, print the labelled list and ask the user to name one.** Do not silently show only the first few.
-   - **Always include "create a new one" as an option**, even when eligible Namespaces exist. Standing up a first serverless Worker is exactly when a user wants a fresh Namespace, and a list with no way out makes them fight the question. Offer it last, and say it is a live, billable Temporal Cloud resource.
+   - **Always include "create a new one" as an option**, even when eligible Namespaces exist. Offer it last, and say it is a live, billable Temporal Cloud resource.
 
    This also settles the compute-provider answer, since a Namespace can only be served by compute on its own cloud provider — so a mismatch is caught here rather than at connection time, several steps later.
 
@@ -164,7 +164,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 7. **Verify.** Start a Workflow on the Task Queue and confirm Temporal invokes the Worker — check the Workflow history in the Temporal UI and the compute provider's logs. If it does not progress, → `references/<provider>/diagnostics.md`.
 
-8. **Hand back the inventory first; offer teardown as the closing note.** The order is inventory → offer, never the reverse. Close with what now exists — compute unit and published build identifiers, roles, infrastructure stacks, region, deployment name and build ID, plus any Namespace or API key created during the run — and what the run actually did, including anything you worked around or deviated from. Say plainly that it is live and billable. These names are only knowable from the run that created them, and reconstructing them later means scanning the user's account.
+8. **Hand back the inventory first; offer teardown as the closing note.** Close with what now exists — compute unit and published build identifiers, roles, infrastructure stacks, region, deployment name and build ID, plus any Namespace or API key created during the run — and what the run actually did, including anything you worked around or deviated from. Say plainly that it is live and billable.
 
    **Do not write a teardown script before the user asks for one.** Generating it unprompted buries the inventory under a file they did not request, and the inventory is what they need in order to decide. End with a single line — *"Let me know if you want a teardown script to remove these resources"* — and stop there. Write the script, or run the teardown, when they take you up on it. → `references/<provider>/setup.md` (Teardown).
 

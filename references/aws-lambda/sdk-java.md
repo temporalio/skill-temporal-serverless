@@ -35,7 +35,7 @@ javap -cp <same jar> 'io.temporal.aws.lambda.LambdaWorkerOptions$Builder'
 #   curl -O https://repo1.maven.org/maven2/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-lambda-<ver>-sources.jar
 ```
 
-**A useful ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs — Java's is `define`, not "run"-shaped like the others — so check rather than pattern-match from another language.
+**Ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs — Java's is `define`, not "run"-shaped like the others — so check rather than pattern-match from another language.
 
 ## Entry point
 

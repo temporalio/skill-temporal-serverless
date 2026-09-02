@@ -24,7 +24,7 @@ unzip -p temporalio.extensions.aws.lambda.<ver>.nupkg \
 unzip -p ...nupkg Temporalio.Extensions.Aws.Lambda.nuspec | grep dependency
 ```
 
-**A useful ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs, so check rather than pattern-match from another language.
+**Ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs, so check rather than pattern-match from another language.
 
 ## Entry point
 
