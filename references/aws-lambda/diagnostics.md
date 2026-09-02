@@ -125,7 +125,7 @@ Common errors include: <!-- docs/troubleshooting/serverless-workers.mdx:136 -->
 
 ### Language-specific signatures
 
-**No application logs at all, but the Worker clearly ran.** Two different SDKs produce this same misleading silence by unrelated mechanisms, and in both cases the Worker is healthy — only the logging is broken. Diagnose invocation health from Lambda's own runtime markers (`INIT_START`/`START`/`END`/`REPORT`) and CloudWatch metrics instead, then fix the binding.
+**No application logs at all, but the Worker clearly ran.** Three SDKs produce this same misleading silence by unrelated mechanisms, and in every case the Worker is healthy — only the logging is broken. Diagnose invocation health from Lambda's own runtime markers (`INIT_START`/`START`/`END`/`REPORT`) and CloudWatch metrics instead, then fix the binding.
 
 | SDK | Cause | Fix |
 |---|---|---|
@@ -133,7 +133,7 @@ Common errors include: <!-- docs/troubleshooting/serverless-workers.mdx:136 -->
 | Java | The SDK compiles against `slf4j-api` **1.7.36**; a 2.x provider (`slf4j-simple:2.x`, Logback 1.3+) does not bind to a 1.7 API and nothing is emitted | use a 1.7.x provider, e.g. `org.slf4j:slf4j-simple:1.7.36` |
 | .NET | `TemporalWorkerOptions.LoggerFactory` is unset and "defaults to the client logger factory", which is also unset — so `Workflow.Logger` output is discarded. Activity `Console.WriteLine` still reaches CloudWatch, which makes the gap look selective rather than total | set `config.WorkerOptions.LoggerFactory` (e.g. `LoggerFactory.Create(b => b.AddSimpleConsole().SetMinimumLevel(LogLevel.Information))`) |
 
-Three SDKs, three unrelated mechanisms, one symptom. Confirm invocation health from Lambda's runtime markers and metrics before concluding the Worker is broken — in every one of these cases it was not.
+Confirm invocation health from Lambda's runtime markers and metrics before concluding the Worker is broken — in every one of these cases it was not.
 
 **Java — `NullPointerException` in `ShutdownManager` on every invocation (benign).** As of `temporal-aws-lambda` 1.38.0, a normal graceful shutdown logs a `WARN` with a full stack trace:
 
