@@ -152,7 +152,7 @@ See the selected SDK reference's **Build and package** section.
 
 ```bash
 cat > /tmp/lambda-env.json <<EOF
-{"Variables":{
+{"Variables":{"HOME":"/tmp",
   "TEMPORAL_ADDRESS":"${TEMPORAL_ADDRESS}",
   "TEMPORAL_NAMESPACE":"${TEMPORAL_NAMESPACE}",
   "TEMPORAL_API_KEY":"${TEMPORAL_API_KEY}"}}
