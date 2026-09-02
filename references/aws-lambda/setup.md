@@ -16,7 +16,8 @@ This is the end-to-end golden path: connect, write the Worker, package and deplo
 - Every Workflow must declare a versioning behavior, or the Worker must set a default versioning behavior. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:42-43 -->
 - An AWS account with permissions to create and invoke Lambda functions and create IAM roles. For the exact operator actions and a preflight check, see `iam.md`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:44 -->
 - The AWS-specific steps require the `aws` CLI installed and configured with your AWS credentials. You may also use the AWS Console or the AWS SDKs. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:45-46 -->
-- The Go SDK, Python SDK, TypeScript SDK, or Java SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
+- The Go SDK, Python SDK, TypeScript SDK, Java SDK, or .NET SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
+- The build toolchain for that SDK, because Step 2 packages the Worker with it: `go`, `pip`, `npm`, Maven or Gradle, or the `dotnet` CLI. Having the SDK as a dependency is not enough — confirm the toolchain is installed before starting.
 - The `temporal` CLI, authenticated to the target Temporal Service — Steps 4–6 and the CLI troubleshooting paths use it. See "Temporal CLI and Cloud connection" below.
 
 The selected SDK reference links its maintained sample project.
@@ -123,6 +124,7 @@ Load the reference for the selected SDK alongside this shared deployment guide:
 | Python | `sdk-python.md` |
 | TypeScript | `sdk-typescript.md` |
 | Java | `sdk-java.md` |
+| .NET | `sdk-dotnet.md` |
 
 Complete the selected SDK reference before continuing.
 
@@ -213,6 +215,7 @@ Lambda bills **GB-seconds** — allocated memory × billed duration, however idl
 | `TEMPORAL_TLS_CLIENT_CERT_PATH` | Path to the TLS client certificate file for mTLS authentication. |
 | `TEMPORAL_TLS_CLIENT_KEY_PATH` | Path to the TLS client key file for mTLS authentication. |
 | `TEMPORAL_API_KEY` | API key for API key authentication. Supplying it auto-enables TLS; mTLS cert paths are not needed. |
+| `SSL_CERT_FILE` | **Required for .NET on Lambda.** Path to the system CA bundle — `/etc/pki/tls/certs/ca-bundle.crt` or `/etc/ssl/certs/ca-certificates.crt`. AWS's .NET 8 images override this variable in a way that prevents the SDK's Rust core from loading root CAs, so TLS fails on the first invocation. Not needed for Go, Python, TypeScript, or Java. |
 
 The serverless Worker packages read environment variables and configuration files automatically at startup. For the full list of supported environment variables, config file format, and profiles, see the Environment configuration docs (`/develop/environment-configuration`). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:339-341 -->
 

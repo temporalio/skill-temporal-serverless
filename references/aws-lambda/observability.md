@@ -12,6 +12,7 @@ Load the selected SDK reference's **Observability** section:
 | Python | `sdk-python.md` → Observability |
 | TypeScript | `sdk-typescript.md` → Observability |
 | Java | `sdk-java.md` → Observability |
+| .NET | `sdk-dotnet.md` → Observability |
 
 The remaining steps in this file are shared across SDKs.
 
