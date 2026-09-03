@@ -23,7 +23,7 @@ There is no always-on infrastructure to provision or scale. Temporal starts the 
 
 A Serverless Worker uses the same Temporal SDKs as a traditional long-lived Worker. It registers Workflows and Activities the same way. <!-- docs/encyclopedia/workers/serverless-workers.mdx:47-49 -->
 
-What changes is the lifecycle, and only on Lambda does it change much: instead of polling continuously, the Worker is invoked on demand, starts, processes available Tasks, and shuts down — which is why Lambda needs a dedicated serverless Worker package (`sdk-configuration.md`). **On Cloud Run the Worker code is unchanged from a long-lived Worker**; the only addition is Worker Versioning, and there is no Cloud Run Worker package at all.
+What changes is the lifecycle, and only on Lambda does it change much: instead of polling continuously, the Worker is invoked on demand, starts, processes available Tasks, and shuts down — which is why Lambda needs a dedicated serverless Worker package (`aws-lambda/sdk-<language>.md`). **On Cloud Run the Worker code is unchanged from a long-lived Worker**; the only addition is Worker Versioning, and there is no Cloud Run Worker package at all.
 
 Serverless Workers require Worker Versioning. Each Serverless Worker must be associated with a Worker Deployment Version that has a compute provider configured. <!-- docs/encyclopedia/workers/serverless-workers.mdx:51-52 -->
 

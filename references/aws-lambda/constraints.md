@@ -22,7 +22,7 @@ Raising one alone does not help. Raising only the shutdown deadline buffer makes
 
 *Symptom of getting this wrong:* Activities abandoned mid-execution and retried on a later invocation.
 
-If the longest Activity exceeds half the maximum invocation deadline, recommend Activity Heartbeats. → `../concepts.md`, `../sdk-configuration.md`.
+If the longest Activity exceeds half the maximum invocation deadline, recommend Activity Heartbeats. → `../concepts.md`, `sdk-<language>.md`.
 
 ## Activities are bounded by the invocation limit
 
@@ -32,7 +32,7 @@ An Activity must finish within the invocation deadline minus the shutdown deadli
 
 ## Eager Activities are always disabled
 
-Every SDK's Lambda Worker package sets this and it cannot be overridden, because eager Activity execution requires a persistent connection that per-invocation Workers don't maintain. Don't suggest it as an optimization. → `../sdk-configuration.md` for the per-SDK setting names.
+Every SDK's Lambda Worker package sets this and it cannot be overridden, because eager Activity execution requires a persistent connection that per-invocation Workers don't maintain. Don't suggest it as an optimization. → `sdk-<language>.md` for the per-SDK setting names.
 
 ## Pitfalls specific to this execution model
 

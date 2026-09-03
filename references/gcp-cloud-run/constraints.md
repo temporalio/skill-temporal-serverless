@@ -11,7 +11,7 @@ This file is the provider "diff surface." Compare it with `../aws-lambda/constra
 
 ## Worker lifetime is an instance, not an invocation
 
-Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package** — the SDK-specific packages in `../sdk-configuration.md` are AWS Lambda only. Some SDKs add optional Cloud Run conveniences; none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
+Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package** — the SDK-specific packages in `../aws-lambda/sdk-<language>.md` are AWS Lambda only. Some SDKs add optional Cloud Run conveniences; none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
 The WCI controls how many instances run; each instance manages its own polling and Task processing.
 

@@ -1,8 +1,7 @@
 ---
 name: temporal-serverless
 description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "Worker Pool", "deploy Temporal worker on Cloud Run", "gcloud run worker-pools", "invoker service account".'
-metadata:
-  version: "0.7.0"
+version: 0.7.0
 ---
 
 # Skill: temporal-serverless
@@ -24,7 +23,15 @@ Only a provider marked Supported is covered. If a request names another, say it 
 
 **Cloud Run access is gated.** It is not open to all customers — the user creates a support ticket or contacts their account team. Confirm access before planning a Cloud Run deployment; no amount of correct configuration substitutes for it.
 
-Every supported provider's directory carries the same layout — `setup.md`, `iam.md`, `constraints.md`, `versioning.md`, `diagnostics.md`, `observability.md`, `self-hosted.md`. `constraints.md` is the provider "diff surface": what follows from that provider's execution model, and therefore what does *not* carry across to another one. Paths below are written `references/<provider>/…`; substitute the directory from the table. Provider-specific commands, templates, permissions, and defaults live there — this file stays at the workflow level. When a step needs concrete commands, go to the reference file named at the end of that step.
+Every supported provider's directory carries the same shared layout — `setup.md`, `iam.md`, `constraints.md`, `versioning.md`, `diagnostics.md`, `observability.md`, `self-hosted.md`. On AWS Lambda it also carries one `sdk-<language>.md` file per supported SDK, because the Worker there is a handler written against a provider-specific package; Cloud Run has no such package, and so no per-SDK files. `constraints.md` is the provider "diff surface": what follows from that provider's execution model, and therefore what does *not* carry across to another one. Paths below are written `references/<provider>/…`; substitute the directory from the table. Provider-specific commands, templates, permissions, SDK APIs, and defaults live there — this file stays at the workflow level. When a step needs concrete commands or SDK details, go to the reference file named at the end of that step.
+
+| SDK language | AWS Lambda reference |
+|---|---|
+| Go | `references/aws-lambda/sdk-go.md` |
+| Python | `references/aws-lambda/sdk-python.md` |
+| TypeScript | `references/aws-lambda/sdk-typescript.md` |
+| Java | `references/aws-lambda/sdk-java.md` |
+| .NET | `references/aws-lambda/sdk-dotnet.md` |
 
 **Public Preview is not GA.** The APIs are still evolving and may change: pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
 
@@ -48,7 +55,7 @@ Follow these steps in order. Each step is provider-neutral; the concrete command
 > - Nothing gets created before you approve that list. After approval the middle stretch runs unattended.
 > - At the end you get a Workflow you can watch execute, a full inventory of everything created, and an offer to remove it all.
 
-**Write the summary provider-neutral, because at that point you do not know the provider.** It is one of the things step 1 asks. Say "your cloud account", never the name of a provider you have not been told. The same applies to the account, Namespace, and region: if a cheap read-only call has already told you (see step 1), name what you actually found; otherwise leave it out rather than filling it in with a plausible guess.
+**Write the summary provider-neutral, because at that point you do not know the provider.** Say "your cloud account", never the name of a provider you have not been told. The same applies to the account, Namespace, and region: leave out what you have not been told rather than filling it in with a plausible guess.
 
 Skip the summary for troubleshooting, inspection, and configuration-change tasks. Someone whose Worker is not being invoked does not need an overview of a deployment they have already done.
 
@@ -88,7 +95,9 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 **A step is complete when its verification passed — not when its command exited zero.** Several commands in this workflow exit clean having done nothing: the traffic-shifting and key-revocation commands no-op when their confirmation prompt goes unanswered, and providers return from create and update calls while the resource is still settling. Check an item off against state you read back, not against an exit code. When a step's verification fails, say which step you are on and what it is blocked on rather than moving down the list.
 
-1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, .NET, and on Cloud Run also Ruby or Rust — **SDK support differs by provider**), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
+1. **Scope the task.** **Ask** — never infer — the SDK language (Go, Python, TypeScript, Java, or .NET — and on Cloud Run also Ruby or Rust, since **SDK support differs by provider**), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
+
+   **Nothing but the Namespace lookup runs before these questions.** The order is: summary, then `tcld namespace list` to populate the Namespace options, then one batch of questions. Do not probe the environment first — which CLIs are installed, what the working directory contains, which account a credential resolves to, which SDKs are on the machine; steps 2 and 3 re-check what matters. A directory listing is never evidence of an SDK preference.
 
    **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description** — AWS Lambda is Public Preview and open to everyone; GCP Cloud Run is Pre-release, access-gated, and its APIs may change incompatibly. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
 
@@ -102,8 +111,20 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
    - **Summarize the ineligible ones in a single line** — "you also have 2 Namespaces on \<provider\>, which this skill does not support" — rather than listing them individually or hiding them. A user who knows they have a Namespace and cannot find it in the list concludes the tool is broken; one line keeps them informed and explains the constraint.
    - **Name the account you are listing from and confirm it is the intended one** before showing anything. A stale credential lists a real account that is not the one the user means to deploy into, and every option under it looks authoritative.
    - **If more Namespaces are eligible than the question format can hold, print the labelled list and ask the user to name one.** Do not silently show only the first few.
+   - **Always include "create a new one" as an option**, even when eligible Namespaces exist. Offer it last, and say it is a live, billable Temporal Cloud resource.
 
    This also settles the compute-provider answer, since a Namespace can only be served by compute on its own cloud provider — so a mismatch is caught here rather than at connection time, several steps later.
+
+   **Creating a Namespace, when that is what they picked.** Confirm the *spelling* before creating — names cannot be changed afterwards — and take the region from `tcld account list-regions`, never from memory: it returns `CloudProviderRegion` with a `CloudProvider` field, and entries whose provider is empty are not usable here. Most accounts can provision in only one region per provider, so there is often nothing to ask.
+
+   ```bash
+   tcld namespace create -n <base-name> --region <region> --cloud-provider aws \
+     --auth-method api_key --retention-days 30
+   ```
+
+   Pass the **base name only** — `tcld` appends `.<account_id>` itself, so `-n my-app` yields `my-app.a2dd6`. The call is asynchronous and returns `requestStatus.state: Pending`; poll `tcld namespace get -n <full-name>` until `state` is `Active` (tens of seconds) before using it, and read the frontend address from its `uri.grpc` rather than assembling one. Add the Namespace to the inventory in step 8 — it outlives the Worker and is not removed by the AWS teardown.
+
+   **`tcld namespace list` starts a device-code login when the CLI is not authenticated** — it does not fail — so it can open a Temporal Cloud session the user never asked for. Say it may do that before you run it, and surface the verification URL if it does.
 
    **Degrade gracefully if `tcld` is not authenticated.** Ask the user for the Namespace name rather than stopping to fix the login — they can copy it from the Cloud UI, where it appears on the Namespace page and in the URL. Ask for its region in the same batch of questions: the name alone does not tell you the provider, and a mismatch missed here surfaces at connection time instead.
 
@@ -139,9 +160,9 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
    **Before the first account-mutating command, list what you are about to create — with final names — and get approval.** Name the target account and region, then every resource: compute unit, execution role, infrastructure stack, log group, deployment name, and Task Queue. Say plainly that they are live and billable. This is the mirror of the inventory in step 8, and it is worth more here than there: it makes the naming prefix concrete while changing it is still free, and the deployment name, build ID, and Task Queue become expensive to change once step 3 compiles them into the Worker. Skip it only when nothing will be created — a troubleshooting or inspection task.
 
-3. **Author the Worker.** *Install the SDK's serverless Worker package before writing any code* — it is usually shipped separately from the main SDK — sometimes on its own version line, sometimes in lockstep with it, and in one SDK not separately at all — so having the base SDK installed does not mean it is importable. Then read the installed package's actual API surface and write against that; these are Public Preview APIs that drift between versions, and generating code from memory costs a build cycle. Entry-point names are not consistent between SDKs, so inspect first rather than pattern-matching from another language. Every Workflow must declare a versioning behavior (`Pinned` or `AutoUpgrade`), per-Workflow or as a Worker-level default — code without it fails at runtime. → `references/sdk-configuration.md` (package, install, entry point, tuned defaults) and `references/<provider>/setup.md` (install commands, API-inspection recipes, handler shape).
+3. **Author the Worker.** *Install the SDK's serverless Worker package before writing any code* — it is usually shipped separately from the main SDK — sometimes on its own version line, sometimes in lockstep with it, and in one SDK not separately at all — so having the base SDK installed does not mean it is importable. Then read the installed package's actual API surface and write against that; these are Public Preview APIs that drift between versions, and generating code from memory costs a build cycle. Entry-point names are not consistent between SDKs, so inspect first rather than pattern-matching from another language. Every Workflow must declare a versioning behavior (`Pinned` or `AutoUpgrade`), per-Workflow or as a Worker-level default — code without it fails at runtime. → `references/<provider>/sdk-<language>.md` (package, install, API inspection, entry point, handler shape, versioning behavior, tuned defaults).
 
-4. **Package and deploy the compute unit.** Build and package per SDK, deploy the compute unit, and set the invocation deadline high enough for the Worker to start, connect, register the Task Queue, and shut down gracefully. Match the build's target architecture to the deployed compute unit's — a mismatch fails only at invocation time, not at build time. After a create or update, wait for the compute unit to reach a ready state before the next step; providers return from these calls while the unit is still settling. → `references/<provider>/setup.md`.
+4. **Package and deploy the compute unit.** Build and package per SDK, deploy the compute unit, and set the invocation deadline high enough for the Worker to start, connect, register the Task Queue, and shut down gracefully. Match the build's target architecture to the deployed compute unit's — a mismatch fails only at invocation time, not at build time. After a create or update, wait for the compute unit to reach a ready state before the next step; providers return from these calls while the unit is still settling. → `references/<provider>/sdk-<language>.md` (build, packaging, runtime, handler, architecture, and SDK-specific deployment values) and `references/<provider>/setup.md` (shared deployment lifecycle).
 
 5. **Grant Temporal permission to invoke the Worker.** Configure the compute provider's access so Temporal can invoke and inspect the Worker. This access is separate from the compute unit's own execution role — do not confuse the two. Two things to get right before you create anything: (a) this grant is **shared, account-wide infrastructure** that a previous deployment may already have created — look for an existing one and extend it to cover your new Worker rather than creating a parallel copy, and never delete or repurpose one you did not create without asking; (b) scope the grant so that *future* immutable builds are covered, not just today's — a grant pinned to one build breaks the next release in a way that surfaces later as an unrelated-looking invocation failure. → `references/<provider>/iam.md`.
 
@@ -149,7 +170,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 7. **Verify.** Start a Workflow on the Task Queue and confirm Temporal invokes the Worker — check the Workflow history in the Temporal UI and the compute provider's logs. If it does not progress, → `references/<provider>/diagnostics.md`.
 
-8. **Hand back the inventory first; offer teardown as the closing note.** The order is inventory → offer, never the reverse. Close with what now exists — compute unit and published build identifiers, roles, infrastructure stacks, region, deployment name and build ID — and what the run actually did, including anything you worked around or deviated from. Say plainly that it is live and billable. These names are only knowable from the run that created them, and reconstructing them later means scanning the user's account.
+8. **Hand back the inventory first; offer teardown as the closing note.** Close with what now exists — compute unit and published build identifiers, roles, infrastructure stacks, region, deployment name and build ID, plus any Namespace or API key created during the run — and what the run actually did, including anything you worked around or deviated from. Say plainly that it is live and billable.
 
    **Do not write a teardown script before the user asks for one.** Generating it unprompted buries the inventory under a file they did not request, and the inventory is what they need in order to decide. End with a single line — *"Let me know if you want a teardown script to remove these resources"* — and stop there. Write the script, or run the teardown, when they take you up on it. → `references/<provider>/setup.md` (Teardown).
 
@@ -216,20 +237,24 @@ Most questions need 2–3 reference files.
 | User intent | Reference file(s) |
 |---|---|
 | What is a Serverless Worker / the WCI? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
-| Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` (+ `references/concepts.md`) |
+| Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` + on Lambda the selected `references/aws-lambda/sdk-<language>.md` (+ `references/concepts.md`) |
 | Operator permissions and preflight; the compute unit's own identity vs the identity Temporal uses; infrastructure-as-code (CloudFormation on Lambda, Terraform on Cloud Run). | `references/<provider>/iam.md` |
 | Update or redeploy; make each build immutable, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
 | Self-hosted server enablement (dynamic config, WCI, the server's cloud credentials). | `references/<provider>/self-hosted.md` (+ `references/<provider>/iam.md`) |
-| **AWS Lambda only** — SDK-specific options and tuned defaults, which package to install and how it is distributed, imports, versioning-behavior configuration, connection config (TOML, env vars). Reduce cold start / pre-bundle Workflow code. | `references/sdk-configuration.md` |
+| Go SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration. | `references/aws-lambda/sdk-go.md` |
+| Python SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, diagnostic signatures. | `references/aws-lambda/sdk-python.md` |
+| TypeScript SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, pre-bundled Workflow code, OpenTelemetry integration. | `references/aws-lambda/sdk-typescript.md` |
+| Java SDK-specific options and tuned defaults, artifact and imports, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, logging and diagnostic signatures. | `references/aws-lambda/sdk-java.md` |
+| .NET SDK-specific options and tuned defaults, package and imports, API inspection, handler, RID-specific publish and packaging, runtime and deployment values, versioning-behavior configuration, connection config and `SSL_CERT_FILE`, OpenTelemetry integration, logging and diagnostic signatures. | `references/aws-lambda/sdk-dotnet.md` |
 | Cloud Run Worker code, container image, Worker Pool creation (there is no Cloud Run Worker package — it is an ordinary long-lived Worker). | `references/gcp-cloud-run/setup.md` |
-| Add OpenTelemetry observability, collector config, tracing. | `references/<provider>/observability.md` |
-| Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` (+ `references/concepts.md`) |
-| Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/<provider>/constraints.md` (+ `references/concepts.md`, `references/sdk-configuration.md`) |
+| Add OpenTelemetry observability, collector config, tracing. | `references/<provider>/observability.md` + on Lambda the selected `references/aws-lambda/sdk-<language>.md` |
+| Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` + on Lambda the selected `references/aws-lambda/sdk-<language>.md` (+ `references/concepts.md`) |
+| Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/<provider>/constraints.md` (+ `references/concepts.md`) |
 | How long does a Worker live? What bounds an Activity? What does this provider pin or disable? What differs from another provider? | `references/<provider>/constraints.md` |
 
 ## Out of Scope
 
 - **General SDK development patterns** (Workflows, Activities, signals, queries, Worker Versioning concepts): see `skill-temporal-developer`.
 - **Traditional Worker tuning** (slot suppliers, tuners, poller autoscaling, resource-based tuning): see `skill-temporal-workertuning`.
-- **Temporal Cloud administration** (Namespaces, users, certificates, billing): see `skill-temporal-ops`.
+- **Temporal Cloud administration** (users, certificates, billing, and Namespace management generally): see `skill-temporal-ops`. The one exception is creating a Namespace to deploy into, which step 1 handles inline — a user standing up their first serverless Worker should not be sent to another skill mid-run.
 - **CLI command reference** (beyond the serverless-specific flags): see `skill-temporal-cli`.

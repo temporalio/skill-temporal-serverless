@@ -24,7 +24,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 
 ## Step 1: Write Worker code
 
-**There is no Cloud Run Worker package.** Write an ordinary long-lived Worker — same client, same `Worker`/`WorkerFactory`, same registration — and add Worker Versioning, which Serverless Workers require. Do not reach for anything in `../sdk-configuration.md`; that file is AWS Lambda only.
+**There is no Cloud Run Worker package.** Write an ordinary long-lived Worker — same client, same `Worker`/`WorkerFactory`, same registration — and add Worker Versioning, which Serverless Workers require. Do not reach for anything in `../aws-lambda/sdk-<language>.md`; those files are AWS Lambda only.
 
 Two things the Worker must do:
 

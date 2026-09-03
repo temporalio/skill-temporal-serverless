@@ -107,6 +107,10 @@ Deploy this Go Worker to a GCP Cloud Run Worker Pool.
 My Cloud Run Worker Pool is stuck at zero instances. Find out why.
 ```
 
+```text
+Deploy this .NET Worker to Lambda with a runtime-specific publish.
+```
+
 For a new deployment, the skill follows five stages:
 
 1. **Scope** — confirm the SDK, compute provider, Namespace, region, and resource-naming prefix.
@@ -133,13 +137,17 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 |---|---|
 | [`SKILL.md`](SKILL.md) | Core workflow, safety gates, provider rules, and reference routing |
 | [`references/concepts.md`](references/concepts.md) | Architecture, invocation flow, autoscaling, lifecycle, constraints, and use cases |
-| [`references/sdk-configuration.md`](references/sdk-configuration.md) | **AWS Lambda only** — Go, Python, TypeScript, Java, and .NET serverless Worker packages, entry points, versioning behavior, and tuned defaults. Cloud Run needs no such package. |
-| [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | End-to-end deployment, verification, and teardown workflow |
+| [`references/aws-lambda/sdk-go.md`](references/aws-lambda/sdk-go.md) | Go package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
+| [`references/aws-lambda/sdk-python.md`](references/aws-lambda/sdk-python.md) | Python package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, and diagnostics |
+| [`references/aws-lambda/sdk-typescript.md`](references/aws-lambda/sdk-typescript.md) | TypeScript package, API, handler, Workflow pre-bundling, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
+| [`references/aws-lambda/sdk-java.md`](references/aws-lambda/sdk-java.md) | Java artifact, API, handler, callbacks, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, logging, and diagnostics |
+| [`references/aws-lambda/sdk-dotnet.md`](references/aws-lambda/sdk-dotnet.md) | .NET package, API, handler, build, RID-specific publish, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, logging, and diagnostics |
+| [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | Shared AWS and Temporal deployment lifecycle, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
 | [`references/aws-lambda/constraints.md`](references/aws-lambda/constraints.md) | What follows from Lambda's per-invocation execution model — Worker lifetime, invocation deadline, timeout triple, Activity duration bounds — and what does not generalize to other providers |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |
 | [`references/aws-lambda/versioning.md`](references/aws-lambda/versioning.md) | Immutable releases, updates, and rollback |
-| [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | OpenTelemetry and ADOT configuration |
+| [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | Shared ADOT Collector configuration, X-Ray enablement, and IAM permissions |
 | [`references/aws-lambda/self-hosted.md`](references/aws-lambda/self-hosted.md) | Self-hosted Temporal prerequisites and configuration |
 | [`references/gcp-cloud-run/setup.md`](references/gcp-cloud-run/setup.md) | End-to-end Cloud Run deployment: container image, Worker Pool, registration, verification, teardown |
 | [`references/gcp-cloud-run/iam.md`](references/gcp-cloud-run/iam.md) | Operator permissions, runner vs invoker service accounts, and the Terraform module |
