@@ -113,7 +113,7 @@ config.WorkerOptions.LoggerFactory =
 
 ## Connection configuration
 
-Loaded automatically from environment variables and an optional TOML config file, with the same resolution order as the other SDKs:
+Loaded automatically from environment variables and an optional TOML config file, in this resolution order:
 
 1. `TEMPORAL_CONFIG_FILE` environment variable, if set.
 2. `temporal.toml` in the Lambda task root (typically `/var/task`).
@@ -129,7 +129,7 @@ SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt     # or /etc/ssl/certs/ca-certif
 
 **This is server-certificate verification, not client credentials.** The API key is unaffected and is not the problem — an API key auto-enables TLS, and TLS requires verifying Temporal Cloud's certificate chain against root CAs. The connection fails before authentication is ever attempted.
 
-Python shares the same Rust core (`temporalio/bridge/temporal_sdk_bridge.abi3.so`) but its Lambda image does not override the variable; Java uses gRPC/Netty and the JVM truststore, so neither is affected. → `diagnostics.md`. <!-- verified: reproduced and fixed on a real deployment -->
+No other SDK on Lambda needs this. → `diagnostics.md` for why. <!-- verified: reproduced and fixed on a real deployment -->
 
 ## Build and package
 
@@ -195,8 +195,8 @@ aws lambda create-function \
 Without it the **first invocation fails**, the Task Queue is never bound, and the Worker is never invoked again — an otherwise-correct deployment that simply does not work. AWS's .NET 8 Lambda images force-override `SSL_CERT_FILE`, which stops the SDK's Rust core from loading system root CAs. `/etc/ssl/certs/ca-certificates.crt` also works; try the other if one fails. This is server-certificate verification, unrelated to your API key. → `diagnostics.md`. <!-- verified: reproduced and fixed on a real deployment; cause per temporalio/sdk-dotnet README, "AWS Lambda .NET 8 CA Loading Issues" -->
 
 - `--runtime`: `dotnet8` (the sample targets `net8.0`). <!-- verified against samples-dotnet@main src/LambdaWorker/Deploy/deploy-lambda.sh and Directory.Build.props -->
-- `--handler`: **`ASSEMBLY::NAMESPACE.TYPE::METHOD` — three colon-separated parts**, and the only SDK with that shape. Java uses two (`Class::method`); Go, Python and TypeScript use `module.function`-style. Getting this wrong presents as a handler-not-found error at first invocation.
-- `--timeout 600` / `--memory-size 256`: **the same values as Go, Python and TypeScript.** Only Java's example differs (90/1024), which supports reading that as a Java-specific choice rather than a documentation inconsistency.
+- `--handler`: **`ASSEMBLY::NAMESPACE.TYPE::METHOD` — three colon-separated parts.** Getting this wrong presents as a handler-not-found error at first invocation.
+- `--timeout 600` / `--memory-size 256`. → `setup.md` for how to choose these; the timeout only has to clear startup, and memory is what drives cost.
 - `--architectures` must match the publish RID (`linux-x64` → `x86_64`, `linux-arm64` → `arm64`).
 - Temporal's deploy script retries `create-function` up to 12 times to absorb IAM propagation delay on a freshly created execution role — the same behavior described under "A freshly created execution role may not be assumable immediately" in `setup.md`.
 
@@ -210,7 +210,7 @@ A **second NuGet package**, separate from the Lambda extension itself: <!-- veri
 dotnet add package Temporalio.Extensions.Aws.Lambda.OpenTelemetry
 ```
 
-Published in lockstep with `Temporalio` and `Temporalio.Extensions.Aws.Lambda` (all 1.18.0). Unlike Python, where OTel is an extra on the existing package (`temporalio[lambda-worker-otel]`), .NET requires the extra reference.
+Published in lockstep with `Temporalio` and `Temporalio.Extensions.Aws.Lambda` (all 1.18.0).
 
 ### OTel functions
 
@@ -228,7 +228,7 @@ TemporalLambdaWorker.CreateHandler(
 ```
 <!-- verified against samples-dotnet@main src/LambdaWorker/Worker/Function.cs -->
 
-`ApplyOpenTelemetryDefaults()` configures metrics and tracing against the ADOT layer's collector. As with the other SDKs, telemetry must be exported before the invocation ends — keep any metrics export interval shorter than the Lambda timeout.
+`ApplyOpenTelemetryDefaults()` configures metrics and tracing against the ADOT layer's collector. Telemetry must be exported before the invocation ends — keep any metrics export interval shorter than the Lambda timeout.
 
 ### ADOT layer setup
 
@@ -271,4 +271,4 @@ System.InvalidOperationException: Connection failed: Server connection error:
 
 Only .NET is affected. Python uses the same Rust core (`temporalio/bridge/temporal_sdk_bridge.abi3.so`) but its runtime image does not override the variable; Java uses gRPC/Netty with the JVM truststore. <!-- verified: reproduced and fixed on a real deployment; cause per temporalio/sdk-dotnet README, "AWS Lambda .NET 8 CA Loading Issues", referencing aws/aws-lambda-dotnet#1661 -->
 
-**.NET — handler not found at first invocation.** The .NET handler string has **three** colon-separated parts, `ASSEMBLY::NAMESPACE.TYPE::METHOD`, and is the only SDK with that shape — Java uses two, the rest use `module.function`. Compare against the assembly name (not the project name, if they differ) and the fully-qualified type.
+**.NET — handler not found at first invocation.** The handler string has **three** colon-separated parts, `ASSEMBLY::NAMESPACE.TYPE::METHOD`. Compare against the assembly name (not the project name, if they differ) and the fully-qualified type.
