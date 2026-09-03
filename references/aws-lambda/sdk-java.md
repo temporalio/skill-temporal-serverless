@@ -23,7 +23,7 @@ Install: `io.temporal:temporal-aws-lambda` — a **separate Maven artifact** fro
 
 `aws-lambda-java-core` (1.4.0) arrives transitively from `temporal-aws-lambda`; declare it explicitly if you compile against `RequestHandler`/`Context`.
 
-- Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:46 -->
+- Java: [Java Lambda Worker sample](https://github.com/temporalio/samples-java/tree/main/lambda-worker) — three Gradle subprojects (`worker/` handler + greeting Workflow/Activity, `starter/` local client, `deploy/` IAM and deploy scripts plus a CloudFormation template) <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
 
 List the real public API of the resolved artifact before generating code:
 
@@ -35,13 +35,15 @@ javap -cp <same jar> 'io.temporal.aws.lambda.LambdaWorkerOptions$Builder'
 #   curl -O https://repo1.maven.org/maven2/io/temporal/temporal-aws-lambda/<ver>/temporal-aws-lambda-<ver>-sources.jar
 ```
 
-**Ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs, so check rather than pattern-match from another language.
+**A useful ordering when sources disagree:** the installed artifact first, the SDK's maintained samples second (they are built in CI, so they cannot reference a method that does not exist), the prose docs last. Entry-point names are not consistent across SDKs — Java's is `define`, not "run"-shaped like the others — so check rather than pattern-match from another language.
 
 ## Entry point
 
-**`LambdaWorker.define(version, configure)`** — returns a `RequestHandler<Object, Void>` that your handler class delegates to. There are four public overloads: `define` (2- and 3-arg) and `newHandler` (2- and 3-arg, taking a pre-built `LambdaWorkerOptions`). <!-- verified against io.temporal:temporal-aws-lambda:1.37.0 and 1.38.0, and samples-java@main -->
+**`LambdaWorker.define(version, configure)`** — returns a `RequestHandler<Object, Void>` that your handler class delegates to. There are four public overloads: `define` (2- and 3-arg) and `newHandler` (2- and 3-arg, taking a pre-built `LambdaWorkerOptions`).
 
-## Configure callback — two phases
+Note that Java's entry point is not "run"-shaped like the other SDKs' (`RunWorker`, `run_worker`, `runWorker`) — confirm the method name against the version you install. <!-- verified against io.temporal:temporal-aws-lambda:1.37.0 and 1.38.0, and samples-java@main -->
+
+## Configure callback — two phases, unlike the other SDKs
 
 Java splits configuration in a way no other SDK does, and the distinction matters:
 
@@ -111,7 +113,7 @@ public final class LambdaFunction implements RequestHandler<Object, Void> {
 }
 ```
 
-The entry point is `define` (or `newHandler` for pre-built options). Temporal's [sample handler](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) is the reference implementation.
+The entry point is `define` (or `newHandler` for pre-built options) — not a "run"-shaped name like the other SDKs use. Temporal's [sample handler](https://github.com/temporalio/samples-java/blob/main/lambda-worker/worker/src/main/java/io/temporal/samples/lambdaworker/LambdaFunction.java) is the reference implementation.
 
 ## Lambda-tuned defaults
 
@@ -131,9 +133,9 @@ The entry point is `define` (or `newHandler` for pre-built options). Temporal's 
 | `GracefulShutdownTimeout` | 5 seconds |
 | `ShutdownDeadlineBuffer` | 7 seconds |
 
-`MaxWorkflowThreadCount` exists because Java runs Workflow code on real threads.
+`MaxWorkflowThreadCount` has no counterpart in the other SDKs — Java runs Workflow code on real threads.
 
-Eager Activities are disabled: `builder.setDisableEagerExecution(true)` (`LambdaWorkerOptions.java:258`). `ShutdownDeadlineBuffer` defaults to `GracefulShutdownTimeout` + 2s.
+Eager Activities are disabled: `builder.setDisableEagerExecution(true)` (`LambdaWorkerOptions.java:258`). `ShutdownDeadlineBuffer` defaults to `GracefulShutdownTimeout` + 2s, the same relationship as the other SDKs.
 
 ## Logging — the binding must be SLF4J 1.7.x
 
@@ -145,7 +147,7 @@ The Java SDK compiles against `org.slf4j:slf4j-api:1.7.36`. A 2.x provider (`slf
 </dependency>
 ```
 
-With a correct binding the module logs its own lifecycle unprompted:
+With a correct binding the module logs its own lifecycle unprompted, which is more than the other SDKs give you by default:
 
 ```
 [main] INFO io.temporal.aws.lambda.LambdaWorker - Temporal Lambda worker started
@@ -237,11 +239,11 @@ aws lambda create-function \
   --environment file:///tmp/lambda-env.json
 ```
 
-- `--runtime`: `java17` (or another supported Java version). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:433 -->
-- `--handler`: **`fully.qualified.Class::method`.** Point it at the method that delegates to the `LambdaWorker.define` handler. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:422 -->
+- `--runtime`: `java17` (or another supported Java version). <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
+- `--handler`: `fully.qualified.Class::method` — **a different format from every other SDK**, which use `module.function` / `module.export`. Point it at the method that delegates to the `LambdaWorker.define` handler. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) -->
 - `--zip-file`: the shaded jar directly; no separate zip step. Switch to `--code S3Bucket=…,S3Key=…` once the jar exceeds 50 MB, which happens early in Java (see packaging above).
-- **`HOME=/tmp` is not needed.** → Connection configuration above.
-- `--memory-size`: the docs recommend starting at `1024` because "Java Workers typically need more memory than other runtimes," then adjusting from CloudWatch. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda/index.mdx:436 --> A measured hello-world used **240 MB of 1024** (`Max Memory Used` in the invocation's REPORT line), so `512` is usually ample for small Workers — and since Lambda bills GB-seconds, halving memory halves the bill. Start at 1024, read the metric, then cut. <!-- measured, not documented -->
+- **`HOME=/tmp` is not needed** — unlike the Go and TypeScript examples. Verified: the Java module never reads `HOME`, and a missing config file is non-fatal. → Connection configuration above.
+- `--memory-size`: the docs recommend starting at `1024` because "Java Workers typically need more memory than other runtimes," then adjusting from CloudWatch. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line unverified) --> A measured hello-world used **240 MB of 1024** (`Max Memory Used` in the invocation's REPORT line), so `512` is usually ample for small Workers — and since Lambda bills GB-seconds, halving memory halves the bill. Start at 1024, read the metric, then cut. <!-- measured, not documented -->
 
 <!-- Java create-function parameters above: docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx (line numbers unverified); --architectures, the S3 note, and the HOME finding are from a verified deployment, not the docs. -->
 
@@ -311,6 +313,6 @@ java.lang.NullPointerException: Cannot invoke "SuspendableWorker.awaitTerminatio
 
 This is **not** a failure. It appears *after* Tasks have completed, is followed by `Temporal Lambda worker stopped`, a clean `END`/`REPORT`, and no timeout; Workflows complete correctly. Do not change configuration, IAM, or timeouts in response to it. Confirm it is benign by checking that the Workflow completed and that `REPORT` shows a duration below the deadline, then ignore it.
 
-**Java — `ClassNotFoundException` / `NoClassDefFoundError` at first invocation.** The uber-jar was built without merging `META-INF/services`, or the handler string is wrong. Check the handler format first: it must be `fully.qualified.Class::method`. Then verify the services merge — `unzip -p <jar> META-INF/services/io.grpc.ManagedChannelProvider` should list more than one provider. → Build and package above.
+**Java — `ClassNotFoundException` / `NoClassDefFoundError` at first invocation.** The uber-jar was built without merging `META-INF/services`, or the handler string is wrong. Check the handler format first: Java uses `fully.qualified.Class::method`, not the `module.function` form every other SDK uses. Then verify the services merge — `unzip -p <jar> META-INF/services/io.grpc.ManagedChannelProvider` should list more than one provider. → Build and package above.
 
 **Java — exec-format or `UnsupportedClassVersionError` at first invocation.** Bytecode targets a newer JDK than the runtime. Set `<maven.compiler.release>` (or the Gradle toolchain) to match `--runtime`.
