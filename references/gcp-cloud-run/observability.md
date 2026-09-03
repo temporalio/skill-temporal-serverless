@@ -9,7 +9,7 @@
 
 **A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx, "Add observability" -->
 
-This is a genuine simplification over AWS Lambda, and the contrast is worth keeping in mind:
+Cloud Run needs less wiring than Lambda:
 
 | | AWS Lambda | GCP Cloud Run |
 |---|---|---|

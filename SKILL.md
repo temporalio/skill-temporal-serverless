@@ -19,7 +19,7 @@ This skill helps users deploy and operate Temporal Workers on serverless compute
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is confirmed in the step 1 questions, not silently defaulted.
 
-**The two providers have different execution models, and the difference is load-bearing.** Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is (a handler against a provider package, versus an ordinary long-lived Worker), what bounds an Activity, what there is to tune, and how failures present. Read the chosen provider's `constraints.md` before advising on any of it, and never carry a fact from one provider to the other.
+**The two providers have different execution models.** Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is (a handler against a provider package, versus an ordinary long-lived Worker), what bounds an Activity, what there is to tune, and how failures present. Read the chosen provider's `constraints.md` before advising on any of it, and never carry a fact from one provider to the other.
 
 **Cloud Run access is gated.** It is not open to all customers — the user creates a support ticket or contacts their account team. Confirm access before planning a Cloud Run deployment; no amount of correct configuration substitutes for it.
 
@@ -115,14 +115,14 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
    This also settles the compute-provider answer, since a Namespace can only be served by compute on its own cloud provider — so a mismatch is caught here rather than at connection time, several steps later.
 
-   **Creating a Namespace, when that is what they picked.** Confirm the *spelling* before creating — names cannot be changed afterwards — and take the region from `tcld account list-regions`, never from memory: it returns `CloudProviderRegion` with a `CloudProvider` field, and entries whose provider is empty are not usable here. Most accounts can provision in only one region per provider, so there is often nothing to ask.
+   **Creating a Namespace, when that is what they picked.** Confirm the *spelling* before creating — names cannot be changed afterwards — and take the region from `tcld account list-regions`, never from memory: it returns `CloudProviderRegion` with a `CloudProvider` field, and entries whose provider is empty are not usable here. Set `--cloud-provider` to the provider chosen in this step — `aws` for Lambda, `gcp` for Cloud Run — and pick a region belonging to it. Most accounts can provision in only one region per provider, so there is often nothing to ask.
 
    ```bash
-   tcld namespace create -n <base-name> --region <region> --cloud-provider aws \
+   tcld namespace create -n <base-name> --region <region> --cloud-provider <aws|gcp> \
      --auth-method api_key --retention-days 30
    ```
 
-   Pass the **base name only** — `tcld` appends `.<account_id>` itself, so `-n my-app` yields `my-app.a2dd6`. The call is asynchronous and returns `requestStatus.state: Pending`; poll `tcld namespace get -n <full-name>` until `state` is `Active` (tens of seconds) before using it, and read the frontend address from its `uri.grpc` rather than assembling one. Add the Namespace to the inventory in step 8 — it outlives the Worker and is not removed by the AWS teardown.
+   Pass the **base name only** — `tcld` appends `.<account_id>` itself, so `-n my-app` yields `my-app.a2dd6`. The call is asynchronous and returns `requestStatus.state: Pending`; poll `tcld namespace get -n <full-name>` until `state` is `Active` (tens of seconds) before using it, and read the frontend address from its `uri.grpc` rather than assembling one. Add the Namespace to the inventory in step 8 — it outlives the Worker and is not removed by the provider teardown.
 
    **`tcld namespace list` starts a device-code login when the CLI is not authenticated** — it does not fail — so it can open a Temporal Cloud session the user never asked for. Say it may do that before you run it, and surface the verification URL if it does.
 
