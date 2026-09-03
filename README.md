@@ -10,7 +10,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 ## What the skill can do
 
-- Build Serverless Workers with the Go, Python, TypeScript, or Java SDK.
+- Build Serverless Workers with the Go, Python, TypeScript, Java, or .NET SDK.
 - Package and deploy Workers to AWS Lambda with the correct architecture, timeout, and shutdown settings.
 - Configure the separate AWS roles used by the Lambda function and by Temporal.
 - Register a Worker Deployment Version, validate its Task Queue binding, and set it current.
@@ -26,7 +26,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 |---|---|
 | Compute | AWS Lambda — Public Preview |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
-| SDKs | Go, Python, TypeScript, Java |
+| SDKs | Go, Python, TypeScript, Java, .NET |
 | Other compute providers | Not currently supported |
 
 For Temporal Cloud, the Namespace must be hosted on AWS. The Namespace and Lambda function may be in different AWS regions.
@@ -94,6 +94,10 @@ Add OpenTelemetry tracing to my Go Serverless Worker on Lambda.
 Package this Java Worker as a shaded jar and deploy it to Lambda.
 ```
 
+```text
+Deploy this .NET Worker to Lambda with a runtime-specific publish.
+```
+
 For a new deployment, the skill follows five stages:
 
 1. **Scope** — confirm the SDK, compute provider, Namespace, region, and resource-naming prefix.
@@ -124,6 +128,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/aws-lambda/sdk-python.md`](references/aws-lambda/sdk-python.md) | Python package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, and diagnostics |
 | [`references/aws-lambda/sdk-typescript.md`](references/aws-lambda/sdk-typescript.md) | TypeScript package, API, handler, Workflow pre-bundling, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
 | [`references/aws-lambda/sdk-java.md`](references/aws-lambda/sdk-java.md) | Java artifact, API, handler, callbacks, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, logging, and diagnostics |
+| [`references/aws-lambda/sdk-dotnet.md`](references/aws-lambda/sdk-dotnet.md) | .NET package, API, handler, build, RID-specific publish, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, logging, and diagnostics |
 | [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | Shared AWS and Temporal deployment lifecycle, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |

@@ -27,6 +27,7 @@ Every supported provider's directory carries the same shared layout — `setup.m
 | Python | `references/aws-lambda/sdk-python.md` |
 | TypeScript | `references/aws-lambda/sdk-typescript.md` |
 | Java | `references/aws-lambda/sdk-java.md` |
+| .NET | `references/aws-lambda/sdk-dotnet.md` |
 
 **Public Preview is not GA.** The APIs are still evolving and may change: pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
 
@@ -90,7 +91,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 **A step is complete when its verification passed — not when its command exited zero.** Several commands in this workflow exit clean having done nothing: the traffic-shifting and key-revocation commands no-op when their confirmation prompt goes unanswered, and providers return from create and update calls while the resource is still settling. Check an item off against state you read back, not against an exit code. When a step's verification fails, say which step you are on and what it is blocked on rather than moving down the list.
 
-1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, or Java), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
+1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
 
    **Put the compute provider in that batch of questions as a confirmable default, not a free choice.** Pre-select the supported provider from the table above and carry its support status in the option's description. The user confirms rather than chooses, so it costs no extra turn, but the provider is never something they were assumed into. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
 
@@ -229,6 +230,7 @@ Most questions need 2–3 reference files.
 | Python SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, diagnostic signatures. | `references/<provider>/sdk-python.md` |
 | TypeScript SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, pre-bundled Workflow code, OpenTelemetry integration. | `references/<provider>/sdk-typescript.md` |
 | Java SDK-specific options and tuned defaults, artifact and imports, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-java.md` |
+| .NET SDK-specific options and tuned defaults, package and imports, API inspection, handler, RID-specific publish and packaging, runtime and deployment values, versioning-behavior configuration, connection config and `SSL_CERT_FILE`, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-dotnet.md` |
 | Add OpenTelemetry observability, Collector config, X-Ray, and IAM. | `references/<provider>/observability.md` + the selected `references/<provider>/sdk-<language>.md` |
 | Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
 | Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/concepts.md` (+ the selected `references/<provider>/sdk-<language>.md`) |

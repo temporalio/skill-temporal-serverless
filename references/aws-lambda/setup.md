@@ -16,7 +16,7 @@ This is the end-to-end golden path: connect, write the Worker, package and deplo
 - Every Workflow must declare a versioning behavior, or the Worker must set a default versioning behavior. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:42-43 -->
 - An AWS account with permissions to create and invoke Lambda functions and create IAM roles. For the exact operator actions and a preflight check, see `iam.md`. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:44 -->
 - The AWS-specific steps require the `aws` CLI installed and configured with your AWS credentials. You may also use the AWS Console or the AWS SDKs. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:45-46 -->
-- The Go SDK, Python SDK, TypeScript SDK, or Java SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
+- The Go SDK, Python SDK, TypeScript SDK, Java SDK, or .NET SDK, depending on your language. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:48-49 -->
 - The `temporal` CLI, authenticated to the target Temporal Service — Steps 4–6 and the CLI troubleshooting paths use it. See "Temporal CLI and Cloud connection" below.
 
 The selected SDK reference links its maintained sample project.
@@ -123,6 +123,7 @@ Load the reference for the selected SDK alongside this shared deployment guide:
 | Python | `sdk-python.md` |
 | TypeScript | `sdk-typescript.md` |
 | Java | `sdk-java.md` |
+| .NET | `sdk-dotnet.md` |
 
 Complete the selected SDK reference before continuing.
 

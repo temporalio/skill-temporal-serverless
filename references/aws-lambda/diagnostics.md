@@ -125,9 +125,9 @@ Common errors include: <!-- docs/troubleshooting/serverless-workers.mdx:136 -->
 
 ### Language-specific signatures
 
-**No application logs at all, but the Worker clearly ran.** Two different SDKs produce this same misleading silence by unrelated mechanisms, and in both cases the Worker is healthy — only the logging is broken. Diagnose invocation health from Lambda's own runtime markers (`INIT_START`/`START`/`END`/`REPORT`) and CloudWatch metrics instead, then fix the binding.
+**No application logs at all, but the Worker clearly ran.** SDK-specific logging configuration can suppress application logs even when the Worker is healthy. Diagnose invocation health from Lambda's runtime markers (`INIT_START`/`START`/`END`/`REPORT`) and CloudWatch metrics.
 
-For SDK-specific diagnostics, see the selected SDK reference.
+For the exact logging cause and fix, see the selected SDK reference.
 
 ### Check for Lambda timeout
 
