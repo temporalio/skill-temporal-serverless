@@ -116,7 +116,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
      --auth-method api_key --retention-days 30
    ```
 
-   Pass the **base name only** — `tcld` appends `.<account_id>`, so `-n my-app` yields `my-app.a2dd6`. Creation is asynchronous: poll `tcld namespace get -n <full-name>` until `state` is `Active`, and take the frontend address from its `uri.grpc` rather than assembling one. Add the Namespace to the inventory in step 8 — it outlives the Worker and survives the AWS teardown.
+   Pass the **base name only** — `tcld` appends `.<account_id>`, so `-n my-app` yields `my-app.<account_id>`
 
    **`tcld namespace list` starts a device-code login when the CLI is not authenticated** — it does not fail — so it can open a Temporal Cloud session the user never asked for. Say it may do that before you run it, and surface the verification URL if it does.
 
