@@ -99,6 +99,8 @@ Serverless Workers can share a Task Queue with long-lived Workers. Because Serve
 
 ## Worker lifecycle
 
+**This section describes providers that invoke per unit of work, such as AWS Lambda.** On a provider that scales a pool of long-lived instances, such as GCP Cloud Run, an instance connects once and polls for its whole lifetime: there are no per-invocation phases, and none of the tuning below applies. → `<provider>/constraints.md`.
+
 A single Serverless Worker invocation has three phases: init, work, and shutdown. <!-- docs/encyclopedia/workers/serverless-workers.mdx:152 -->
 
 ### Init phase
@@ -115,21 +117,7 @@ The Worker stops polling, waits for in-flight Tasks to finish, and runs any shut
 
 ### Tuning for long-running Activities
 
-If your Worker handles long-running Activities, set these three values together: <!-- docs/encyclopedia/workers/serverless-workers.mdx:171 -->
-
-- **Worker stop timeout > longest Activity runtime.** Gives in-flight Activities enough time to finish after polling stops. <!-- docs/encyclopedia/workers/serverless-workers.mdx:173-174 -->
-- **Shutdown deadline buffer > Worker stop timeout + shutdown hook time.** Ensures the drain and any shutdown hooks complete before the compute provider terminates the environment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:175-176 -->
-- **Invocation deadline > longest Activity runtime + shutdown deadline buffer.** Set on the compute provider to give each invocation enough total runtime. <!-- docs/encyclopedia/workers/serverless-workers.mdx:177-178 -->
-
-If your longest-running Activity runs longer than half the maximum invocation deadline, use Activity Heartbeats to record the state of the Activity execution so that the next retry can pick up where it left off. <!-- docs/encyclopedia/workers/serverless-workers.mdx:182-185 -->
-
-Example: if your longest Activity runtime is 5 minutes, and your shutdown hooks take 3 seconds, set the Worker stop timeout to more than 5 minutes, and the shutdown deadline buffer to more than 303 seconds (5 minutes + 3 seconds). Set your invocation deadline to at least 10 minutes and 3 seconds. <!-- docs/encyclopedia/workers/serverless-workers.mdx:189-191 -->
-
-The Worker stop timeout controls how long the Worker waits for in-flight Tasks to finish after it stops polling. The shutdown deadline buffer controls how much time before the invocation deadline the Worker stops polling for Tasks. <!-- docs/encyclopedia/workers/serverless-workers.mdx:193-194 -->
-
-Raising only the shutdown deadline buffer makes the Worker stop polling earlier, but does not give in-flight Tasks any more time to complete. <!-- docs/encyclopedia/workers/serverless-workers.mdx:196-197 -->
-
-Raising only the Worker stop timeout does not make the Worker stop polling earlier, which means the compute provider might terminate the Worker before the full stop timeout completes. <!-- docs/encyclopedia/workers/serverless-workers.mdx:199-201 -->
+Three values must be tuned together — worker stop timeout, shutdown deadline buffer, and invocation deadline — and raising one alone does not help. The exact relationships, a worked example, the failure symptom, and the Activity Heartbeat threshold are provider-specific. → `<provider>/constraints.md`.
 
 ## Failure handling
 
@@ -168,39 +156,27 @@ With single-slot configuration, each Activity gets a dedicated execution environ
 
 | Constraint | Detail |
 |---|---|
-| Activity duration | Must complete within the compute provider's invocation limit (minus shutdown deadline buffer). For AWS Lambda, the maximum is 15 minutes. |
+| Activity duration | On a provider that invokes per unit of work, must complete within its invocation limit minus the shutdown deadline buffer — Lambda's ceiling is 15 minutes. A pool-based provider such as Cloud Run imposes no per-invocation ceiling. → `<provider>/constraints.md`. |
 | Workflow duration | No limit. Workflows of any duration work, regardless of the invocation timeout. A Workflow runs across as many invocations as needed. |
-| Worker code | Same Temporal SDK Worker code, using the serverless Worker package for your SDK. |
+| Worker code | Same Temporal SDK Worker code. On Lambda it runs through that SDK's serverless Worker package; on Cloud Run it is an ordinary long-lived Worker with no extra package. |
 | Versioning | Worker Versioning is required. Each Workflow must have an `AutoUpgrade` or `Pinned` behavior, set per-Workflow or as a Worker-level default. |
 
 ## Worker Versioning with Serverless Workers
 
-Serverless Workers require Worker Versioning, and the compute provider must invoke a stable, immutable build for each Worker Deployment Version. With AWS Lambda, this means aligning two versioning systems: <!-- docs/encyclopedia/workers/serverless-workers.mdx:249-250 -->
+Serverless Workers require Worker Versioning, and the compute provider must invoke a **stable, immutable build** for each Worker Deployment Version. That means aligning two versioning systems: <!-- docs/encyclopedia/workers/serverless-workers.mdx:249-250 -->
 
 - **Temporal Worker Deployment Versions** — identified by deployment name and Build ID. Each Workflow runs against a specific Worker Deployment Version (Pinned) or moves between them on routing changes (Auto-Upgrade). <!-- docs/encyclopedia/workers/serverless-workers.mdx:252-253 -->
-- **AWS Lambda function versions** — immutable numbered snapshots of your Lambda function code (`1`, `2`, `3`, ...). <!-- docs/encyclopedia/workers/serverless-workers.mdx:254 -->
+- **The provider's own unit of immutability** — a published Lambda function version, pinned by a qualified ARN; or on Cloud Run a dedicated Worker Pool per Build ID, because the compute configuration names a pool and not a revision. Keep a one-to-one mapping between it and the Build ID.
 
-For production workloads, map each Worker Deployment Version to exactly one Lambda function version, and configure the compute provider with the qualified versioned ARN for that Lambda version (for example, `arn:aws:lambda:us-east-1:123:function:my-worker:5`). <!-- docs/encyclopedia/workers/serverless-workers.mdx:256-260 -->
+**Pointing a Worker Deployment Version at a mutable target causes non-determinism errors for in-flight Workflows, including Pinned ones.** Pinned routes Workflows to a version; it cannot pin code that changed underneath that version. The failure is the same on both providers but is reached differently — on Lambda you have to choose it by registering an unqualified ARN, while on Cloud Run a plain redeploy into a live pool does it — so read the provider file for which action is the dangerous one. → `aws-lambda/versioning.md`, `gcp-cloud-run/versioning.md`.
 
-For development or non-critical workloads, you can use an unqualified ARN to iterate without publishing a new Lambda function version each time. <!-- docs/encyclopedia/workers/serverless-workers.mdx:281-282 -->
-
-**Caution:** An unqualified ARN (no version suffix) points at `$LATEST`, which changes on every redeploy. Without a versioned ARN, deploying replay-unsafe code causes non-determinism errors for in-flight Workflows, even for Workflows annotated as Pinned. <!-- docs/encyclopedia/workers/serverless-workers.mdx:284-290 -->
-
-The choice of Pinned or Auto-Upgrade controls how Workflows move between Worker Deployment Versions in Temporal. It does not change how a Worker Deployment Version targets Lambda. Both behaviors expect a versioned ARN that points at one immutable Lambda function version. <!-- docs/encyclopedia/workers/serverless-workers.mdx:294-296 -->
-
-| Versioning Behavior | With versioned Lambda ARN | Without versioned Lambda ARN |
-|---|---|---|
-| **Pinned** | Existing Workflows stay on their original Lambda function version until they complete. | Existing Workflows stay on their original Worker Deployment Version, but the underlying Lambda code has already changed since `$LATEST` updated at redeploy. The new code must be replay-compatible. |
-| **Auto-Upgrade** | Existing Workflows move to the new Worker Deployment Version and its new Lambda function version at the next Workflow Task after you move the Current Version. | The Lambda redeploy already changed the code for all versions. Setting the Current Version only changes routing, not which code runs. |
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:299-302 -->
-
-See `aws-lambda/versioning.md` for the step-by-step `aws lambda publish-version` workflow and `aws-lambda/setup.md` (Step 4) for how to configure the compute provider with a versioned ARN.
+Pinned or Auto-Upgrade controls how Workflows move between Worker Deployment Versions in Temporal. It does not change how a Worker Deployment Version targets the provider; both behaviors expect one immutable build per version. <!-- docs/encyclopedia/workers/serverless-workers.mdx:294-296 -->
 
 ## Compute providers
 
 A compute provider is the configuration that tells Temporal how to invoke a Serverless Worker. The compute provider is set on a Worker Deployment Version and specifies the provider type, the invocation target, and the credentials Temporal needs to trigger the invocation. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
 
-For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
+For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function; a Cloud Run compute provider names the project, region, and Worker Pool, plus the service account Temporal impersonates to scale it. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
 
 Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server. <!-- docs/encyclopedia/workers/serverless-workers.mdx:317-318 -->
 
@@ -211,6 +187,7 @@ Compute providers are only needed for Serverless Workers. Traditional long-lived
 | Provider | Description |
 |---|---|
 | AWS Lambda | Temporal assumes an IAM role in your AWS account to invoke a Lambda function. |
+| GCP Cloud Run | Temporal impersonates a service account in your Google Cloud project to scale a Worker Pool. |
 
 ## Why use Serverless Workers?
 
@@ -237,9 +214,9 @@ May not be ideal when:
 
 <!-- docs/evaluate/development-production-features/serverless-workers/index.mdx:88-97 -->
 
-- Activities are long-running and cannot be interrupted. AWS Lambda has a 15-minute execution limit. Activities that run longer and cannot be broken into smaller steps need a different hosting strategy or a provider with longer limits.
+- Activities are long-running and cannot be interrupted, on a provider with a per-invocation ceiling — Lambda's is 15 minutes. Activities that run longer and cannot be broken into smaller steps need a different hosting strategy, or a provider without that ceiling.
 - Workloads require sustained high throughput. Long-lived Workers on dedicated compute may be more cost-effective and performant.
-- You need persistent connections. Some features require a persistent connection between the Worker and Temporal, which serverless invocations do not maintain.
+- You need persistent connections and the provider invokes per unit of work. Some features require a persistent connection between the Worker and Temporal, which per-invocation Workers do not maintain; a pool-based provider holds one for the instance's lifetime.
 
 ## How Serverless Workers compare to long-lived Workers
 

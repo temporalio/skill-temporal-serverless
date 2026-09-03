@@ -14,11 +14,15 @@ Providers often default to a very short timeout — Lambda's default is 3 second
 
 ## Tune the timeout triple together for long-running Activities
 
+The worker stop timeout controls how long the Worker waits for in-flight Tasks after it stops polling; the shutdown deadline buffer controls how long before the invocation deadline it stops polling. <!-- docs/encyclopedia/workers/serverless-workers.mdx:193-194 -->
+
 1. worker stop timeout > longest Activity runtime
 2. shutdown deadline buffer > worker stop timeout + shutdown hook time
 3. invocation deadline > longest Activity runtime + shutdown deadline buffer
 
 Raising one alone does not help. Raising only the shutdown deadline buffer makes the Worker stop polling earlier but gives in-flight Activities no more time; raising only the worker stop timeout doesn't make it stop polling earlier, so the provider may terminate the Worker first.
+
+Worked example: a longest Activity runtime of 5 minutes with 3 seconds of shutdown hooks means a worker stop timeout above 5 minutes, a shutdown deadline buffer above 303 seconds, and an invocation deadline of at least 10 minutes 3 seconds. <!-- docs/encyclopedia/workers/serverless-workers.mdx:189-191 -->
 
 *Symptom of getting this wrong:* Activities abandoned mid-execution and retried on a later invocation.
 
