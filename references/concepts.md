@@ -19,7 +19,7 @@ Public Preview is not General Availability. APIs are still evolving and may be s
 A Serverless Worker is a Temporal Worker that runs on serverless compute instead of a long-lived process. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43 -->
 There is no always-on infrastructure to provision or scale. Temporal starts the Worker when Tasks arrive on a Task Queue, and the compute scales back to zero when the work is done. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43-45 -->
 
-**"Starts" means different things per provider, and this is the central distinction in the whole skill.** On AWS Lambda, Temporal invokes a function per unit of work and the Worker exits when that invocation ends. On GCP Cloud Run, Temporal resizes a pool of long-lived instances, each running an ordinary Worker that polls for its whole lifetime. Both scale to zero when idle; almost nothing else about their lifecycles is the same.
+**"Starts" means different things per provider.** On AWS Lambda, Temporal invokes a function per unit of work and the Worker exits when that invocation ends. On GCP Cloud Run, Temporal resizes a pool of long-lived instances, each running an ordinary Worker that polls for its whole lifetime. Both scale to zero when idle; almost nothing else about their lifecycles is the same.
 
 A Serverless Worker uses the same Temporal SDKs as a traditional long-lived Worker. It registers Workflows and Activities the same way. <!-- docs/encyclopedia/workers/serverless-workers.mdx:47-49 -->
 
