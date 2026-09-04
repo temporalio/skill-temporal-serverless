@@ -1,31 +1,22 @@
 # GCP Cloud Run — execution-model constraints
 
-<!-- Sources:
-  docs/encyclopedia/workers/serverless-workers/cloud-run.mdx
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx
--->
-
 Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-lived instances, scaling it to zero when there is no work.** Temporal does *not* invoke your Worker per Task.
-
-This file is the provider "diff surface." Compare it with `../aws-lambda/constraints.md` to see what changes between providers — the workflow in `SKILL.md` is the same; these constraints are not.
 
 ## Worker lifetime is an instance, not an invocation
 
-Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package** — the SDK-specific packages in `../aws-lambda/sdk-<language>.md` are AWS Lambda only. Some SDKs add optional Cloud Run conveniences; none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
+Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Use the Cloud Run SDK reference in this directory; some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
 The WCI controls how many instances run; each instance manages its own polling and Task processing.
 
-## None of Lambda's timing constraints apply
-
-Explicitly, so they are not carried across:
+## Timing and Activity limits
 
 - **No invocation deadline.** Nothing bounds how long a Worker lives except scale-in.
-- **No shutdown deadline buffer.** That is a property of the Lambda Worker packages, not of Temporal.
+- **No shutdown deadline buffer.** Cloud Run terminates instances through its own scale-in lifecycle.
 - **No timeout triple to tune.** Two of its three values do not exist here.
-- **Activities are not bounded by an invocation limit.** An Activity too long for Lambda's 15-minute ceiling is a reason to choose Cloud Run.
-- **Eager Activities are not disabled by the platform.** Lambda's packages force this off because a per-invocation Worker holds no persistent connection; a pool instance holds its connection for its lifetime, so that reasoning does not transfer. Confirm against your SDK rather than assuming either way. <!-- inferred: the Lambda rationale does not apply; not stated for Cloud Run in the docs read -->
+- **Activities are not bounded by an invocation limit.** Their practical interruption boundary is scale-in.
+- **Eager Activities are not disabled by the platform.** A pool instance holds its connection for its lifetime; confirm support against the selected SDK.
 
-Cloud Run still sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds later. Handle `SIGTERM` and configure the SDK's graceful-shutdown timeout below that window; this is separate from Lambda's deadline buffer and timeout triple. → `sdk-<language>.md`.
+Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds later. Handle `SIGTERM` and configure the SDK's graceful-shutdown timeout below that window. → `sdk-<language>.md`.
 
 ## What bounds an Activity instead: scale-in
 
@@ -48,7 +39,7 @@ It sizes to a **target utilization of 80% by default** rather than loading every
 
 **Scale-in is deliberately more conservative than scale-out:** it holds capacity while sync match failures are still occurring and applies a cooldown before reducing the pool. With no work, it can scale to zero; the next sync match failure or backlog scales it back up.
 
-The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, and target utilization `0.8`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. The four CLI flags are coupled: omit all four to use the defaults, or provide `--gcp-cloud-run-min-instances`, `--gcp-cloud-run-max-instances`, `--gcp-cloud-run-initial-instances`, and `--gcp-cloud-run-utilization-target` together. A partial group is rejected. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138 -->
+The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, and target utilization `0.8`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. The four CLI flags are coupled: omit all four to use the defaults, or provide `--gcp-cloud-run-min-instances`, `--gcp-cloud-run-max-instances`, `--gcp-cloud-run-initial-instances`, and `--gcp-cloud-run-utilization-target` together. A partial group is rejected. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138; temporal worker deployment create-version --help -->
 
 An initial count and minimum of zero do not suppress registration. The rate-based algorithm temporarily requests at least one instance when the version is registered so its Task Queues can bind, then normal scaling can return the pool to zero. A pool that later stops growing under backlog is either at its configured maximum or at a regional Cloud Run quota.
 
@@ -58,24 +49,16 @@ An initial count and minimum of zero do not suppress registration. The rate-base
 
 Keep an older version's pool in place while Pinned Workflows are still running on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version.
 
-**The mutable-build hazard, in its Cloud Run form:** deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does — causing non-determinism errors for in-flight Workflows, **including Pinned ones**. This is the same failure as pointing Lambda at a mutable `$LATEST`, reached through revisions instead of ARNs. → `versioning.md`.
+**The mutable-build hazard:** deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does — causing non-determinism errors for in-flight Workflows, **including Pinned ones**. → `versioning.md`.
 
 ## Do not share a Task Queue with long-lived Workers
 
-Stronger than the Lambda guidance, and for a different reason. On Lambda the two scaling loops fight; here **the pool scales up to cover the Task Queue's full workload even when long-lived Workers are already handling all of it**, so you run and pay for duplicate capacity. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:71-80 -->
+**The pool scales up to cover the Task Queue's full workload even when independently managed Workers are already handling all of it**, so you run and pay for duplicate capacity. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:71-80 -->
 
 The WCI sizes the pool from the rate of Tasks arriving on the version's Task Queues, and nothing in that measurement accounts for the long-lived Workers. Sync matching to a long-lived Worker suppresses the *immediate* scale-up, but the periodic re-sizing scales the pool up regardless. Fixing poller counts on the long-lived side does not help — use separate Task Queues.
 
-## Pre-release status
-
-Cloud Run support is **Pre-release, and its APIs may change in backwards-incompatible ways.** Access is not open: the user must create a support ticket or contact their account team. Confirm access exists before planning a deployment — this is a gate no amount of correct configuration gets past. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:19-23 -->
-
-## Provider-side issue worth knowing
-
-Google currently reports **high deployment latency creating or updating Cloud Run resources in some regions, including `us-central1`**, and recommends deploying elsewhere while it is open. If pool operations are slow, check [Cloud Run known issues](https://cloud.google.com/run/docs/known-issues) before assuming misconfiguration. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:53-63 -->
-
 ## What does *not* follow from this model
 
-- **"Serverless Worker" does not imply standard Worker code.** On Lambda you write a handler against a provider-specific package; here you write an ordinary Worker. Advice about handlers, configure callbacks, or tuned package defaults does not transfer.
+- **Use ordinary Worker code.** Handler, configure-callback, and provider-package patterns do not apply.
 - **Scale-to-zero is not per-Task.** An idle pool costs nothing, but a running instance is billed for its lifetime, not per unit of work.
-- **A passing Validate Connection is weaker here than on Lambda.** It exercises only the read permission and starts no instance. → `diagnostics.md`.
+- **A passing Validate Connection exercises only the read permission and starts no instance.** → `diagnostics.md`.

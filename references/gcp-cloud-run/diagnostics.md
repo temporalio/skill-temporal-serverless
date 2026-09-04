@@ -1,10 +1,5 @@
 # GCP Cloud Run — Diagnostics & troubleshooting
 
-<!-- Sources:
-  docs/troubleshooting/serverless-workers/cloud-run.mdx
-  docs/encyclopedia/workers/serverless-workers/cloud-run.mdx
--->
-
 ## Scaling flow (when working correctly)
 
 <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:29-40 -->
@@ -19,7 +14,7 @@
 
 ## Start here: read the pool's annotations
 
-This is the single highest-value command, and it has no Lambda equivalent:
+This is the single highest-value command:
 
 ```bash
 gcloud run worker-pools describe <POOL_NAME> \
@@ -39,15 +34,13 @@ Three fields under `metadata.annotations`: <!-- docs/troubleshooting/serverless-
 - Still the account you deployed with → **Temporal has never successfully written to the pool.** Work through "pool is not scaling up" below.
 - The invoker service account → **Temporal is reaching the pool**; the fault is in the Worker. Skip to "instances running but Tasks not completing."
 
-This is the Cloud Run counterpart of Lambda's "is the Task Queue bound?" checkpoint — one read that eliminates most of the surface.
-
 ## The Worker Pool is not scaling up
 
 ### 1. Validate Connection — and know what it does *not* prove
 
 Workers → Deployments → select deployment → Actions → **Validate Connection**. For Cloud Run this impersonates the invoker and reads the pool, confirming three things: the compute configuration names a pool that exists, Temporal can impersonate the invoker, and the invoker can read.
 
-**It starts no instance and does not exercise `run.workerPools.update`.** Version registration is different: its Task Queue bootstrap does update the pool. An invoker with read but not update permission can therefore pass this manual validation, but version registration or a later resize fails. If validation succeeds but registration never changes `lastModifier`, **check the update permission**. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:94-99 -->
+**It starts no instance and does not exercise `run.workerPools.update`.** Version registration is different: its Task Queue bootstrap does update the pool. An invoker with read but not update permission can therefore pass this manual validation, but version registration or a later resize fails. If validation succeeds but registration never changes `lastModifier`, **check the update permission**. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:75-99 -->
 
 On failure, check each part of the compute configuration against the pool:
 
@@ -102,20 +95,20 @@ If instances are running but the count stops growing while backlog builds:
 gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
 ```
 
-**The pool produces no logs while scaled to zero** — read them while an instance is up. An empty log is not evidence of failure.
+**A scaled-to-zero pool emits no new logs.** `logs read` still returns historical entries; use `logs tail` only while an instance is running. An empty result may simply mean the pool has never started.
 
 Common errors: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:156-166 -->
 
 - **Connection failures** — check `TEMPORAL_ADDRESS` and `TEMPORAL_NAMESPACE` on the pool. Self-hosted: verify network reachability from Cloud Run to the frontend.
 - **Missing secrets** — the instance cannot read the API key or TLS material. The **runner** service account needs `roles/secretmanager.secretAccessor` on the secret. That is the account in `spec.template.spec.serviceAccountName`, **not the invoker.** This is the most common consequence of confusing the two.
 - **Authentication errors** — key invalid, expired, or without access to the Namespace.
-- **`TransportError: … NativeCertsNotFound`** — a Rust-core SDK in a minimal base image with no CA certificates. Documented for TypeScript on Cloud Run; the same class of failure as .NET's `SSL_CERT_FILE` problem on Lambda. Install `ca-certificates` in the image. → `setup.md`.
+- **`TransportError: … NativeCertsNotFound`** — a Rust-core SDK in a minimal base image with no CA certificates. Install `ca-certificates` in the image. → `setup.md`.
 
 ### Deployment name and build ID
 
 Instances start and poll but no Task is ever processed → the name or build ID in the code does not match the version. The Worker polls under a version the WCI does not manage, **so its polls never satisfy the Tasks the WCI is scaling for.**
 
-Note the different signature from Lambda: there, a mismatch causes rapid repeated invocations. Here there are no invocations to count — you see a running pool, healthy-looking logs, and no progress.
+The Cloud Run signature is a running pool, healthy-looking logs, and no Workflow progress.
 
 ## Activities interrupted mid-execution
 
@@ -134,4 +127,4 @@ The usual fix is to wait it out or move region. **Moving region means creating a
 
 ## Never create or manage the WCI
 
-Unchanged from Lambda: Temporal creates one per Worker Deployment Version with a compute provider, and a running WCI is not evidence that scaling works—it continues-as-new while its Activities fail. Read its history for Activity failures, and prefer the pool's `lastModifier` annotation as the cheapest proof of a successful write. Do not enumerate Cloud Run resources across regions to reverse-engineer state.
+Temporal creates one WCI per Worker Deployment Version with a compute provider, and a running WCI is not evidence that scaling works—it continues-as-new while its Activities fail. Read its history for Activity failures, and prefer the pool's `lastModifier` annotation as the cheapest proof of a successful write. Do not enumerate Cloud Run resources across regions to reverse-engineer state.

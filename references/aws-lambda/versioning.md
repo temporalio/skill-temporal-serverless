@@ -54,18 +54,6 @@ The command prints the `FunctionArn` for the new version, for example `arn:aws:l
 
 For development or non-critical workloads, you can skip `publish-version` and use an unqualified ARN to iterate faster. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:372 -->
 
-### What an unqualified ARN costs
-
-An unqualified ARN (no version suffix) points at `$LATEST`, which changes on every redeploy. Deploying replay-unsafe code that way causes non-determinism errors for in-flight Workflows, **even ones annotated Pinned**. <!-- docs/encyclopedia/workers/serverless-workers.mdx:284-290 -->
-
-Pinned and Auto-Upgrade control how Workflows move between Worker Deployment Versions in Temporal; neither changes how a version targets Lambda. Both expect a qualified ARN naming one immutable function version. <!-- docs/encyclopedia/workers/serverless-workers.mdx:294-296 -->
-
-| Versioning Behavior | With versioned Lambda ARN | Without versioned Lambda ARN |
-|---|---|---|
-| **Pinned** | Existing Workflows stay on their original Lambda function version until they complete. | Existing Workflows stay on their original Worker Deployment Version, but the underlying Lambda code has already changed since `$LATEST` updated at redeploy. The new code must be replay-compatible. |
-| **Auto-Upgrade** | Existing Workflows move to the new Worker Deployment Version and its new Lambda function version at the next Workflow Task after you move the Current Version. | The Lambda redeploy already changed the code for all versions. Setting the Current Version only changes routing, not which code runs. |
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:299-302 -->
-
 To roll back, revert the Temporal Current Version with `temporal worker deployment set-current-version`. The previous Worker Deployment Version still points at its original Lambda function version and is ready to receive traffic again. <!-- docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx:375-377 -->
 
 ```bash
