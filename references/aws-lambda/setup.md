@@ -30,32 +30,23 @@ Steps 4–6 and the CLI troubleshooting paths use the `temporal` CLI. Install it
 ```bash
 export TEMPORAL_ADDRESS="<namespace_id>.<account_id>.tmprl.cloud:7233"
 export TEMPORAL_NAMESPACE="<namespace_id>.<account_id>"
-export TEMPORAL_API_KEY="<your-api-key>"
+printf 'Temporal API key: ' >&2
+IFS= read -r -s TEMPORAL_API_KEY
+printf '\n' >&2
+export TEMPORAL_API_KEY
 ```
 
-or configure a profile and pass `--profile prod` on each command:
+An existing profile or environment is also valid; pass `--profile prod` or `--env prod` on each command. Do not create or update its API key with `config set --value` or `env set --value` — the value would be exposed in shell history and process arguments. If no credential is already configured, use the private environment-variable prompt above.
+
+**Do not assume which mechanism a user has, and do not migrate them.** `--env` (YAML, `temporal env`) is the long-standing mechanism; `--profile` (TOML, `temporal config`) is newer and the CLI still marks it EXPERIMENTAL. Inspect only the non-secret properties needed for the deployment; a broad `env get` or `config get` can print stored credentials:
 
 ```bash
-temporal --profile prod config set --prop address --value "<namespace_id>.<account_id>.tmprl.cloud:7233"
-temporal --profile prod config set --prop namespace --value "<namespace_id>.<account_id>"
-temporal --profile prod config set --prop api_key --value "<your-api-key>"
+temporal env get --env prod --key address
+temporal env get --env prod --key namespace
+temporal --profile prod config get --prop address
+temporal --profile prod config get --prop namespace
 ```
 <!-- docs/develop/environment-configuration.mdx:122-131 -->
-
-or configure an environment and pass `--env prod` (or set `TEMPORAL_ENV`):
-
-```bash
-temporal env set --env prod --key address --value "<namespace_id>.<account_id>.tmprl.cloud:7233"
-temporal env set --env prod --key namespace --value "<namespace_id>.<account_id>"
-temporal env set --env prod --key api-key --value "<your-api-key>"
-```
-
-**Do not assume which of the three a user has, and do not migrate them.** `--env` (YAML, `temporal env`) is the long-standing mechanism; `--profile` (TOML, `temporal config`) is newer and the CLI still marks it EXPERIMENTAL. Both are supported — work with whichever is already configured. Read the existing values rather than asking the user to re-enter them:
-
-```bash
-temporal env get --env prod          # --env mechanism
-temporal config get --prop address   # --profile mechanism
-```
 
 - For Temporal Cloud the Namespace is the fully-qualified `<namespace_id>.<account_id>`, not the bare name. <!-- docs/develop/environment-configuration.mdx:128-129 -->
 - Supplying an API key auto-enables TLS; no cert flags are needed for API-key auth. <!-- docs/develop/environment-configuration.mdx:70 -->
@@ -72,7 +63,7 @@ If this fails with an auth error, note first that this is a **frontend** call �
 | | Control plane (accounts, Namespaces, API keys) | Namespace frontend (Workflows, Worker Deployments) |
 |---|---|---|
 | Interactive | `tcld login` | `temporal ...` with address + namespace |
-| Headless | `--api-key` / `TEMPORAL_CLOUD_API_KEY` | `TEMPORAL_API_KEY` |
+| Headless | `TEMPORAL_CLOUD_API_KEY` | `TEMPORAL_API_KEY` |
 
 **Use `tcld` for every Temporal Cloud control-plane operation** — accounts, Namespaces, API keys, users, service accounts. Do not use the unified CLI's `temporal cloud …` subcommands for them.
 
@@ -85,13 +76,7 @@ Two `tcld` mechanics worth knowing before you run it in an agent shell:
 - `tcld login --disable-pop-up` prints the URL instead of opening a browser. Auto-open is unreliable over SSH, in containers, and in remote sessions, and the user needs the URL in the conversation either way.
 - `tcld` prompts for confirmation before mutating operations. Non-interactively, pass the global `--auto_confirm` (note the underscore) or set `AUTO_CONFIRM=true`, then read the resulting state back — without it the command exits clean having changed nothing.
 
-**Go to the API key first.** It requires no CLI login, no browser handshake, and works on every account type:
-
-```bash
-export TEMPORAL_ADDRESS="<namespace_id>.<account_id>.tmprl.cloud:7233"
-export TEMPORAL_NAMESPACE="<namespace_id>.<account_id>"
-export TEMPORAL_API_KEY="<created in the Cloud UI>"
-```
+**Go to the API key first.** It requires no CLI login, no browser handshake, and works on every account type. Use the private environment-variable prompt above.
 
 Have the user create the key in the Cloud UI, signing in however they normally do, and confirm the address against the endpoint shown on the Namespace page — some Namespaces have regional endpoints that do not follow the pattern above. Never ask them to paste the key into the conversation.
 
@@ -100,10 +85,9 @@ Have the user create the key in the Cloud UI, signing in however they normally d
 ```bash
 tcld namespace list             # full Namespace objects — every name with its region and endpoint
 tcld namespace get -n <ns>      # one Namespace
-tcld apikey create --name <name> --duration <d>
 ```
 
-`apikey create` mints a key for the calling user and creates a long-lived credential in their account — offer it and get explicit approval, never silently. `tcld` is not guaranteed present: check `command -v tcld`, and read `tcld <group> --help` for the flags you are about to pass.
+`tcld` is not guaranteed present: check `command -v tcld`, and read `tcld <group> --help` for the flags you are about to pass. Create API keys in the Cloud UI so their values never enter the agent transcript.
 
 **When a control-plane login fails, stop — do not debug it, retry it, or install another CLI.** Some accounts cannot complete a `tcld` login at all, and no flag, plugin upgrade, or alternate CLI changes that. Retrying burns turns without converging, and the browser path below reaches the same end state anyway.
 
@@ -139,9 +123,9 @@ See the selected SDK reference's **Build and package** section.
 
 **A freshly created execution role may not be assumable immediately.** `create-function` can fail with an assume-role / "cannot be assumed by Lambda" error because of IAM propagation delay. Wait a few seconds and retry; it is not a policy error, so do not start rewriting the trust policy.
 
-**Operator CLI config does not reach the function.** All three CLI mechanisms above — exported `TEMPORAL_*` variables, `--profile`, and `--env` — configure the `temporal` CLI on the operator's machine only. The function reads its own environment, set by the `--environment` block below (or a secret store). A user with a working `--env prod` or `--profile prod` still needs every value written into that block; nothing is inherited. Treat their CLI configuration as the *source* of the values, not a substitute for setting them.
+**Operator CLI config does not reach the function.** All three CLI mechanisms above — exported `TEMPORAL_*` variables, `--profile`, and `--env` — configure the `temporal` CLI on the operator's machine only. The function reads its own environment, set by the `--environment` block below (or a secret store). A user with a working `--env prod` or `--profile prod` still needs every value written into that block; nothing is inherited. Use the CLI configuration only for non-secret values, and collect the API key through the private prompt above.
 
-**Resolve the values before building the block, and check they are not empty.** The heredoc below expands shell variables, which hold values only under the env-var mechanism. Under `--env` or `--profile` they are unset, and an unset variable expands to an empty string: the JSON stays valid, `create-function` succeeds, and the function deploys with `"TEMPORAL_ADDRESS":""` — failing at first invocation with a connection error that looks nothing like its cause. Populate them from whichever mechanism the user actually has (`temporal env get --env prod`, `temporal config get --prop address`), then guard:
+**Resolve the values before building the block, and check they are not empty.** The heredoc below expands shell variables, which hold values only under the env-var mechanism. Under `--env` or `--profile` they are unset, and an unset variable expands to an empty string: the JSON stays valid, `create-function` succeeds, and the function deploys with `"TEMPORAL_ADDRESS":""` — failing at first invocation with a connection error that looks nothing like its cause. Populate the address and Namespace from the non-secret lookups above, and have the user set `TEMPORAL_API_KEY` with the private prompt; never retrieve a stored key into the agent transcript. Then guard:
 
 ```bash
 : "${TEMPORAL_ADDRESS:?resolve this before deploying}"
