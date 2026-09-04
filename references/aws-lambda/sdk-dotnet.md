@@ -28,7 +28,7 @@ If sources disagree, use the installed artifact's public API, followed by the ma
 
 ## Entry point
 
-**`TemporalLambdaWorker.CreateHandler(version, configure)`** — returns a `Func<object?, ILambdaContext, Task>` that your handler method delegates to. Overloads take either a synchronous `Action<TemporalLambdaWorkerOptions>` or an asynchronous `Func<TemporalLambdaWorkerOptions, Task>` for setup that must await. A further overload taking `TemporalLambdaWorkerHandlerOptions` is an internal test seam and is not for production use.
+**`TemporalLambdaWorker.CreateHandler(version, configure)`** — returns a `Func<object?, ILambdaContext, Task>` that your handler method delegates to. Overloads take either a synchronous `Action<TemporalLambdaWorkerOptions>` or an asynchronous `Func<TemporalLambdaWorkerOptions, Task>` for setup that must await.
 
 ## Configure callback
 
@@ -69,7 +69,8 @@ public class LambdaFunction
             new WorkerDeploymentVersion("my-app", "build-1"),
             config =>
             {
-                config.WorkerOptions.TaskQueue = "my-task-queue";
+                config.WorkerOptions.TaskQueue =
+                    Environment.GetEnvironmentVariable("TEMPORAL_TASK_QUEUE") ?? "my-task-queue";
                 config.WorkerOptions
                     .AddWorkflow<MyWorkflow>()
                     .AddActivity(MyActivities.MyActivity);
