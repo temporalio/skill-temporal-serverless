@@ -1,6 +1,6 @@
 # .NET SDK on AWS Lambda
 
-Sources: [`Temporalio.Extensions.Aws.Lambda` 1.18.0](https://www.nuget.org/packages/Temporalio.Extensions.Aws.Lambda/1.18.0), [Lambda extension source](https://github.com/temporalio/sdk-dotnet/tree/90c4ef35e260ed5bf553de7ef458053da28e3912/src/Temporalio.Extensions.Aws.Lambda), [OpenTelemetry extension source](https://github.com/temporalio/sdk-dotnet/tree/90c4ef35e260ed5bf553de7ef458053da28e3912/src/Temporalio.Extensions.Aws.Lambda.OpenTelemetry), and the [maintained Lambda Worker sample](https://github.com/temporalio/samples-dotnet/tree/6aba4fb9ea08177e303352ec9a4c61e303cefb0e/src/LambdaWorker).
+Sources: [`Temporalio.Extensions.Aws.Lambda` 1.18.0](https://www.nuget.org/packages/Temporalio.Extensions.Aws.Lambda/1.18.0), [Lambda extension source](https://github.com/temporalio/sdk-dotnet/tree/1.18.0/src/Temporalio.Extensions.Aws.Lambda), [OpenTelemetry extension source](https://github.com/temporalio/sdk-dotnet/tree/1.18.0/src/Temporalio.Extensions.Aws.Lambda.OpenTelemetry), and the [maintained Lambda Worker sample](https://github.com/temporalio/samples-dotnet/tree/6aba4fb9ea08177e303352ec9a4c61e303cefb0e/src/LambdaWorker).
 
 Use this reference for .NET SDK-specific package, entry-point, Worker configuration, tuned defaults, observability, and diagnostic details. For shared AWS Lambda deployment, observability infrastructure, and diagnostic flow, see `setup.md`, `observability.md`, and `diagnostics.md`.
 
@@ -28,7 +28,7 @@ If sources disagree, use the installed artifact's public API, followed by the ma
 
 ## Entry point
 
-**`TemporalLambdaWorker.CreateHandler(version, configure)`** — returns a `Func<object?, ILambdaContext, Task>` that your handler method delegates to. Overloads take either a synchronous `Action<TemporalLambdaWorkerOptions>` or an asynchronous `Func<TemporalLambdaWorkerOptions, Task>` for setup that must await. A further overload taking `TemporalLambdaWorkerHandlerOptions` is an internal test seam and is not for production use.
+**`TemporalLambdaWorker.CreateHandler(version, configure)`** — returns a `Func<object?, ILambdaContext, Task>` that your handler method delegates to. Overloads take either a synchronous `Action<TemporalLambdaWorkerOptions>` or an asynchronous `Func<TemporalLambdaWorkerOptions, Task>` for setup that must await.
 
 ## Configure callback
 
@@ -69,7 +69,8 @@ public class LambdaFunction
             new WorkerDeploymentVersion("my-app", "build-1"),
             config =>
             {
-                config.WorkerOptions.TaskQueue = "my-task-queue";
+                config.WorkerOptions.TaskQueue =
+                    Environment.GetEnvironmentVariable("TEMPORAL_TASK_QUEUE") ?? "my-task-queue";
                 config.WorkerOptions
                     .AddWorkflow<MyWorkflow>()
                     .AddActivity(MyActivities.MyActivity);

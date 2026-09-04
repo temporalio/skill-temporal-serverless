@@ -1,7 +1,7 @@
 ---
 name: temporal-serverless
 description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "Worker Pool", "deploy Temporal worker on Cloud Run", "gcloud run worker-pools", "invoker service account".'
-version: 0.7.0
+version: 0.6.2
 ---
 
 # Skill: temporal-serverless
