@@ -13,6 +13,8 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
 - A Temporal SDK. Supported on Cloud Run: Go, Python, TypeScript, Java, .NET, **Ruby, and Rust**.
 
+<!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
+
 The `temporal` CLI commands in Steps 6 and 7 must inherit authentication from an existing profile or from the process environment. **Never append `--api-key <value>` or put the key in an inline assignment.** If `TEMPORAL_API_KEY` is not already populated, set it privately in the user's own terminal without putting the value in shell history:
 
 ```bash
@@ -96,7 +98,7 @@ Two things the Worker must do:
 
 Per-SDK code lives in `sdk-<language>.md` in this directory, one file per SDK. Each covers the versioned Worker, connection, image packaging, graceful shutdown, scale-in safety, and observability. The Java, Python, and .NET references also include their logging setup and diagnostic signatures.
 
-**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts.
+**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:465-468 -->
 
 ## Step 2: Containerize the Worker
 
@@ -186,7 +188,7 @@ Creating the Worker Deployment Version starts its WCI. The WCI validates the con
 
 The update completing proves that Temporal reached Cloud Run, not that the container started or the Worker connected. Wait for the expected Task Queue types to appear; that binding is proof the instance started and polled under the registered deployment name and build ID.
 
-The separate UI **Validate Connection** action (Workers → Deployments → select → Actions) only impersonates the invoker and reads the pool. It starts no instance and does not exercise `run.workerPools.update`, so a green manual validation is weaker than a successful registration bootstrap.
+The separate UI **Validate Connection** action (Workers → Deployments → select → Actions) only impersonates the invoker and reads the pool. It starts no instance and does not exercise `run.workerPools.update`, so a green manual validation is weaker than a successful registration bootstrap. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:824-827 -->
 
 Use both views when diagnosing the checkpoint:
 

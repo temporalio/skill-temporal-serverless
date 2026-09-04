@@ -4,7 +4,7 @@ Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-l
 
 ## Worker lifetime is an instance, not an invocation
 
-Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Use the Cloud Run SDK reference in this directory; some SDKs add optional conveniences, but none are required.
+Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Use the Cloud Run SDK reference in this directory; some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
 The WCI controls how many instances run; each instance manages its own polling and Task processing.
 
@@ -20,13 +20,15 @@ Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds lat
 
 ## What bounds an Activity instead: scale-in
 
-**The WCI decides when to remove an instance from Task Queue activity, not from what any individual instance is doing.** It does not track how long an instance has been running or whether it is mid-Activity, so the instance Cloud Run stops may be one that is still executing work.
+**The WCI decides when to remove an instance from Task Queue activity, not from what any individual instance is doing.** It does not track how long an instance has been running or whether it is mid-Activity, so the instance Cloud Run stops may be one that is still executing work. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:112-116 -->
 
 Graceful shutdown lets short work drain but cannot guarantee an Activity will finish. **Use Activity Heartbeats** so interrupted work resumes from its last recorded progress instead of restarting.
 
 *Symptom of ignoring this:* Activities failing partway and retrying from the beginning, correlated with the pool shrinking.
 
 ## Autoscaling behavior
+
+<!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:36-69 -->
 
 The WCI combines two mechanisms:
 
@@ -37,13 +39,13 @@ It sizes to a **target utilization of 80% by default** rather than loading every
 
 **Scale-in is deliberately more conservative than scale-out:** it holds capacity while sync match failures are still occurring and applies a cooldown before reducing the pool. With no work, it can scale to zero; the next sync match failure or backlog scales it back up.
 
-The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, and target utilization `0.8`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. The four CLI flags are coupled: omit all four to use the defaults, or provide `--gcp-cloud-run-min-instances`, `--gcp-cloud-run-max-instances`, `--gcp-cloud-run-initial-instances`, and `--gcp-cloud-run-utilization-target` together. A partial group is rejected.
+The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, and target utilization `0.8`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. The four CLI flags are coupled: omit all four to use the defaults, or provide `--gcp-cloud-run-min-instances`, `--gcp-cloud-run-max-instances`, `--gcp-cloud-run-initial-instances`, and `--gcp-cloud-run-utilization-target` together. A partial group is rejected. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138; temporal worker deployment create-version --help -->
 
 An initial count and minimum of zero do not suppress registration. The rate-based algorithm temporarily requests at least one instance when the version is registered so its Task Queues can bind, then normal scaling can return the pool to zero. A pool that later stops growing under backlog is either at its configured maximum or at a regional Cloud Run quota.
 
 ## One Worker Pool per Worker Deployment Version
 
-**The compute configuration names a project, region, and pool — not a revision.** Temporal runs whichever revision the pool serves at the time, which ties a pool to a single build. A new build needs a **new pool**, and the Build ID belongs in the pool name to keep that mapping visible.
+**The compute configuration names a project, region, and pool — not a revision.** Temporal runs whichever revision the pool serves at the time, which ties a pool to a single build. A new build needs a **new pool**, and the Build ID belongs in the pool name to keep that mapping visible. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:82-89 -->
 
 Keep an older version's pool in place while Pinned Workflows are still running on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version.
 
@@ -51,7 +53,7 @@ Keep an older version's pool in place while Pinned Workflows are still running o
 
 ## Do not share a Task Queue with long-lived Workers
 
-**The pool scales up to cover the Task Queue's full workload even when independently managed Workers are already handling all of it**, so you run and pay for duplicate capacity.
+**The pool scales up to cover the Task Queue's full workload even when independently managed Workers are already handling all of it**, so you run and pay for duplicate capacity. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:71-80 -->
 
 The WCI sizes the pool from the rate of Tasks arriving on the version's Task Queues, and nothing in that measurement accounts for the long-lived Workers. Sync matching to a long-lived Worker suppresses the *immediate* scale-up, but the periodic re-sizing scales the pool up regardless. Fixing poller counts on the long-lived side does not help — use separate Task Queues.
 

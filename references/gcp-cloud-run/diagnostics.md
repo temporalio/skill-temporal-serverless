@@ -2,6 +2,8 @@
 
 ## Scaling flow (when working correctly)
 
+<!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:29-40 -->
+
 1. You deploy the Worker image to a Worker Pool at zero instances.
 2. You create a Worker Deployment Version pointing at that pool. This starts a WCI Workflow.
 3. An instance starts, the Worker polls, and the server **binds the Task Queue** to the version.
@@ -19,7 +21,7 @@ gcloud run worker-pools describe <POOL_NAME> \
   --region <REGION> --project <YOUR_GCP_PROJECT> --format=yaml
 ```
 
-Three fields under `metadata.annotations`:
+Three fields under `metadata.annotations`: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:57-63 -->
 
 | Field | What it tells you |
 |---|---|
@@ -38,7 +40,7 @@ Three fields under `metadata.annotations`:
 
 Workers → Deployments → select deployment → Actions → **Validate Connection**. For Cloud Run this impersonates the invoker and reads the pool, confirming three things: the compute configuration names a pool that exists, Temporal can impersonate the invoker, and the invoker can read.
 
-**It starts no instance and does not exercise `run.workerPools.update`.** Version registration is different: its Task Queue bootstrap does update the pool. An invoker with read but not update permission can therefore pass this manual validation, but version registration or a later resize fails. If validation succeeds but registration never changes `lastModifier`, **check the update permission**.
+**It starts no instance and does not exercise `run.workerPools.update`.** Version registration is different: its Task Queue bootstrap does update the pool. An invoker with read but not update permission can therefore pass this manual validation, but version registration or a later resize fails. If validation succeeds but registration never changes `lastModifier`, **check the update permission**. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:75-99 -->
 
 On failure, check each part of the compute configuration against the pool:
 
@@ -95,7 +97,7 @@ gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_
 
 **A scaled-to-zero pool emits no new logs.** `logs read` still returns historical entries; use `logs tail` only while an instance is running. An empty result may simply mean the pool has never started.
 
-Common errors:
+Common errors: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:156-166 -->
 
 - **Connection failures** — check `TEMPORAL_ADDRESS` and `TEMPORAL_NAMESPACE` on the pool. Self-hosted: verify network reachability from Cloud Run to the frontend.
 - **Missing secrets** — the instance cannot read the API key or TLS material. The **runner** service account needs `roles/secretmanager.secretAccessor` on the secret. That is the account in `spec.template.spec.serviceAccountName`, **not the invoker.** This is the most common consequence of confusing the two.
@@ -116,7 +118,7 @@ This is expected behavior, not a misconfiguration. Confirm the Worker handles `S
 
 ## Rule out a GCP-side cause
 
-If every check passes, the cause may be in Cloud Run rather than your configuration:
+If every check passes, the cause may be in Cloud Run rather than your configuration: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:191-203 -->
 
 - [Cloud Run known issues](https://cloud.google.com/run/docs/known-issues) — includes issues affecting how long pool operations take.
 - [Google Cloud Service Health](https://status.cloud.google.com/) — active incidents by product and region.

@@ -2,11 +2,11 @@
 
 ## There is nothing serverless-specific to configure
 
-**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference.
+**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx, "Add observability" -->
 
 Do not add provider-specific helper layers, collector environment variables, or invocation-deadline flush logic. Export telemetry as you would from any long-lived container.
 
-Some SDKs add optional Cloud Run conveniences, such as OpenTelemetry helpers. **They are optional**, and where they exist they are documented in that SDK's Cloud Run guide.
+Some SDKs add optional Cloud Run conveniences, such as OpenTelemetry helpers. **They are optional**, and where they exist they are documented in that SDK's Cloud Run guide. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:31-34 -->
 
 ## Logs
 
