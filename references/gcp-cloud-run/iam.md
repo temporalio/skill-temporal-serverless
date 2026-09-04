@@ -6,15 +6,15 @@
   docs/troubleshooting/serverless-workers/cloud-run.mdx
 -->
 
-Three identities, as on AWS Lambda — the **operator** (whose credentials run the commands), the **runner service account** (what the pool runs as), and the **invoker service account** (what Temporal impersonates). The mapping to Lambda's roles is close enough to be useful and different enough to be dangerous if assumed.
+Cloud Run uses three identities:
 
-| Concept | AWS Lambda | GCP Cloud Run |
-|---|---|---|
-| The compute's own identity | Execution role, trusted by `lambda.amazonaws.com` | **Runner service account**, set with `--service-account` |
-| Temporal's identity | Invocation role, assumed via `sts:AssumeRole` + External ID | **Invoker service account**, reached by **impersonation** |
-| Mechanism | `sts:AssumeRole` with a confused-deputy guard | `roles/iam.serviceAccountTokenCreator` — **no External ID equivalent** |
-| What Temporal does with it | Invokes the function | Reads and **updates the pool's instance count** via the Cloud Run admin API |
-| Infrastructure as code | CloudFormation template (shipped in `assets/`) | **Terraform module**, `serverless-workers/gcp/cloud-run` |
+| Identity | Purpose |
+|---|---|
+| **Operator** | The credentials that run `gcloud` and Terraform commands. |
+| **Runner service account** | The identity attached to pool instances with `--service-account`. |
+| **Invoker service account** | The identity Temporal impersonates to read and update the pool's instance count. |
+
+Temporal reaches the invoker through `roles/iam.serviceAccountTokenCreator`. The Terraform module described below creates the invoker and applies its grants.
 
 **The two service accounts are not interchangeable**, and confusing them is the single most likely IAM mistake here. The runner runs the pool and never scales it; the invoker scales the pool and never runs it. <!-- .../cloud-run/index.mdx:710-721 -->
 
@@ -27,8 +27,6 @@ The runtime identity the pool's instances use to reach other Google Cloud servic
 - `roles/secretmanager.secretAccessor` on each secret you mount, including the Temporal API key.
 - `roles/logging.logWriter` **only if** the Worker writes through the Cloud Logging API rather than stdout/stderr.
 - Whatever else your Workflows and Activities call.
-
-This differs from Lambda, where `AWSLambdaBasicExecutionRole` is effectively mandatory because the execution role is what creates the log group. Here, logging works with no grant at all.
 
 ## Invoker service account
 
@@ -43,7 +41,7 @@ The invoker also needs **`roles/iam.serviceAccountUser` on the runner service ac
 
 `run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass. That manual action never exercises `run.workerPools.update`. Version registration does: the WCI reads the pool and then updates its manual instance count to bootstrap Task Queue registration. An invoker that can read but not update therefore passes manual validation but fails version registration or a later resize. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:94-99 -->
 
-There is no Lambda analogue: there, the registration invocation uses the same invoke permission as real traffic. For Cloud Run, verify the registration bootstrap and `lastModifier` rather than trusting the separate green Validate Connection result. → `diagnostics.md`.
+Verify the registration bootstrap and `lastModifier` rather than trusting the separate green Validate Connection result. → `diagnostics.md`.
 
 ## The Terraform module
 
@@ -84,7 +82,7 @@ Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when reg
 
 ### Treat the module as shared, pre-existing infrastructure
 
-Same discipline as Lambda's CloudFormation stack, different tool. One invoker can serve several pools, so before creating a second one, look for an existing account and consider reusing it. **Do not `terraform destroy` state you did not create**, and note that the module's default `invoker_account_id` collides the same way Lambda's default `RoleName` does — an earlier deployment in the project may already own it.
+One invoker can serve several pools, so before creating a second one, look for an existing account and consider reusing it. **Do not `terraform destroy` state you did not create.** The module's default `invoker_account_id` may already be owned by an earlier deployment in the project.
 
 ## Operator GCP permissions
 
@@ -99,7 +97,7 @@ The identity running the `gcloud`/Terraform commands needs, at minimum:
 | Apply the Terraform module (Step 5) | Service-account creation plus IAM policy binding on the project and on the runner |
 | Read pool state and logs (verify, diagnose) | `run.workerPools.get`, Cloud Logging read |
 
-`iam.serviceAccounts.actAs` on the runner is the Cloud Run counterpart of Lambda's `iam:PassRole` on the execution role, and fails the same way — a pool create that is denied despite having Cloud Run permissions.
+The operator needs `iam.serviceAccounts.actAs` on the runner to attach it to the pool. Without it, pool creation is denied even when the operator otherwise has Cloud Run permissions.
 
 ### Preflight
 
@@ -123,4 +121,4 @@ For a same-project build using Cloud Build's default service account, Artifact R
 
 **Classify an authentication failure before acting on it.** An absent or expired credential (`gcloud auth login`, or `gcloud auth application-default login` for Terraform) is recoverable in a minute; an identity that resolves but is denied a specific action is a real permissions problem. Never collect credentials in conversation and never ask the user to paste a service account key — Google recommends against long-lived keys outright.
 
-**Confirm the project explicitly before creating anything.** `gcloud config get-value project` is ambient state that is easy to be wrong about, exactly like an AWS profile pointing at an unintended account. Name the project in the approval list and verify it, rather than trusting the default.
+**Confirm the project explicitly before creating anything.** `gcloud config get-value project` is ambient state that is easy to be wrong about. Name the project in the approval list and verify it rather than trusting the default.

@@ -12,13 +12,13 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
 - **Cloud Run support is Pre-release and access-gated.** The user creates a support ticket or contacts their account team. Confirm this before anything else.
-- A Temporal Cloud account with a **GCP-hosted Namespace**, or self-hosted Temporal Service v1.31.0+. The Namespace's cloud provider must match the compute provider — an AWS-hosted Namespace cannot drive Cloud Run. Regions need not match.
+- A Temporal Cloud account with a **GCP-hosted Namespace**, or self-hosted Temporal Service v1.31.0+. The Namespace must be hosted on GCP; its region need not match the pool's.
 - For self-hosted, complete `self-hosted.md` first.
 - Every Workflow must declare a versioning behavior, or the Worker must set a default.
 - A GCP project with billing enabled and permission to enable service APIs and create Worker Pools, Artifact Registry repositories, Cloud Build jobs, service accounts, and Secret Manager secrets.
 - `gcloud` CLI installed and authenticated. The Google Cloud console or Terraform also work.
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
-- A Temporal SDK. Supported on Cloud Run: Go, Python, TypeScript, Java, .NET, **Ruby, and Rust** — the last two are Cloud Run only and unavailable on Lambda.
+- A Temporal SDK. Supported on Cloud Run: Go, Python, TypeScript, Java, .NET, **Ruby, and Rust**.
 
 The `temporal` CLI commands in Steps 6 and 7 must inherit authentication from an existing profile or from the process environment. **Never append `--api-key <value>` or put the key in an inline assignment.** If `TEMPORAL_API_KEY` is not already populated, set it privately in the user's own terminal without putting the value in shell history:
 
@@ -96,7 +96,7 @@ Before each create, use the corresponding `describe` command from `iam.md` to av
 
 ## Step 1: Write Worker code
 
-**There is no Cloud Run Worker package.** Write an ordinary long-lived Worker — same client, same `Worker`/`WorkerFactory`, same registration — and add Worker Versioning, which Serverless Workers require. Do not reach for anything in `../aws-lambda/sdk-<language>.md`; those files are AWS Lambda only. The Cloud Run counterpart is `sdk-<language>.md` in this directory.
+**There is no Cloud Run Worker package.** Write an ordinary long-lived Worker — same client, same `Worker`/`WorkerFactory`, same registration — and add Worker Versioning, which Serverless Workers require. Use `sdk-<language>.md` in this directory.
 
 Two things the Worker must do:
 
@@ -121,7 +121,7 @@ Per-runtime notes that matter, from the deployment guide:
 | Java | Fat jar on a JRE image; set `-XX:MaxRAMPercentage=75` — the JVM reads the container limit but defaults max heap to 25% of it. |
 | .NET | `dotnet publish` in a build stage, run on the .NET runtime image. |
 
-**The `NativeCertsNotFound` error is the same root cause as the .NET one on Lambda** — a Rust-core SDK that cannot find system root CAs — reached here through a slim base image rather than an overridden `SSL_CERT_FILE`. Any Rust-core SDK (TypeScript, Python, .NET, Ruby) in a minimal image needs CA certificates present.
+**`NativeCertsNotFound` means a Rust-core SDK cannot find system root CAs.** Any Rust-core SDK (TypeScript, Python, .NET, Ruby) in a minimal image needs CA certificates present.
 
 ## Step 3: Build and push the image
 
@@ -158,7 +158,7 @@ gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
 | `--set-env-vars` | Non-secret configuration. |
 | `--set-secrets` | Maps a Secret Manager secret to an env var — use it for `TEMPORAL_API_KEY` or TLS material. |
 
-**Secrets are the documented default here, not an upgrade.** Unlike Lambda's guide, the Cloud Run path puts the API key in Secret Manager from the start, so there is no "acceptable for development only" plaintext step to warn about.
+**Put the API key in Secret Manager from the start.** Do not introduce a plaintext environment-variable deployment step.
 
 ## Step 5: Grant Temporal permission to scale the pool
 
@@ -256,7 +256,7 @@ Confirm from two independent signals:
 
 Record what you create as you go: pool name, image tag and Artifact Registry repository, runner and invoker service accounts, the Terraform state, secrets, deployment name and build ID, project and region.
 
-**The ordering problem is milder than Lambda's**, where the function had to go before the version or the delete deadlocked on active pollers. Here, scaling the pool to zero stops the pollers without destroying anything.
+Scale the pool to zero before deleting the version so its pollers stop without destroying the pool prematurely.
 
 1. Unset the current version — a Current version cannot be deleted:
    ```bash

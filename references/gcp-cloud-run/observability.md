@@ -9,15 +9,7 @@
 
 **A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx, "Add observability" -->
 
-This is a genuine simplification over AWS Lambda, and the contrast is worth keeping in mind:
-
-| | AWS Lambda | GCP Cloud Run |
-|---|---|---|
-| OTel wiring | Per-SDK helper in the serverless package (`ApplyDefaults`, `apply_defaults`, `OtelLambdaWorkerConfigurationHelper`, a separate `…Aws.Lambda.OpenTelemetry` package for .NET) | **None — use the SDK's standard setup** |
-| Collector | ADOT Lambda layer, plus a custom `otel-collector-config.yaml` because the default does not route OTLP to the traces pipeline | No layer; export as you would from any container |
-| Env var | `OPENTELEMETRY_COLLECTOR_CONFIG_URI` / `_FILE`, differing by SDK | n/a |
-| Flush timing | Must flush before the invocation deadline, or telemetry is lost | No deadline to beat |
-| IAM | Execution role needs X-Ray and CloudWatch permissions | Runner needs nothing for stdout/stderr logging |
+Do not add provider-specific helper layers, collector environment variables, or invocation-deadline flush logic. Export telemetry as you would from any long-lived container.
 
 Some SDKs add optional Cloud Run conveniences, such as OpenTelemetry helpers. **They are optional**, and where they exist they are documented in that SDK's Cloud Run guide. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:31-34 -->
 
@@ -31,7 +23,7 @@ Read a pool's logs:
 gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
 ```
 
-**The pool produces no logs while scaled to zero.** Read them while an instance is up; an empty log is not evidence of a problem. This is the most common source of confusion when checking a Cloud Run Worker's health, and it has no Lambda equivalent — a Lambda log group retains history after the invocation ends.
+**The pool produces no logs while scaled to zero.** Read them while an instance is up; an empty log is not evidence of a problem.
 
 ## Memory: give the runtime the instance, not the host
 
