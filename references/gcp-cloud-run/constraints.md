@@ -7,25 +7,23 @@
 
 Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-lived instances, scaling it to zero when there is no work.** Temporal does *not* invoke your Worker per Task.
 
-This file is the provider "diff surface." Compare it with `../aws-lambda/constraints.md` to see what changes between providers — the workflow in `SKILL.md` is the same; these constraints are not.
+For a deliberate cross-provider comparison, see `../aws-lambda/constraints.md`.
 
 ## Worker lifetime is an instance, not an invocation
 
-Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package** — the SDK-specific packages in `../aws-lambda/sdk-<language>.md` are AWS Lambda only. Some SDKs add optional Cloud Run conveniences; none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
+Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Use the Cloud Run SDK reference in this directory; some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
 The WCI controls how many instances run; each instance manages its own polling and Task processing.
 
-## None of Lambda's timing constraints apply
-
-Explicitly, so they are not carried across:
+## Timing and Activity limits
 
 - **No invocation deadline.** Nothing bounds how long a Worker lives except scale-in.
-- **No shutdown deadline buffer.** That is a property of the Lambda Worker packages, not of Temporal.
+- **No shutdown deadline buffer.** Cloud Run terminates instances through its own scale-in lifecycle.
 - **No timeout triple to tune.** Two of its three values do not exist here.
-- **Activities are not bounded by an invocation limit.** An Activity too long for Lambda's 15-minute ceiling is a reason to choose Cloud Run.
-- **Eager Activities are not disabled by the platform.** Lambda's packages force this off because a per-invocation Worker holds no persistent connection; a pool instance holds its connection for its lifetime, so that reasoning does not transfer. Confirm against your SDK rather than assuming either way. <!-- inferred: the Lambda rationale does not apply; not stated for Cloud Run in the docs read -->
+- **Activities are not bounded by an invocation limit.** Their practical interruption boundary is scale-in.
+- **Eager Activities are not disabled by the platform.** A pool instance holds its connection for its lifetime; confirm support against the selected SDK. <!-- inferred: the per-invocation rationale does not apply; not stated for Cloud Run in the docs read -->
 
-Cloud Run still sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds later. Handle `SIGTERM` and configure the SDK's graceful-shutdown timeout below that window; this is separate from Lambda's deadline buffer and timeout triple. → `sdk-<language>.md`.
+Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds later. Handle `SIGTERM` and configure the SDK's graceful-shutdown timeout below that window. → `sdk-<language>.md`.
 
 ## What bounds an Activity instead: scale-in
 
@@ -58,11 +56,11 @@ An initial count and minimum of zero do not suppress registration. The rate-base
 
 Keep an older version's pool in place while Pinned Workflows are still running on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version.
 
-**The mutable-build hazard, in its Cloud Run form:** deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does — causing non-determinism errors for in-flight Workflows, **including Pinned ones**. This is the same failure as pointing Lambda at a mutable `$LATEST`, reached through revisions instead of ARNs. → `versioning.md`.
+**The mutable-build hazard:** deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does — causing non-determinism errors for in-flight Workflows, **including Pinned ones**. → `versioning.md`.
 
 ## Do not share a Task Queue with long-lived Workers
 
-Stronger than the Lambda guidance, and for a different reason. On Lambda the two scaling loops fight; here **the pool scales up to cover the Task Queue's full workload even when long-lived Workers are already handling all of it**, so you run and pay for duplicate capacity. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:71-80 -->
+**The pool scales up to cover the Task Queue's full workload even when independently managed Workers are already handling all of it**, so you run and pay for duplicate capacity. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:71-80 -->
 
 The WCI sizes the pool from the rate of Tasks arriving on the version's Task Queues, and nothing in that measurement accounts for the long-lived Workers. Sync matching to a long-lived Worker suppresses the *immediate* scale-up, but the periodic re-sizing scales the pool up regardless. Fixing poller counts on the long-lived side does not help — use separate Task Queues.
 
@@ -76,6 +74,6 @@ Google currently reports **high deployment latency creating or updating Cloud Ru
 
 ## What does *not* follow from this model
 
-- **"Serverless Worker" does not imply standard Worker code.** On Lambda you write a handler against a provider-specific package; here you write an ordinary Worker. Advice about handlers, configure callbacks, or tuned package defaults does not transfer.
+- **Use ordinary Worker code.** Handler, configure-callback, and provider-package patterns do not apply.
 - **Scale-to-zero is not per-Task.** An idle pool costs nothing, but a running instance is billed for its lifetime, not per unit of work.
-- **A passing Validate Connection is weaker here than on Lambda.** It exercises only the read permission and starts no instance. → `diagnostics.md`.
+- **A passing Validate Connection exercises only the read permission and starts no instance.** → `diagnostics.md`.

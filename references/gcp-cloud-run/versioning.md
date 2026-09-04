@@ -9,13 +9,13 @@
 
 **The compute configuration names a project, region, and Worker Pool — it does not name a [revision](https://cloud.google.com/run/docs/managing/revisions).** Temporal runs whichever revision the pool happens to serve. That ties a pool to a single build, so **a new build needs a new pool.** Carry the Build ID in the pool name (`my-worker-pool-build-1`) so the mapping stays visible. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:82-89 -->
 
-This is the structural difference from Lambda, where one function holds many published versions and the ARN pins which one Temporal invokes. Temporal's Cloud Run compute configuration has no revision selector, so **durable isolation has to come from creating separate pools.** A pool-level instance split can temporarily hold a particular revision, but that split remains mutable state outside Temporal.
+Temporal's Cloud Run compute configuration has no revision selector, so **durable isolation requires a separate pool per build.** A pool-level instance split can temporarily hold a particular revision, but that split remains mutable state outside Temporal.
 
 ## The hazard: redeploying into a live pool
 
 > Deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does. Deploying replay-unsafe code this way causes non-determinism errors for in-flight Workflows, **including Pinned ones**. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:94-100 -->
 
-Same failure as pointing a Lambda Worker Deployment Version at a mutable `$LATEST`, reached through a different mechanism. Worth stating precisely because the intuition differs: on Lambda you have to *choose* the mutable path by registering an unqualified ARN. **On Cloud Run the mutable path is what a normal `gcloud run worker-pools deploy` does** — the durable Temporal-aligned path is a new pool, while `--no-promote` is an explicit same-pool guardrail.
+**A normal `gcloud run worker-pools deploy` takes the mutable path by default.** The durable Temporal-aligned path is a new pool; `--no-promote` is only a same-pool guardrail.
 
 `Pinned` does not protect you. Pinning routes Workflows to a *version*; it cannot pin the code behind a pool whose revision moved underneath it.
 
