@@ -1,17 +1,12 @@
 # GCP Cloud Run — observability
 
-<!-- Sources:
-  docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx
--->
-
 ## There is nothing serverless-specific to configure
 
-**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx, "Add observability" -->
+**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference.
 
 Do not add provider-specific helper layers, collector environment variables, or invocation-deadline flush logic. Export telemetry as you would from any long-lived container.
 
-Some SDKs add optional Cloud Run conveniences, such as OpenTelemetry helpers. **They are optional**, and where they exist they are documented in that SDK's Cloud Run guide. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:31-34 -->
+Some SDKs add optional Cloud Run conveniences, such as OpenTelemetry helpers. **They are optional**, and where they exist they are documented in that SDK's Cloud Run guide.
 
 ## Logs
 
@@ -23,18 +18,7 @@ Read a pool's logs:
 gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
 ```
 
-**The pool produces no logs while scaled to zero.** Read them while an instance is up; an empty log is not evidence of a problem.
-
-## Memory: give the runtime the instance, not the host
-
-A Worker Pool instance defaults to **512 MiB**; raise `--memory` when creating the pool if the Worker needs more. Two runtimes need to be told about the container limit explicitly, or they size themselves to a fraction of it:
-
-| SDK | Setting | Why |
-|---|---|---|
-| Java | `-XX:MaxRAMPercentage=75` | The JVM reads the container limit but defaults max heap to 25% of it, leaving most of a small instance unused. |
-| TypeScript | `NODE_OPTIONS=--max-old-space-size=<MB>`, ~80% of the instance limit | Node's default heap is unrelated to the container limit. |
-
-Both are container-sizing concerns rather than Temporal ones, but they surface as Worker instability under load and are easy to miss. → `setup.md`.
+**A scaled-to-zero pool emits no new logs.** `logs read` returns historical entries; `logs tail` shows new output only while an instance is running.
 
 ## What to watch that is specific to this provider
 

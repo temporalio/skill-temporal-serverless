@@ -1,12 +1,6 @@
 # GCP Cloud Run — self-hosted Temporal Service setup
 
-<!-- Sources:
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx
--->
-
 Serverless Workers require **Temporal Service v1.31.0 or later**. Complete this page before following `setup.md`.
-
-Four prerequisites: network reachability, enable the WCI, give the server a GCP identity, create the invoker service account.
 
 ## 1. Cloud Run instances must reach the Temporal Service
 
@@ -31,7 +25,7 @@ workercontroller.scaling_algorithms.enabled:
       - rate-based
 ```
 
-**Cloud Run requires the `rate-based` algorithm.** Because a pool is a set of long-lived instances, the WCI resizes it from arrival and backlog rates. The `no-sync` algorithm applies only to providers invoked once per Task, and **pairing it with `gcp-cloud-run` is rejected** — a concrete way the two providers' execution models surface in server configuration.
+**Cloud Run requires the `rate-based` algorithm.** Because a pool is a set of long-lived instances, the WCI resizes it from arrival and backlog rates. Pairing `no-sync` with `gcp-cloud-run` is rejected.
 
 To enable per Namespace instead of globally:
 
@@ -68,26 +62,7 @@ Two grants:
 - The GCP identity the Service runs as (step 3) gets **`roles/iam.serviceAccountTokenCreator`** on the invoker.
 - The invoker gets a project-level Cloud Run role with at least **`run.workerPools.get`** and **`run.workerPools.update`**. `roles/run.developer` includes both.
 
-The same Terraform module works — pass the server's GCP identity as the impersonator instead of Temporal Cloud's accounts:
-
-```hcl
-module "serverless-worker-cloud-run" {
-  source = "github.com/temporalio/terraform-modules//modules/serverless-workers/gcp/cloud-run"
-
-  project_id         = "<YOUR_GCP_PROJECT>"
-  invoker_account_id = "temporal-serverless-worker"
-
-  runner_service_account_email = "<WORKER-POOL-RUNNER-SERVICE-ACCOUNT-EMAIL>"
-
-  impersonator_service_account_emails = [
-    "<TEMPORAL_SERVICE_GCP_IDENTITY>",
-  ]
-}
-```
-
-Use the module's `invoker_email` output as `--gcp-cloud-run-service-account` when registering the Worker Deployment Version.
-
-**This is the one place self-hosted is simpler than Cloud:** there is no UI-provided template to copy, because you already know the impersonating identity — it is your own server's.
+Use the Terraform module in `iam.md`, setting `impersonator_service_account_emails` to the GCP identity used by the Temporal Service. Use the module's `invoker_email` output as `--gcp-cloud-run-service-account` when registering the Worker Deployment Version.
 
 ## Then
 

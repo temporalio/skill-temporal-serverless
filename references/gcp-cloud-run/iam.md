@@ -1,11 +1,5 @@
 # GCP Cloud Run — IAM & permissions
 
-<!-- Sources:
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx
-  docs/troubleshooting/serverless-workers/cloud-run.mdx
--->
-
 Cloud Run uses three identities:
 
 | Identity | Purpose |
@@ -16,13 +10,13 @@ Cloud Run uses three identities:
 
 Temporal reaches the invoker through `roles/iam.serviceAccountTokenCreator`. The Terraform module described below creates the invoker and applies its grants.
 
-**The two service accounts are not interchangeable**, and confusing them is the single most likely IAM mistake here. The runner runs the pool and never scales it; the invoker scales the pool and never runs it. <!-- .../cloud-run/index.mdx:710-721 -->
+**The two service accounts are not interchangeable**, and confusing them is the single most likely IAM mistake here. The runner runs the pool and never scales it; the invoker scales the pool and never runs it.
 
 ## Runner service account
 
 The runtime identity the pool's instances use to reach other Google Cloud services. Set in `setup.md` Step 4 with `gcloud run worker-pools deploy --service-account`. It may be an account that already exists; a dedicated one is preferred.
 
-**It needs no baseline role to run the Worker.** Cloud Run collects `stdout` and `stderr` into Cloud Logging through its own infrastructure, and the Cloud Run *service agent* — not the runner — pulls the container image. Grant only what your code actually reaches: <!-- .../cloud-run/index.mdx:670-677 -->
+**It needs no baseline role to run the Worker.** Cloud Run collects `stdout` and `stderr` into Cloud Logging through its own infrastructure, and the Cloud Run *service agent* — not the runner — pulls the container image. Grant only what your code actually reaches:
 
 - `roles/secretmanager.secretAccessor` on each secret you mount, including the Temporal API key.
 - `roles/logging.logWriter` **only if** the Worker writes through the Cloud Logging API rather than stdout/stderr.
@@ -30,7 +24,7 @@ The runtime identity the pool's instances use to reach other Google Cloud servic
 
 ## Invoker service account
 
-The identity Temporal Cloud impersonates to read and scale the pool. Two grants make it work: <!-- .../cloud-run/self-hosted-setup.mdx:108-113 -->
+The identity Temporal Cloud impersonates to read and scale the pool. Two grants make it work:
 
 - Temporal's identity receives **`roles/iam.serviceAccountTokenCreator`** on the invoker, so it can impersonate it.
 - The invoker receives a project-level Cloud Run role with at least **`run.workerPools.get`** (read) and **`run.workerPools.update`** (scale). `roles/run.developer` includes both.
@@ -39,7 +33,7 @@ The invoker also needs **`roles/iam.serviceAccountUser` on the runner service ac
 
 ### The read/update split is a real trap
 
-`run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass. That manual action never exercises `run.workerPools.update`. Version registration does: the WCI reads the pool and then updates its manual instance count to bootstrap Task Queue registration. An invoker that can read but not update therefore passes manual validation but fails version registration or a later resize. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:94-99 -->
+`run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass. That manual action never exercises `run.workerPools.update`. Version registration does: the WCI reads the pool and then updates its manual instance count to bootstrap Task Queue registration. An invoker that can read but not update therefore passes manual validation but fails version registration or a later resize.
 
 Verify the registration bootstrap and `lastModifier` rather than trusting the separate green Validate Connection result. → `diagnostics.md`.
 
@@ -47,7 +41,7 @@ Verify the registration bootstrap and `lastModifier` rather than trusting the se
 
 Temporal publishes [`serverless-workers/gcp/cloud-run`](https://github.com/temporalio/terraform-modules/tree/main/modules/serverless-workers/gcp/cloud-run), which creates the invoker service account and applies the grants.
 
-**Get the template from the Cloud UI, not from here.** Under **Workers → Create Worker Deployment → Access**, Temporal Cloud emits a template with `impersonator_service_account_emails` already filled in for your account. Those values are account-specific, which is why every published snippet shows a placeholder. <!-- .../cloud-run/index.mdx:723-744 -->
+Start from the template under **Workers → Create Worker Deployment → Access** because Temporal Cloud fills in the account-specific `impersonator_service_account_emails`. Its shape is:
 
 ```hcl
 module "serverless-worker-cloud-run" {
@@ -101,7 +95,7 @@ The operator needs `iam.serviceAccounts.actAs` on the runner to attach it to the
 
 ### Preflight
 
-Run before anything that creates or modifies GCP resources. Confirm the five required APIs appear in the enabled-service output, then inspect the names the deployment intends to use:
+Run before anything that creates or modifies GCP resources. Confirm the required APIs appear in the enabled-service output, then inspect the names the deployment intends to use:
 
 ```bash
 gcloud auth list                                   # which identity

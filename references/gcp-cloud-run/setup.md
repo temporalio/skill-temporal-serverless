@@ -1,15 +1,8 @@
 # GCP Cloud Run — Setup (happy path)
 
-<!-- Sources:
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx
-  docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx
--->
-
 End-to-end: write a standard Worker, containerize it, push the image, create a Worker Pool at zero instances, grant Temporal permission to scale it, register a Worker Deployment Version, set it current, verify. For the two service accounts and the Terraform module, see `iam.md`. For what the execution model does and does not bound, see `constraints.md`. For new builds and rollback, see `versioning.md`. If it doesn't work, see `diagnostics.md`.
 
 ## Prerequisites
-
-<!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
 - **Cloud Run support is Pre-release and access-gated.** The user creates a support ticket or contacts their account team. Confirm this before anything else.
 - A Temporal Cloud account with a **GCP-hosted Namespace**, or self-hosted Temporal Service v1.31.0+. The Namespace must be hosted on GCP; its region need not match the pool's.
@@ -32,8 +25,6 @@ export TEMPORAL_API_KEY
 ```
 
 Do not run the secret-reading commands through an agent shell, ask the user to paste the key into conversation, or inspect the resulting variable. A configured Temporal CLI profile is equally valid and avoids a session environment variable.
-
-**Check the region before deploying.** Google reports high deployment latency creating or updating Cloud Run resources in some regions, including `us-central1`, and recommends another region while the issue is open. → `constraints.md`.
 
 ## Prepare a clean GCP project
 
@@ -105,23 +96,11 @@ Two things the Worker must do:
 
 Per-SDK code lives in `sdk-<language>.md` in this directory, one file per SDK. Each covers the versioned Worker, connection, image packaging, graceful shutdown, scale-in safety, and observability. The Java, Python, and .NET references also include their logging setup and diagnostic signatures.
 
-**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts. <!-- .../cloud-run/index.mdx:467-468 -->
+**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts.
 
 ## Step 2: Containerize the Worker
 
-<!-- .../cloud-run/index.mdx:465-636 -->
-
-Per-runtime notes that matter, from the deployment guide:
-
-| SDK | Notes |
-|---|---|
-| Go | Multi-stage; `CGO_ENABLED=0` for a static binary, which is what a `distroless/static` base expects. |
-| Python | `pip install "temporalio>=1.30.0,<2"`; entrypoint runs the Worker module. |
-| TypeScript | **Keep `ca-certificates` installed** — without it the Worker fails at startup with `TransportError: tonic::transport::Error(Transport, NativeCertsNotFound)`. Use a **glibc** image, not Alpine. Set `NODE_OPTIONS=--max-old-space-size=<MB>` to ~80% of the instance memory limit. |
-| Java | Fat jar on a JRE image; set `-XX:MaxRAMPercentage=75` — the JVM reads the container limit but defaults max heap to 25% of it. |
-| .NET | `dotnet publish` in a build stage, run on the .NET runtime image. |
-
-**`NativeCertsNotFound` means a Rust-core SDK cannot find system root CAs.** Any Rust-core SDK (TypeScript, Python, .NET, Ruby) in a minimal image needs CA certificates present.
+Follow the selected `sdk-<language>.md` reference for the container image, runtime, entrypoint, certificate requirements, and memory settings.
 
 ## Step 3: Build and push the image
 
@@ -207,7 +186,7 @@ Creating the Worker Deployment Version starts its WCI. The WCI validates the con
 
 The update completing proves that Temporal reached Cloud Run, not that the container started or the Worker connected. Wait for the expected Task Queue types to appear; that binding is proof the instance started and polled under the registered deployment name and build ID.
 
-The separate UI **Validate Connection** action (Workers → Deployments → select → Actions) only impersonates the invoker and reads the pool. It starts no instance and does not exercise `run.workerPools.update`, so a green manual validation is weaker than a successful registration bootstrap. <!-- .../cloud-run/index.mdx:824-827 -->
+The separate UI **Validate Connection** action (Workers → Deployments → select → Actions) only impersonates the invoker and reads the pool. It starts no instance and does not exercise `run.workerPools.update`, so a green manual validation is weaker than a successful registration bootstrap.
 
 Use both views when diagnosing the checkpoint:
 
@@ -250,7 +229,7 @@ Confirm from two independent signals:
   gcloud run worker-pools logs read my-temporal-worker-pool-build-1 \
     --region <REGION> --project <YOUR_GCP_PROJECT>
   ```
-  **The pool produces no logs while scaled to zero**, so read them while an instance is up. An empty log is not evidence of failure.
+  **A scaled-to-zero pool emits no new logs.** Use `logs read` for historical entries and `logs tail` while an instance is running.
 
 ## Teardown
 
