@@ -81,7 +81,7 @@ public final class Main {
 
 `WorkerDeploymentVersion`'s two arguments are the deployment name and the build ID, and both must match the version created with `temporal worker deployment create-version` exactly. → `setup.md` Step 6.
 
-No `LambdaWorker`, no `define`, no shaded uber-jar requirement — this is `WorkerFactory` as in any long-lived Java Worker.
+No `LambdaWorker` or `define` — this is `WorkerFactory` as in any long-lived Java Worker. Cloud Run imposes no Temporal-specific artifact format.
 
 ## Versioning behavior
 
@@ -112,7 +112,7 @@ Java uses gRPC/Netty and the JVM truststore, so it is unaffected by the `NativeC
 
 ## Image packaging
 
-Fat jar on a JRE image, with the heap sized to the instance:
+Use the application's normal Java container packaging. The following command assumes `/app/worker.jar` is an executable fat jar containing its dependencies and sizes the heap to the instance:
 
 ```dockerfile
 CMD ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/worker.jar"]
