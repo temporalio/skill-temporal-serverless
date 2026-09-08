@@ -7,7 +7,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 > [!NOTE]
 > **AWS Lambda** is in Public Preview and available to all Temporal Cloud customers without an access request.
-> **GCP Cloud Run** is in Pre-release, its APIs may change in backwards-incompatible ways, and access is granted on request — create a support ticket or contact your account team.
+> **GCP Cloud Run** is in Public Preview and available to all Temporal Cloud customers without an access request.
 
 > [!IMPORTANT]
 > The two providers have different execution models. Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is, what bounds an Activity, what there is to tune, and how failures present — guidance does not transfer between them.
@@ -28,7 +28,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 | Area | Supported |
 |---|---|
-| Compute | AWS Lambda — Public Preview; GCP Cloud Run — Pre-release, access-gated |
+| Compute | AWS Lambda and GCP Cloud Run — Public Preview |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
 | SDKs | Lambda: Go, Python, TypeScript, Java, .NET. Cloud Run: those plus Ruby and Rust |
 | Other compute providers | Not currently supported |
@@ -40,7 +40,7 @@ For Temporal Cloud, the Namespace must be hosted on the same cloud provider as t
 Before starting, make sure you can sign in to:
 
 - For AWS Lambda: an AWS account with permission to inspect and create the required Lambda, IAM, CloudFormation, and logging resources.
-- For GCP Cloud Run: a GCP project with the Cloud Run and Artifact Registry APIs enabled, and permission to create Worker Pools, service accounts, and Secret Manager secrets. Cloud Run access must also be enabled on your Temporal Cloud account.
+- For GCP Cloud Run: a GCP project with the Cloud Run and Artifact Registry APIs enabled, and permission to create Worker Pools, service accounts, and Secret Manager secrets.
 - A Temporal Cloud Namespace hosted on the same cloud provider as your compute, or a compatible self-hosted Temporal Service.
 
 You do not need to install or configure the AWS CLI, `gcloud`, Terraform, `tcld`, or the Temporal CLI before you begin. The skill checks what is already available and can help set up the tools and supported login flows needed for the task. If you prefer not to install a CLI, or a login method is unavailable, it can guide you through the corresponding Temporal Cloud UI, AWS console, or Google Cloud console steps instead. It never asks you to paste credentials or secrets into the conversation.
@@ -123,7 +123,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 
 ## Important operating constraints
 
-- Serverless Workers are not generally available: AWS Lambda is Public Preview, GCP Cloud Run is Pre-release and access-gated.
+- Serverless Workers on AWS Lambda and GCP Cloud Run are Public Preview, not generally available.
 - Every Workflow must use a Worker Versioning behavior: `Pinned` or `AutoUpgrade`.
 - The deployment name and build ID in Worker code must exactly match the registered Worker Deployment Version.
 - Production releases should map each build ID to one immutable build: a published Lambda version, or a dedicated Cloud Run Worker Pool.
