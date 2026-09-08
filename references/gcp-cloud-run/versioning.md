@@ -1,10 +1,5 @@
 # GCP Cloud Run — versioning, updates, and rollback
 
-<!-- Sources:
-  docs/encyclopedia/workers/serverless-workers/cloud-run.mdx
-  docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx
--->
-
 ## One Worker Pool per Build ID
 
 **The compute configuration names a project, region, and Worker Pool — it does not name a [revision](https://cloud.google.com/run/docs/managing/revisions).** Temporal runs whichever revision the pool happens to serve. That ties a pool to a single build, so **a new build needs a new pool.** Carry the Build ID in the pool name (`my-worker-pool-build-1`) so the mapping stays visible. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:82-89 -->

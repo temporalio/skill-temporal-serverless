@@ -1,10 +1,5 @@
 # GCP Cloud Run — Diagnostics & troubleshooting
 
-<!-- Sources:
-  docs/troubleshooting/serverless-workers/cloud-run.mdx
-  docs/encyclopedia/workers/serverless-workers/cloud-run.mdx
--->
-
 ## Scaling flow (when working correctly)
 
 <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:29-40 -->
@@ -45,7 +40,7 @@ Three fields under `metadata.annotations`: <!-- docs/troubleshooting/serverless-
 
 Workers → Deployments → select deployment → Actions → **Validate Connection**. For Cloud Run this impersonates the invoker and reads the pool, confirming three things: the compute configuration names a pool that exists, Temporal can impersonate the invoker, and the invoker can read.
 
-**It starts no instance and does not exercise `run.workerPools.update`.** Version registration is different: its Task Queue bootstrap does update the pool. An invoker with read but not update permission can therefore pass this manual validation, but version registration or a later resize fails. If validation succeeds but registration never changes `lastModifier`, **check the update permission**. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:94-99 -->
+**It starts no instance and does not exercise `run.workerPools.update`.** Version registration is different: its Task Queue bootstrap does update the pool. An invoker with read but not update permission can therefore pass this manual validation, but version registration or a later resize fails. If validation succeeds but registration never changes `lastModifier`, **check the update permission**. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:75-99 -->
 
 On failure, check each part of the compute configuration against the pool:
 
@@ -100,7 +95,7 @@ If instances are running but the count stops growing while backlog builds:
 gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
 ```
 
-**The pool produces no logs while scaled to zero** — read them while an instance is up. An empty log is not evidence of failure.
+**A scaled-to-zero pool emits no new logs.** `logs read` still returns historical entries; use `logs tail` only while an instance is running. An empty result may simply mean the pool has never started.
 
 Common errors: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:156-166 -->
 

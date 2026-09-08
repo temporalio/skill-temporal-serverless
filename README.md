@@ -10,7 +10,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 > **GCP Cloud Run** is in Pre-release, its APIs may change in backwards-incompatible ways, and access is granted on request — create a support ticket or contact your account team.
 
 > [!IMPORTANT]
-> The two providers have different execution models. Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is, what bounds an Activity, what there is to tune, and how failures present — guidance does not transfer between them. Each provider directory carries a `constraints.md` describing what follows from its model.
+> The two providers have different execution models. Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is, what bounds an Activity, what there is to tune, and how failures present — guidance does not transfer between them.
 
 ## What the skill can do
 
@@ -127,7 +127,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 - Every Workflow must use a Worker Versioning behavior: `Pinned` or `AutoUpgrade`.
 - The deployment name and build ID in Worker code must exactly match the registered Worker Deployment Version.
 - Production releases should map each build ID to one immutable build: a published Lambda version, or a dedicated Cloud Run Worker Pool.
-- Activities must finish within the compute provider's execution bound and configured shutdown buffer; Workflow duration remains unbounded. On AWS Lambda that bound is the invocation limit — see [`references/aws-lambda/constraints.md`](references/aws-lambda/constraints.md).
+- Activities must finish within the compute provider's execution bounds; Workflow duration remains unbounded. Lambda Activities are bounded by the invocation deadline and shutdown buffer, while Cloud Run Activities can be interrupted during scale-in. See [`references/concepts.md`](references/concepts.md) and the selected provider's SDK and constraints references.
 - Secrets belong in a secret store for shared or production deployments, not plaintext environment variables.
 - Temporal creates and manages the Worker Controller Instance (WCI); this skill never creates or manages it directly.
 
@@ -144,7 +144,6 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/aws-lambda/sdk-dotnet.md`](references/aws-lambda/sdk-dotnet.md) | .NET package, API, handler, build, RID-specific publish, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, logging, and diagnostics |
 | [`references/aws-lambda/setup.md`](references/aws-lambda/setup.md) | Shared AWS and Temporal deployment lifecycle, verification, and teardown workflow |
 | [`references/aws-lambda/iam.md`](references/aws-lambda/iam.md) | Operator permissions, Lambda execution role, and Temporal invocation role |
-| [`references/aws-lambda/constraints.md`](references/aws-lambda/constraints.md) | What follows from Lambda's per-invocation execution model — Worker lifetime, invocation deadline, timeout triple, Activity duration bounds — and what does not generalize to other providers |
 | [`references/aws-lambda/diagnostics.md`](references/aws-lambda/diagnostics.md) | Diagnostic decision tree and WCI inspection |
 | [`references/aws-lambda/versioning.md`](references/aws-lambda/versioning.md) | Immutable releases, updates, and rollback |
 | [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | Shared ADOT Collector configuration, X-Ray enablement, and IAM permissions |
@@ -159,7 +158,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/gcp-cloud-run/constraints.md`](references/gcp-cloud-run/constraints.md) | What follows from Cloud Run's pool-of-instances model — instance lifetime, autoscaling, scale-in interrupting Activities — and what does not generalize |
 | [`references/gcp-cloud-run/versioning.md`](references/gcp-cloud-run/versioning.md) | One Worker Pool per build ID, the redeploy-into-a-live-pool hazard, and rollback |
 | [`references/gcp-cloud-run/diagnostics.md`](references/gcp-cloud-run/diagnostics.md) | Pool annotations, scaling failures, and Worker-side errors |
-| [`references/gcp-cloud-run/observability.md`](references/gcp-cloud-run/observability.md) | Logs, memory sizing per runtime, and the scaling signals to watch |
+| [`references/gcp-cloud-run/observability.md`](references/gcp-cloud-run/observability.md) | Logs and the scaling signals to watch |
 | [`references/gcp-cloud-run/self-hosted.md`](references/gcp-cloud-run/self-hosted.md) | Self-hosted prerequisites: dynamic config, the server's GCP identity, invoker creation |
 | [`assets/`](assets/) | CloudFormation templates for Temporal invocation roles |
 

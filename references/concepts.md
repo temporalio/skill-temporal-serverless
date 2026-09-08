@@ -10,7 +10,7 @@
 
 Those are the two supported providers. Do not adapt either one's material to a third.
 
-**Do not carry facts between them.** Anything about Worker lifetime, Activity duration bounds, timeouts, packaging, or tuning is provider-specific — see `<provider>/constraints.md`. This page names the provider whenever the action differs: Lambda is invoked; Cloud Run is resized.
+**Do not carry facts between them.** Anything about Worker lifetime, Activity duration bounds, timeouts, packaging, or tuning is provider-specific. This page names the provider whenever the action differs: Lambda is invoked; Cloud Run is resized.
 
 Public Preview is not General Availability. APIs are still evolving and may be subject to backwards-incompatible changes between versions — pin SDK and CLI versions for anything long-lived, and read the installed package's real API surface rather than writing from memory.
 
@@ -95,7 +95,7 @@ The WCI periodically reads version-level Task Queue arrival rate, dispatch rate,
 
 ## Worker lifecycle
 
-**This section describes providers that invoke per unit of work, such as AWS Lambda.** On a provider that scales a pool of long-lived instances, such as GCP Cloud Run, an instance connects once and polls for its whole lifetime: there are no per-invocation phases, and none of the tuning below applies. → `<provider>/constraints.md`.
+**This section describes providers that invoke per unit of work, such as AWS Lambda.** On GCP Cloud Run, an instance connects once and polls for its whole lifetime: there are no per-invocation phases, and none of the tuning below applies. → `gcp-cloud-run/constraints.md`.
 
 A single Serverless Worker invocation has three phases: init, work, and shutdown. <!-- docs/encyclopedia/workers/serverless-workers.mdx:152 -->
 
@@ -113,7 +113,15 @@ The Worker stops polling, waits for in-flight Tasks to finish, and runs any shut
 
 ### Tuning for long-running Activities
 
-Three values must be tuned together — worker stop timeout, shutdown deadline buffer, and invocation deadline — and raising one alone does not help. The exact relationships, a worked example, the failure symptom, and the Activity Heartbeat threshold are provider-specific. → `<provider>/constraints.md`.
+For an invocation-based Worker, tune three values together:
+
+- **Worker stop timeout > longest Activity runtime.** This gives in-flight Activities time to finish after polling stops. <!-- docs/encyclopedia/workers/serverless-workers.mdx:173-174 -->
+- **Shutdown deadline buffer > Worker stop timeout + shutdown hook time.** This leaves time for draining and shutdown hooks before the provider terminates the environment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:175-176 -->
+- **Invocation deadline > longest Activity runtime + shutdown deadline buffer.** This gives the invocation enough total runtime. <!-- docs/encyclopedia/workers/serverless-workers.mdx:177-178 -->
+
+Raising one alone does not help. Raising only the shutdown deadline buffer stops polling earlier without giving in-flight Tasks more time; raising only the Worker stop timeout does not make polling stop earlier, so the provider can terminate the Worker before drainage finishes. <!-- docs/encyclopedia/workers/serverless-workers.mdx:193-201 -->
+
+If the longest Activity exceeds half the provider's maximum invocation deadline, use Activity Heartbeats so a retry can resume from recorded progress. For example, a five-minute Activity and three seconds of shutdown hooks require a Worker stop timeout above five minutes, a shutdown deadline buffer above 303 seconds, and an invocation deadline of at least ten minutes and three seconds. <!-- docs/encyclopedia/workers/serverless-workers.mdx:182-191 -->
 
 ## Failure handling
 
@@ -129,7 +137,7 @@ If the provider cannot add capacity—Lambda account concurrency, Cloud Run regi
 
 ### Resource exhaustion across Activity slots
 
-A Worker process may run multiple Activity slots, so a crash or resource exhaustion in one Activity can affect other Activities in that same process. On Lambda, split Workflow and Activity Workers into separate functions or use one Activity slot per invocation for execution-environment isolation. On Cloud Run, size instance resources and Worker concurrency together; one slot limits concurrency within an instance but does not turn the long-lived instance into a per-Activity environment. → `<provider>/constraints.md`.
+A Worker process may run multiple Activity slots, so a crash or resource exhaustion in one Activity can affect other Activities in that same process. On Lambda, split Workflow and Activity Workers into separate functions or use one Activity slot per invocation for execution-environment isolation. On Cloud Run, size instance resources and Worker concurrency together; one slot limits concurrency within an instance but does not turn the long-lived instance into a per-Activity environment. → the selected SDK reference and `gcp-cloud-run/constraints.md` for Cloud Run.
 
 ## Constraints
 
@@ -137,7 +145,7 @@ A Worker process may run multiple Activity slots, so a crash or resource exhaust
 
 | Constraint | Detail |
 |---|---|
-| Activity duration | On a provider that invokes per unit of work, must complete within its invocation limit minus the shutdown deadline buffer — Lambda's ceiling is 15 minutes. A pool-based provider such as Cloud Run imposes no per-invocation ceiling. → `<provider>/constraints.md`. |
+| Activity duration | On Lambda, must complete within its invocation limit minus the shutdown deadline buffer; the invocation ceiling is 15 minutes. Cloud Run imposes no per-invocation ceiling, but scale-in can interrupt an Activity. → the selected SDK reference and `gcp-cloud-run/constraints.md` for Cloud Run. |
 | Workflow duration | No compute-provider limit. Workflow state is durable in Temporal and does not depend on one Lambda invocation or Cloud Run instance remaining alive. |
 | Worker code | Same Temporal SDK Worker code. On Lambda it runs through that SDK's serverless Worker package; on Cloud Run it is an ordinary long-lived Worker with no extra package. |
 | Versioning | Worker Versioning is required. Each Workflow must have an `AutoUpgrade` or `Pinned` behavior, set per-Workflow or as a Worker-level default. |
