@@ -27,12 +27,12 @@ Three fields under `metadata.annotations`: <!-- docs/troubleshooting/serverless-
 |---|---|
 | `run.googleapis.com/manualInstanceCount` | The instance count currently requested. `0` means no Worker is running. |
 | `run.googleapis.com/scalingMode` | Should be `manual` — the WCI scales by writing the manual instance count. |
-| `serving.knative.dev/lastModifier` | Who last changed the pool. **If Temporal has ever scaled it, this is the invoker service account.** |
+| `serving.knative.dev/lastModifier` | Who most recently changed the pool. The invoker service account means Temporal made the latest change; a later manual update replaces it with the operator's identity. |
 
-**`lastModifier` splits the whole problem in two:**
+Treat `lastModifier` as a current clue, not historical proof:
 
-- Still the account you deployed with → **Temporal has never successfully written to the pool.** Work through "pool is not scaling up" below.
-- The invoker service account → **Temporal is reaching the pool**; the fault is in the Worker. Skip to "instances running but Tasks not completing."
+- The invoker service account → **Temporal successfully updated the pool after its last manual change.** If instances are running, skip to "instances running but Tasks not completing."
+- The account you deployed with → the latest change was manual. To determine whether Temporal has ever updated the pool, inspect the registration Activity in the WCI history and the Task Queue binding below before diagnosing permissions.
 
 ## The Worker Pool is not scaling up
 
