@@ -14,7 +14,7 @@
 
 ## Start here: read the pool's annotations
 
-This is the single highest-value command:
+Start by describing the pool:
 
 ```bash
 gcloud run worker-pools describe <POOL_NAME> \
@@ -59,7 +59,7 @@ temporal worker deployment describe-version \
 
 The server creates the binding when a Worker running that version connects and polls. **No Task Queues listed means no Worker has polled successfully under this version.**
 
-Registration is supposed to bootstrap this: the WCI reads the pool, updates its manual instance count to at least one, and Cloud Run starts an instance. An absent binding means that sequence failed or the instance started but did not connect under the expected deployment name and build ID. Inspect the WCI's `ValidateSpec`/registration Activity failure, the pool's `lastModifier` and instance count, and then the pool logs. Do not wait for a first Workflow to repair registration.
+Registration performs this bootstrap: the WCI reads the pool, updates its manual instance count to at least one, and Cloud Run starts an instance. An absent binding means that sequence failed or the instance started but did not connect under the expected deployment name and build ID. Inspect the WCI's `ValidateSpec`/registration Activity failure, the pool's `lastModifier` and instance count, and then the pool logs. Do not wait for a first Workflow to repair registration.
 
 ### 3. Is the version current?
 
@@ -100,7 +100,7 @@ gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_
 Common errors: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:156-166 -->
 
 - **Connection failures** — check `TEMPORAL_ADDRESS` and `TEMPORAL_NAMESPACE` on the pool. Self-hosted: verify network reachability from Cloud Run to the frontend.
-- **Missing secrets** — the instance cannot read the API key or TLS material. The **runner** service account needs `roles/secretmanager.secretAccessor` on the secret. That is the account in `spec.template.spec.serviceAccountName`, **not the invoker.** This is the most common consequence of confusing the two.
+- **Missing secrets** — the instance cannot read the API key or TLS material. The **runner** service account needs `roles/secretmanager.secretAccessor` on the secret. That is the account in `spec.template.spec.serviceAccountName`, **not the invoker.**
 - **Authentication errors** — key invalid, expired, or without access to the Namespace.
 - **`TransportError: … NativeCertsNotFound`** — a Rust-core SDK in a minimal base image with no CA certificates. Install `ca-certificates` in the image. → `setup.md`.
 
@@ -108,13 +108,13 @@ Common errors: <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:156-16
 
 Instances start and poll but no Task is ever processed → the name or build ID in the code does not match the version. The Worker polls under a version the WCI does not manage, **so its polls never satisfy the Tasks the WCI is scaling for.**
 
-The Cloud Run signature is a running pool, healthy-looking logs, and no Workflow progress.
+This appears as a running pool with healthy-looking logs but no Workflow progress.
 
 ## Activities interrupted mid-execution
 
 Activities failing partway and retrying from the beginning, correlated with the pool shrinking, means **scale-in is stopping instances that are still working.** The WCI does not track whether the instance Cloud Run stops is mid-Activity.
 
-This is expected behavior, not a misconfiguration. Confirm the Worker handles `SIGTERM` and has a non-zero graceful-shutdown timeout below Cloud Run's ten-second termination window; this lets short work drain. Long-running work still needs **Activity Heartbeats** so a retry resumes from its last recorded progress. → `constraints.md`, `sdk-<language>.md`.
+This is expected behavior, not a misconfiguration. Confirm the Worker handles `SIGTERM` and has a non-zero graceful-shutdown timeout below Cloud Run's ten-second termination window; this lets short work drain. Long-running work still needs **Activity Heartbeats** so a retry resumes from its last recorded progress. → `constraints.md`.
 
 ## Rule out a GCP-side cause
 
@@ -123,8 +123,8 @@ If every check passes, the cause may be in Cloud Run rather than your configurat
 - [Cloud Run known issues](https://cloud.google.com/run/docs/known-issues) — includes issues affecting how long pool operations take.
 - [Google Cloud Service Health](https://status.cloud.google.com/) — active incidents by product and region.
 
-The usual fix is to wait it out or move region. **Moving region means creating a new pool and updating the compute configuration**, since Temporal addresses a pool by project, region, and name.
+If a provider issue is confirmed, wait for recovery or move to another region. **Moving region means creating a new pool and updating the compute configuration**, since Temporal addresses a pool by project, region, and name.
 
 ## Never create or manage the WCI
 
-Temporal creates one WCI per Worker Deployment Version with a compute provider, and a running WCI is not evidence that scaling works—it continues-as-new while its Activities fail. Read its history for Activity failures, and prefer the pool's `lastModifier` annotation as the cheapest proof of a successful write. Do not enumerate Cloud Run resources across regions to reverse-engineer state.
+Temporal creates one WCI per Worker Deployment Version with a compute provider, and a running WCI is not evidence that scaling works—it continues-as-new while its Activities fail. Read its history for Activity failures, and use the pool's `lastModifier` annotation to determine who made the latest update. Do not enumerate Cloud Run resources across regions to reverse-engineer state.

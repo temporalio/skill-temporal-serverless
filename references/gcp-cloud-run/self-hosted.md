@@ -64,8 +64,4 @@ Two grants:
 - The GCP identity the Service runs as (step 3) gets **`roles/iam.serviceAccountTokenCreator`** on the invoker.
 - The invoker gets a project-level Cloud Run role with at least **`run.workerPools.get`** and **`run.workerPools.update`**. `roles/run.developer` includes both.
 
-Use the Terraform module in `iam.md`, setting `impersonator_service_account_emails` to the GCP identity used by the Temporal Service. Use the module's `invoker_email` output as `--gcp-cloud-run-service-account` when registering the Worker Deployment Version. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx:102-135 -->
-
-## Then
-
-Follow `setup.md` from Step 1. The read/update permission trap in `iam.md` applies identically, and `diagnostics.md`'s `lastModifier` check is still the fastest way to confirm the server can actually scale the pool.
+Use the Terraform module in `iam.md`, setting `impersonator_service_account_emails` to the GCP identity used by the Temporal Service. Use the module's `invoker_email` output as `--gcp-cloud-run-service-account` when registering the Worker Deployment Version, then follow `setup.md` from Step 1. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx:102-135 -->

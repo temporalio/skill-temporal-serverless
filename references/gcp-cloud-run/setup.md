@@ -11,7 +11,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - A GCP project with billing enabled and permission to enable service APIs and create Worker Pools, Artifact Registry repositories, Cloud Build jobs, service accounts, and Secret Manager secrets.
 - `gcloud` CLI installed and authenticated. The Google Cloud console or Terraform also work.
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
-- A Temporal SDK. Supported on Cloud Run: Go, Python, TypeScript, Java, .NET, **Ruby, and Rust**.
+- A Temporal SDK. Supported on Cloud Run: Go, Python, TypeScript, Java, and .NET.
 
 <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
@@ -89,20 +89,18 @@ Before each create, use the corresponding `describe` command from `iam.md` to av
 
 ## Step 1: Write Worker code
 
-**There is no Cloud Run Worker package.** Write an ordinary long-lived Worker — same client, same `Worker`/`WorkerFactory`, same registration — and add Worker Versioning, which Serverless Workers require. Use `sdk-<language>.md` in this directory.
+**There is no Cloud Run Worker package.** Write an ordinary long-lived Worker — same client, same `Worker`/`WorkerFactory`, same registration — and add Worker Versioning, which Serverless Workers require.
 
 Two things the Worker must do:
 
 1. **Declare its Worker Deployment Version and enable versioning**, with a deployment name and build ID that exactly match the version you register in Step 6.
 2. **Read its configuration from the environment** — address, Namespace, Task Queue, credentials — so one image can run against any Namespace. The pool supplies these via `--set-env-vars` and `--set-secrets`.
 
-Per-SDK code lives in `sdk-<language>.md` in this directory, one file per SDK. Each covers the versioned Worker, connection, image packaging, graceful shutdown, scale-in safety, and observability. The Java, Python, and .NET references also include their logging setup and diagnostic signatures.
-
 **The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:465-468 -->
 
 ## Step 2: Containerize the Worker
 
-Follow the selected `sdk-<language>.md` reference for the container image, runtime, entrypoint, certificate requirements, and memory settings.
+Follow the selected SDK's Cloud Run guidance for the container image, runtime, entrypoint, certificate requirements, and memory settings.
 
 ## Step 3: Build and push the image
 
@@ -118,7 +116,7 @@ The happy path deliberately uses Cloud Build's global endpoint. Supplying `--reg
 
 ## Step 4: Create the Worker Pool
 
-**Create one pool per Worker Deployment Version, initially at zero instances.** Registering the version starts the WCI, which temporarily raises the pool to the scaler's planned count—at least one instance—to register its Task Queues. The version does not need to be current for this bootstrap.
+**Create one pool per Worker Deployment Version, initially at zero instances.**
 
 ```bash
 gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
@@ -182,15 +180,11 @@ The four scaler flags are a coupled group: **either omit all four and accept the
 
 Through the UI, the version is set current automatically; through the CLI it is a separate step.
 
-### Checkpoint: distinguish registration from Validate Connection
+### Checkpoint: verify registration
 
-Creating the Worker Deployment Version starts its WCI. The WCI validates the configuration by reading the Worker Pool, then asks the rate-based algorithm for its Task Queue registration action. For a new Cloud Run version, that action updates the pool's manual instance count to at least one. This special registration floor applies even when `--gcp-cloud-run-min-instances` and `--gcp-cloud-run-initial-instances` are both `0`; those values govern the scaler's normal operating range and initial plan, not whether it can bootstrap Task Queue registration. This exercises both `run.workerPools.get` and the `run.workerPools.update` path used by real scaling.
+Creating the Worker Deployment Version starts its WCI, which temporarily raises the pool to at least one instance so the Worker can bind its Task Queues. This occurs even when the minimum and initial instance counts are `0`. Wait for the expected Task Queue types before setting the version current. The separate UI **Validate Connection** action checks pool read access only and is not a substitute for this registration check. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:824-827 -->
 
-The update completing proves that Temporal reached Cloud Run, not that the container started or the Worker connected. Wait for the expected Task Queue types to appear; that binding is proof the instance started and polled under the registered deployment name and build ID.
-
-The separate UI **Validate Connection** action (Workers → Deployments → select → Actions) only impersonates the invoker and reads the pool. It starts no instance and does not exercise `run.workerPools.update`, so a green manual validation is weaker than a successful registration bootstrap. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:824-827 -->
-
-Use both views when diagnosing the checkpoint:
+Use both views to verify the checkpoint:
 
 ```bash
 # has any Worker ever polled under this version?
@@ -202,7 +196,7 @@ gcloud run worker-pools describe my-temporal-worker-pool-build-1 \
   --region <REGION> --project <PROJECT> --format=yaml
 ```
 
-In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` becoming the invoker service account is the real proof that scaling works. → `diagnostics.md`.
+In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. → `diagnostics.md`.
 
 ## Step 7: Set the version current
 

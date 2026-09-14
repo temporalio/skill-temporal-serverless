@@ -1,6 +1,6 @@
 # GCP Cloud Run — observability
 
-## There is nothing serverless-specific to configure
+## Use standard Worker telemetry
 
 **A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx, "Add observability" -->
 
@@ -24,7 +24,7 @@ gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_
 
 Standard Worker metrics tell you about the Worker. Two Cloud Run-specific signals tell you about the *scaling*, and neither comes from the SDK:
 
-- **`run.googleapis.com/manualInstanceCount`** on the pool — what the WCI has asked for. Persistently `0` while a backlog exists is the headline symptom of a scaling failure.
-- **`serving.knative.dev/lastModifier`** on the pool — whether Temporal has ever successfully written to it. The cheapest proof that impersonation and the update permission both work.
+- **`run.googleapis.com/manualInstanceCount`** on the pool — what the WCI has asked for. A value that remains `0` while a backlog exists indicates a scaling failure.
+- **`serving.knative.dev/lastModifier`** on the pool — who most recently updated it. The invoker service account means the WCI made the latest update; another identity does not prove that the WCI has never updated the pool.
 
 Both are read with `gcloud run worker-pools describe … --format=yaml`. → `diagnostics.md`.
