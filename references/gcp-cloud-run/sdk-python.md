@@ -4,7 +4,7 @@
 
 Use this reference for Python-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
-**There is no Cloud Run Worker package.** This is an ordinary long-lived Python Worker plus Worker Versioning, which Serverless Workers require. Nothing in `../aws-lambda/sdk-python.md` applies.
+**There is no Cloud Run Worker package.** This is an ordinary long-lived Python Worker plus Worker Versioning, which Serverless Workers require.
 
 ## Inspect the versioning API before generating code
 
@@ -146,4 +146,4 @@ Do not enable DEBUG logging globally in production without first verifying that 
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else — no Cloud Run-specific wiring, and none of Lambda's ADOT layer or collector configuration. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/python/platform/observability`.
+A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/python/platform/observability`.

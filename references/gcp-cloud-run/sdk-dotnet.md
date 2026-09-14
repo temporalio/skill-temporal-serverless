@@ -4,7 +4,7 @@
 
 Use this reference for .NET-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
-**There is no Cloud Run Worker package.** This is an ordinary long-lived .NET Worker plus Worker Versioning, which Serverless Workers require. Nothing in `../aws-lambda/sdk-dotnet.md` applies.
+**There is no Cloud Run Worker package.** This is an ordinary long-lived .NET Worker plus Worker Versioning, which Serverless Workers require.
 
 ## Inspect the versioning API before generating code
 
@@ -73,11 +73,11 @@ catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
 
 `WorkerDeploymentVersion`'s two arguments are the deployment name and the build ID, and both must match the version created with `temporal worker deployment create-version` exactly. → `setup.md` Step 6.
 
-No `TemporalLambdaWorker`, no `CreateHandler`, and no RID-specific publish — the native Rust bridge comes from the ordinary publish for the image's platform.
+Use the ordinary publish for the image's platform; it includes the native Rust bridge. Cloud Run needs no provider-specific handler or artifact format.
 
 ## Versioning behavior
 
-Every Workflow needs `VersioningBehavior.Pinned` or `AutoUpgrade`. `DefaultVersioningBehavior` covers every Workflow; to set it per Workflow, set it on the `[Workflow]` attribute. Unlike Lambda, no package supplies a Worker-level default here, so one of the two must be set explicitly.
+Every Workflow needs `VersioningBehavior.Pinned` or `AutoUpgrade`. `DefaultVersioningBehavior` covers every Workflow; to set it per Workflow, set it on the `[Workflow]` attribute. No package supplies a Worker-level default, so one of the two must be set explicitly.
 
 ```csharp
 using Temporalio.Common;
@@ -99,7 +99,7 @@ Read `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY`, and `TEMPORAL
 
 To load them through the shared config format instead, use `ClientEnvConfig.LoadClientConnectOptions()` from `Temporalio.Common.EnvConfig`.
 
-**No `SSL_CERT_FILE` override is needed here.** That requirement is specific to AWS's .NET 8 Lambda images, which force-override the variable. The Debian-based `mcr.microsoft.com/dotnet/runtime` images ship a certificate store the Rust core can read.
+**No `SSL_CERT_FILE` override is needed.** The Debian-based `mcr.microsoft.com/dotnet/runtime` images ship a certificate store the Rust core can read.
 
 ## Image packaging
 
@@ -121,7 +121,7 @@ COPY --from=build /out ./
 CMD ["dotnet", "MyWorker.dll"]
 ```
 
-The Rust core reads TLS roots from the OS certificate store, and the Debian-based runtime images include one. A distroless or Alpine base does not. → `setup.md` Step 2.
+The Debian-based runtime image above includes CA certificates. Verify that any alternative runtime image also provides a readable CA bundle. → `setup.md` Step 2.
 
 ## Graceful shutdown on scale-in
 
@@ -183,4 +183,4 @@ Do not enable DEBUG logging globally in production without first verifying that 
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else — no Cloud Run-specific wiring, and none of Lambda's ADOT layer or collector configuration. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/dotnet/platform/observability`.
+A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/dotnet/platform/observability`.

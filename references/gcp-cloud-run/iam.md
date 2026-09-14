@@ -10,7 +10,7 @@ Cloud Run uses three identities:
 
 Temporal reaches the invoker through `roles/iam.serviceAccountTokenCreator`. The Terraform module described below creates the invoker and applies its grants.
 
-**The two service accounts are not interchangeable**, and confusing them is the single most likely IAM mistake here. The runner runs the pool and never scales it; the invoker scales the pool and never runs it. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:710-721 -->
+**The two service accounts are not interchangeable.** The runner runs the pool and never scales it; the invoker scales the pool and never runs it. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:710-721 -->
 
 ## Runner service account
 
@@ -31,11 +31,9 @@ The identity Temporal Cloud impersonates to read and scale the pool. Two grants 
 
 The invoker also needs **`roles/iam.serviceAccountUser` on the runner service account**, which Cloud Run requires in order to attach that identity when it scales the pool. The Terraform module applies this.
 
-### The read/update split is a real trap
+### Validate Connection checks read access only
 
-`run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass. That manual action never exercises `run.workerPools.update`. Version registration does: the WCI reads the pool and then updates its manual instance count to bootstrap Task Queue registration. An invoker that can read but not update therefore passes manual validation but fails version registration or a later resize. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:75-99 -->
-
-Verify the registration bootstrap and `lastModifier` rather than trusting the separate green Validate Connection result. → `diagnostics.md`.
+`run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass, but version registration and scaling also require `run.workerPools.update`. Passing Validate Connection therefore does not prove that the invoker can scale the pool. See `diagnostics.md` for registration and scaling checks. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:75-99 -->
 
 ## The Terraform module
 
@@ -74,7 +72,7 @@ terraform apply
 
 Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when registering the version.
 
-### Treat the module as shared, pre-existing infrastructure
+### Check for an existing shared invoker
 
 One invoker can serve several pools, so before creating a second one, look for an existing account and consider reusing it. **Do not `terraform destroy` state you did not create.** The module's default `invoker_account_id` may already be owned by an earlier deployment in the project.
 
@@ -113,6 +111,6 @@ Required services: `run.googleapis.com`, `artifactregistry.googleapis.com`, `clo
 
 For a same-project build using Cloud Build's default service account, Artifact Registry access is normally provided automatically. If the build uses a user-specified service account, the repository is in another project, or an organization policy removed the default grant, inspect that account and grant `roles/artifactregistry.writer` on this repository before submitting the build.
 
-**Classify an authentication failure before acting on it.** An absent or expired credential (`gcloud auth login`, or `gcloud auth application-default login` for Terraform) is recoverable in a minute; an identity that resolves but is denied a specific action is a real permissions problem. Never collect credentials in conversation and never ask the user to paste a service account key — Google recommends against long-lived keys outright.
+**Classify an authentication failure before acting on it.** An absent or expired credential may require `gcloud auth login`, or `gcloud auth application-default login` for Terraform; an authenticated identity that is denied a specific action has an authorization problem. Never collect credentials in conversation and never ask the user to paste a service account key — Google recommends against long-lived keys outright.
 
 **Confirm the project explicitly before creating anything.** `gcloud config get-value project` is ambient state that is easy to be wrong about. Name the project in the approval list and verify it rather than trusting the default.

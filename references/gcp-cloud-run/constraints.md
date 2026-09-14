@@ -4,7 +4,7 @@ Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-l
 
 ## Worker lifetime is an instance, not an invocation
 
-Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Use the Cloud Run SDK reference in this directory; some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
+Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
 The WCI controls how many instances run; each instance manages its own polling and Task processing.
 
@@ -12,19 +12,16 @@ The WCI controls how many instances run; each instance manages its own polling a
 
 - **No invocation deadline.** Nothing bounds how long a Worker lives except scale-in.
 - **No shutdown deadline buffer.** Cloud Run terminates instances through its own scale-in lifecycle.
-- **No timeout triple to tune.** Two of its three values do not exist here.
 - **Activities are not bounded by an invocation limit.** Their practical interruption boundary is scale-in.
 - **Eager Activities are not disabled by the platform.** A pool instance holds its connection for its lifetime; confirm support against the selected SDK.
 
-Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds later. Handle `SIGTERM` and configure the SDK's graceful-shutdown timeout below that window. → `sdk-<language>.md`.
+Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds later. Handle `SIGTERM` and configure the SDK's graceful-shutdown timeout below that window.
 
 ## What bounds an Activity instead: scale-in
 
 **The WCI decides when to remove an instance from Task Queue activity, not from what any individual instance is doing.** It does not track how long an instance has been running or whether it is mid-Activity, so the instance Cloud Run stops may be one that is still executing work. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:112-116 -->
 
 Graceful shutdown lets short work drain but cannot guarantee an Activity will finish. **Use Activity Heartbeats** so interrupted work resumes from its last recorded progress instead of restarting.
-
-*Symptom of ignoring this:* Activities failing partway and retrying from the beginning, correlated with the pool shrinking.
 
 ## Autoscaling behavior
 
@@ -49,16 +46,10 @@ An initial count and minimum of zero do not suppress registration. The rate-base
 
 Keep an older version's pool in place while Pinned Workflows are still running on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version.
 
-**The mutable-build hazard:** deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does — causing non-determinism errors for in-flight Workflows, **including Pinned ones**. → `versioning.md`.
+Do not deploy a new image into a pool used by a live Worker Deployment Version. Cloud Run promotes the new revision by default while the Temporal version remains unchanged, which can cause non-determinism errors for in-flight Workflows, including Pinned ones. → `versioning.md`.
 
 ## Do not share a Task Queue with long-lived Workers
 
 **The pool scales up to cover the Task Queue's full workload even when independently managed Workers are already handling all of it**, so you run and pay for duplicate capacity. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:71-80 -->
 
 The WCI sizes the pool from the rate of Tasks arriving on the version's Task Queues, and nothing in that measurement accounts for the long-lived Workers. Sync matching to a long-lived Worker suppresses the *immediate* scale-up, but the periodic re-sizing scales the pool up regardless. Fixing poller counts on the long-lived side does not help — use separate Task Queues.
-
-## What does *not* follow from this model
-
-- **Use ordinary Worker code.** Handler, configure-callback, and provider-package patterns do not apply.
-- **Scale-to-zero is not per-Task.** An idle pool costs nothing, but a running instance is billed for its lifetime, not per unit of work.
-- **A passing Validate Connection exercises only the read permission and starts no instance.** → `diagnostics.md`.
