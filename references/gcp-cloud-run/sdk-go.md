@@ -4,7 +4,7 @@
 
 Use this reference for Go-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
-**There is no Cloud Run Worker package.** This is an ordinary long-lived Go Worker plus Worker Versioning, which Serverless Workers require. Nothing in `../aws-lambda/sdk-go.md` applies.
+**There is no Cloud Run Worker package.** This is an ordinary long-lived Go Worker plus Worker Versioning, which Serverless Workers require.
 
 ## Inspect the versioning API before generating code
 
@@ -113,4 +113,4 @@ func MyActivity(ctx context.Context, input MyInput) (string, error) {
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else — no Cloud Run-specific wiring, and none of Lambda's ADOT layer or collector configuration. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/go/platform/observability`.
+A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/go/platform/observability`.

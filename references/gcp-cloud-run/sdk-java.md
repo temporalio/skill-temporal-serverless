@@ -4,7 +4,7 @@
 
 Use this reference for Java-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
-**There is no Cloud Run Worker package.** This is an ordinary long-lived Java Worker plus Worker Versioning, which Serverless Workers require. Nothing in `../aws-lambda/sdk-java.md` applies.
+**There is no Cloud Run Worker package.** This is an ordinary long-lived Java Worker plus Worker Versioning, which Serverless Workers require.
 
 ## Inspect the versioning API before generating code
 
@@ -81,7 +81,7 @@ public final class Main {
 
 `WorkerDeploymentVersion`'s two arguments are the deployment name and the build ID, and both must match the version created with `temporal worker deployment create-version` exactly. → `setup.md` Step 6.
 
-No `LambdaWorker` or `define` — this is `WorkerFactory` as in any long-lived Java Worker. Cloud Run imposes no Temporal-specific artifact format.
+Use `WorkerFactory` as for any long-lived Java Worker. Cloud Run imposes no Temporal-specific artifact format.
 
 ## Versioning behavior
 
@@ -178,4 +178,4 @@ Use a logging provider compatible with the SLF4J API version selected by the ins
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else — no Cloud Run-specific wiring, and none of Lambda's ADOT layer or collector configuration. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/java/platform/observability`.
+A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/java/platform/observability`.

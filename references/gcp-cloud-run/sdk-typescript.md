@@ -4,7 +4,7 @@
 
 Use this reference for TypeScript-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
-**There is no Cloud Run Worker package.** This is an ordinary long-lived TypeScript Worker plus Worker Versioning, which Serverless Workers require. Nothing in `../aws-lambda/sdk-typescript.md` applies.
+**There is no Cloud Run Worker package.** This is an ordinary long-lived TypeScript Worker plus Worker Versioning, which Serverless Workers require.
 
 ## Inspect the versioning API before generating code
 
@@ -54,7 +54,7 @@ main().catch((err) => {
 
 `deploymentName` and `buildId` must match the version created with `temporal worker deployment create-version` exactly, or the Worker polls under a version the WCI does not manage. → `setup.md` Step 6.
 
-Unlike Lambda, Cloud Run needs no `workflowBundle` — `workflowsPath` is fine, because the instance is long-lived and bundling only buys startup time.
+Cloud Run needs no `workflowBundle` — `workflowsPath` is sufficient because the instance is long-lived and bundling only improves startup time.
 
 ## Versioning behavior
 
@@ -83,7 +83,7 @@ Three things, all of which fail at startup rather than at build time:
 
 - **Install `ca-certificates` in the runtime stage.** The Rust core reads TLS roots from the OS store and the slim Node images ship without one; on `node:22-slim` a TLS connection fails with `TransportError: tonic::transport::Error(Transport, NativeCertsNotFound)`.
 - **Use a glibc image such as `node:22-slim`, not Alpine.** Alpine's musl is unsupported by the Rust core.
-- **Set `NODE_OPTIONS=--max-old-space-size=<MB>`** to about 80% of the instance memory limit. Node sizes its heap from the host, not the container. A pool defaults to 512 MiB per instance, so raise `--memory` if the Worker needs more.
+- **Leave headroom for native memory.** The instance limit covers both V8 and Temporal's Rust core. Set `NODE_OPTIONS=--max-old-space-size=<MB>` only when measurements justify it. A pool defaults to 512 MiB per instance, so raise `--memory` if the Worker needs more.
 
 → `setup.md` Step 2, `diagnostics.md`.
 
@@ -113,4 +113,4 @@ export async function myActivity(items: string[]): Promise<string> {
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else — no Cloud Run-specific wiring, and none of Lambda's ADOT layer or collector configuration. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/typescript/platform/observability`.
+A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/typescript/platform/observability`.
