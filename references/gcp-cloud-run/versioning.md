@@ -2,17 +2,11 @@
 
 ## One Worker Pool per Build ID
 
-**The compute configuration names a project, region, and Worker Pool — it does not name a [revision](https://cloud.google.com/run/docs/managing/revisions).** Temporal runs whichever revision the pool happens to serve. That ties a pool to a single build, so **a new build needs a new pool.** Carry the Build ID in the pool name (`my-worker-pool-build-1`) so the mapping stays visible. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:82-89 -->
-
-Temporal's Cloud Run compute configuration has no revision selector, so **durable isolation requires a separate pool per build.** A pool-level instance split can temporarily hold a particular revision, but that split remains mutable state outside Temporal.
+**The compute configuration names a project, region, and Worker Pool — it does not name a [revision](https://cloud.google.com/run/docs/managing/revisions).** Temporal runs whichever revision the pool serves, so durable isolation requires a separate pool per build. Carry the Build ID in the pool name (`my-worker-pool-build-1`) to keep that mapping visible. A pool-level instance split can temporarily hold a revision, but the split remains mutable state outside Temporal. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:82-89 -->
 
 ## The hazard: redeploying into a live pool
 
-> Deploying a new image into a pool that a live Worker Deployment Version points at creates a new revision, and Cloud Run promotes it to every instance by default. The version does not change, but the code behind it does. Deploying replay-unsafe code this way causes non-determinism errors for in-flight Workflows, **including Pinned ones**. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:94-100 -->
-
-**A normal `gcloud run worker-pools deploy` takes the mutable path by default.** The durable Temporal-aligned path is a new pool; `--no-promote` is only a same-pool guardrail.
-
-`Pinned` does not protect you. Pinning routes Workflows to a *version*; it cannot pin the code behind a pool whose revision moved underneath it.
+A normal `gcloud run worker-pools deploy` creates a new revision and promotes it to every instance by default. The Temporal version still points to the same pool, so the code changes underneath it. Replay-unsafe changes can cause non-determinism errors for in-flight Workflows, including Pinned ones, because pinning selects a Temporal version rather than a Cloud Run revision. Use a new pool for durable isolation; `--no-promote` is only a same-pool guardrail. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:94-100 -->
 
 ## Guardrail and recovery when a pool is reused
 
@@ -59,9 +53,7 @@ Only the invoker's permissions are shared across pools, so a new pool usually ne
 
 ## Rollback
 
-Set the previous version current again. Its pool is still there (step 6 above), and its WCI scales it back up on the next Task. Nothing needs rebuilding, and no image or revision has to be reverted — which is the payoff for keeping one pool per build.
-
-Rolling back through Temporal is therefore straightforward if you followed the pool-per-build discipline. If you redeployed into the same pool, setting the previous Temporal version current is not enough because both versions still address mutable pool state. Restore the known-good Cloud Run revision split as described above, provided that revision still exists; if it was deleted, there is nothing left to route back to and the old image must be redeployed deliberately.
+Set the previous version current again. Its existing pool scales up on the next Task without rebuilding or reverting an image. If you reused the same pool, setting the previous Temporal version current is not enough because both versions address mutable pool state. Restore the known-good Cloud Run revision split as described above; if that revision was deleted, redeploy the old image deliberately.
 
 ## Cost of the discipline
 
