@@ -97,13 +97,20 @@ Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves drai
 
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record Heartbeats so a retry resumes from the last recorded progress:
+The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
 
 ```go
 func MyActivity(ctx context.Context, input MyInput) (string, error) {
-	for i := range input.Items {
-		activity.RecordHeartbeat(ctx, i)
+	startIndex := 0
+	if activity.HasHeartbeatDetails(ctx) {
+		if err := activity.GetHeartbeatDetails(ctx, &startIndex); err != nil {
+			return "", err
+		}
+	}
+
+	for i := startIndex; i < len(input.Items); i++ {
 		// ... process input.Items[i]
+		activity.RecordHeartbeat(ctx, i+1)
 	}
 	return "done", nil
 }

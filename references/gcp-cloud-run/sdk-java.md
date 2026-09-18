@@ -128,15 +128,18 @@ Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves drai
 
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record Heartbeats so a retry resumes from the last recorded progress:
+The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
 
 ```java
 public class GreetingActivitiesImpl implements GreetingActivities {
   @Override
   public String process(List<String> items) {
-    for (int i = 0; i < items.size(); i++) {
-      Activity.getExecutionContext().heartbeat(i);
+    ActivityExecutionContext context = Activity.getExecutionContext();
+    int startIndex = context.getHeartbeatDetails(Integer.class).orElse(0);
+
+    for (int i = startIndex; i < items.size(); i++) {
       // ... process items.get(i)
+      context.heartbeat(i + 1);
     }
     return "done";
   }
