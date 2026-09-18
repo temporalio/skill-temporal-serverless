@@ -17,7 +17,7 @@ Public Preview is not General Availability. APIs are still evolving and may be s
 ## What is a Serverless Worker?
 
 A Serverless Worker is a Temporal Worker whose compute lifecycle is controlled by Temporal instead of by an independently operated Worker fleet. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43 -->
-There is no always-on compute capacity to maintain: Temporal starts capacity when needed and can return it to zero when idle. The provider resource itself—a Lambda function or Cloud Run Worker Pool—continues to exist. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43-45 -->
+There is no always-on compute capacity to maintain: Temporal starts capacity when needed and can return it to zero when idle. The provider resource itself—a Lambda function or Cloud Run Worker Pool—continues to exist. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43-45; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:25-29; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:88-96 -->
 
 **"Starts" means different things per provider.** On AWS Lambda, Temporal invokes a function per unit of work and the Worker exits when that invocation ends. On GCP Cloud Run, Temporal resizes a pool of long-lived instances, each running an ordinary Worker that polls for its whole lifetime. Both scale to zero when idle; almost nothing else about their lifecycles is the same.
 
@@ -40,7 +40,7 @@ With Serverless Workers, Temporal starts the Worker. <!-- docs/encyclopedia/work
 The Worker Controller Instance (WCI) is a system Workflow that scales Serverless Workers based on Task Queue conditions. <!-- docs/encyclopedia/workers/serverless-workers.mdx:66 -->
 One WCI Workflow runs per Worker Deployment Version that has a compute provider configured. The WCI runs in the same Namespace as your Worker Deployment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:67-68 -->
 
-The WCI responds to sync match failures and periodically reads Task Queue metrics. It turns those inputs into an action compatible with the provider: invoke a Lambda function, or update a Cloud Run Worker Pool's manual instance count. <!-- docs/encyclopedia/workers/serverless-workers.mdx:70-72 -->
+The WCI responds to sync match failures and periodically reads Task Queue metrics. It turns those inputs into an action compatible with the provider: invoke a Lambda function, or update a Cloud Run Worker Pool's manual instance count. <!-- docs/encyclopedia/workers/serverless-workers.mdx:70-72; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:38-56; docs/troubleshooting/serverless-workers/cloud-run.mdx:48-63 -->
 
 You can list WCI Workflows in your Namespace: <!-- docs/encyclopedia/workers/serverless-workers.mdx:75 -->
 
@@ -80,13 +80,13 @@ The WCI automatically scales Serverless Workers from Task Queue signals and metr
 
 ### Sync match failure
 
-When a Task is submitted, Matching attempts to route it directly to an available Worker. If no Worker is available, the sync match fails and Matching signals the WCI. Lambda's no-sync algorithm can invoke another function; Cloud Run's rate-based algorithm can immediately increase the planned pool size, subject to its cooldown and maximum. <!-- docs/encyclopedia/workers/serverless-workers.mdx:124-126 -->
+When a Task is submitted, Matching attempts to route it directly to an available Worker. If no Worker is available, the sync match fails and Matching signals the WCI. Lambda's no-sync algorithm can invoke another function; Cloud Run's rate-based algorithm can immediately increase the planned pool size, subject to its maximum. <!-- docs/encyclopedia/workers/serverless-workers.mdx:124-126; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:38-43; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:56 -->
 
 Because the Matching Service pushes match failures to the WCI as they happen rather than the WCI polling on a timer, latency stays low and scaling is responsive. <!-- docs/encyclopedia/workers/serverless-workers.mdx:126-128 -->
 
 ### Task Queue backlog
 
-The WCI periodically reads version-level Task Queue arrival rate, dispatch rate, and backlog. Cloud Run's rate-based algorithm uses these metrics to calculate a desired instance count and explicitly resizes the pool; the periodic path also scales the pool down, including to zero. Lambda Workers instead end with their invocations and do not use this worker-set sizing model. <!-- docs/encyclopedia/workers/serverless-workers.mdx:132-133 -->
+The WCI periodically reads version-level Task Queue arrival rate, dispatch rate, and backlog. Cloud Run's rate-based algorithm uses these metrics to calculate a desired instance count and explicitly resizes the pool; the periodic path also scales the pool down, including to zero. Lambda Workers instead end with their invocations and do not use this worker-set sizing model. <!-- docs/encyclopedia/workers/serverless-workers.mdx:132-133; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:45-56; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:67-73 -->
 
 ## Scaling with long-lived Workers
 
@@ -129,11 +129,11 @@ Serverless Workers rely on Temporal's standard retry and timeout semantics to re
 
 ### Worker crash or instance termination
 
-If a Worker crashes or its compute is terminated, the in-flight Task is not acknowledged. Temporal applies the configured timeout and retry policy, and another Worker can receive the retry. On Lambda that means another invocation; on Cloud Run it means another running or replacement pool instance. Activity Heartbeats preserve progress for long-running work that can be interrupted. <!-- docs/encyclopedia/workers/serverless-workers.mdx:210-215 -->
+If a Worker crashes or its compute is terminated, the in-flight Task is not acknowledged. Temporal applies the configured timeout and retry policy, and another Worker can receive the retry. On Lambda that means another invocation; on Cloud Run it means another running or replacement pool instance. Activity Heartbeats preserve progress for long-running work that can be interrupted. <!-- docs/encyclopedia/workers/serverless-workers.mdx:210-215; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:116-124 -->
 
 ### Provider capacity limit
 
-If the provider cannot add capacity—Lambda account concurrency, Cloud Run regional quotas, or the configured Cloud Run `max_count`—Tasks remain in the Task Queue backlog without data loss and processing slows until capacity becomes available. The provider-side symptom differs: Lambda invocations are throttled or rejected, while a Cloud Run pool stops growing or its update fails. <!-- docs/encyclopedia/workers/serverless-workers.mdx:219-223 -->
+If the provider cannot add capacity—Lambda account concurrency, Cloud Run regional quotas, or the configured Cloud Run `max_count`—Tasks remain in the Task Queue backlog without data loss and processing slows until capacity becomes available. The provider-side symptom differs: Lambda invocations are throttled or rejected, while a Cloud Run pool stops growing. <!-- docs/encyclopedia/workers/serverless-workers.mdx:219-223; docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138 -->
 
 ### Resource exhaustion across Activity slots
 
@@ -165,7 +165,7 @@ Pinned or Auto-Upgrade controls how Workflows move between Worker Deployment Ver
 
 A compute provider is the configuration that tells Temporal how to control Serverless Worker capacity. It is set on a Worker Deployment Version and specifies the provider type, compute target, and credentials Temporal needs to invoke a function or resize a worker set. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
 
-For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function; a Cloud Run compute provider names the project, region, and Worker Pool, plus the service account Temporal impersonates to scale it. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
+For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function; a Cloud Run compute provider names the project, region, and Worker Pool, plus the service account Temporal impersonates to scale it. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315; docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:800-830 -->
 
 Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server. <!-- docs/encyclopedia/workers/serverless-workers.mdx:317-318 -->
 
