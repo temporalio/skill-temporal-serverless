@@ -11,7 +11,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - A GCP project with billing enabled and permission to enable service APIs and create Worker Pools, Artifact Registry repositories, Cloud Build jobs, service accounts, and Secret Manager secrets.
 - `gcloud` CLI installed and authenticated. The Google Cloud console or Terraform also work.
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
-- A Temporal SDK. Supported on Cloud Run: Go, Python, TypeScript, Java, and .NET.
+- A Temporal SDK supported by this skill: Go, Python, TypeScript, Java, or .NET.
 
 <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
@@ -161,7 +161,8 @@ temporal worker deployment create-version \
   --gcp-cloud-run-min-instances 0 \
   --gcp-cloud-run-max-instances 30 \
   --gcp-cloud-run-initial-instances 0 \
-  --gcp-cloud-run-utilization-target 0.8
+  --gcp-cloud-run-utilization-target 0.8 \
+  --gcp-cloud-run-scale-down-stabilization-duration 90s
 ```
 
 | Flag | Description |
@@ -175,8 +176,9 @@ temporal worker deployment create-version \
 | `--gcp-cloud-run-max-instances` | Ceiling the scaler may request; defaults to `30`. |
 | `--gcp-cloud-run-initial-instances` | Initial planned count; must be between min and max. |
 | `--gcp-cloud-run-utilization-target` | Target average utilization in `(0, 1]`; defaults to `0.8`. |
+| `--gcp-cloud-run-scale-down-stabilization-duration` | How long the scaler waits after the most recent sync match failure before scaling in; defaults to `90s`. Set it to `0s` to disable the wait. |
 
-The four scaler flags are a coupled group: **either omit all four and accept the defaults (`0`, `30`, `0`, `0.8`), or provide all four together.** Supplying only one—even only a higher maximum—fails CLI validation.
+The five scaler flags are a coupled group: **either omit all five and accept the defaults (`0`, `30`, `0`, `0.8`, `90s`), or provide all five together.** Supplying only one—even only a higher maximum—fails CLI validation. The scale-down stabilization flag requires Temporal CLI v1.8.3 or later. With an older CLI, omit all five and accept the default scaling settings rather than supplying a partial group.
 
 Through the UI, the version is set current automatically; through the CLI it is a separate step.
 

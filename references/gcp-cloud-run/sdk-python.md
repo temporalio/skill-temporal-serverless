@@ -108,14 +108,17 @@ Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves drai
 
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record Heartbeats so a retry resumes from the last recorded progress:
+The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
 
 ```python
 @activity.defn
 async def my_activity(items: list[str]) -> str:
-    for i, item in enumerate(items):
-        activity.heartbeat(i)
-        # ... process item
+    details = activity.info().heartbeat_details
+    start_index = details[0] if details else 0
+
+    for i in range(start_index, len(items)):
+        # ... process items[i]
+        activity.heartbeat(i + 1)
     return "done"
 ```
 

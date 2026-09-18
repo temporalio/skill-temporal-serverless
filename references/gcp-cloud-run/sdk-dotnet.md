@@ -131,16 +131,22 @@ Cloud Run sends `SIGTERM`, which is distinct from the `SIGINT` raised by Ctrl+C.
 
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record Heartbeats so a retry resumes from the last recorded progress:
+The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
 
 ```csharp
 [Activity]
-public static string Process(IReadOnlyList<string> items)
+public static async Task<string> ProcessAsync(IReadOnlyList<string> items)
 {
-    for (var i = 0; i < items.Count; i++)
+    var context = ActivityExecutionContext.Current;
+    var info = context.Info;
+    var startIndex = info.HeartbeatDetails.Count > 0
+        ? await info.HeartbeatDetailAtAsync<int>(0)
+        : 0;
+
+    for (var i = startIndex; i < items.Count; i++)
     {
-        ActivityExecutionContext.Current.Heartbeat(i);
         // ... process items[i]
+        context.Heartbeat(i + 1);
     }
     return "done";
 }
