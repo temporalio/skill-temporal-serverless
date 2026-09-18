@@ -7,14 +7,14 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 > [!NOTE]
 > **AWS Lambda** is in Public Preview and available to all Temporal Cloud customers without an access request.
-> **GCP Cloud Run** is in Public Preview and available to all Temporal Cloud customers without an access request.
+> **GCP Cloud Run** availability can change. Check the release-status notice as described in the [Cloud Run prerequisites](references/gcp-cloud-run/setup.md#prerequisites) before deployment.
 
 > [!IMPORTANT]
 > The two providers have different execution models. Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is, what bounds an Activity, what there is to tune, and how failures present — guidance does not transfer between them.
 
 ## What the skill can do
 
-- Build Serverless Workers with the Go, Python, TypeScript, Java, or .NET SDK on either provider, plus Ruby and Rust on Cloud Run.
+- Build Serverless Workers with the Go, Python, TypeScript, Java, or .NET SDK on either provider.
 - Package and deploy to AWS Lambda with the correct architecture, timeout, and shutdown settings — or containerize and deploy to a Cloud Run Worker Pool.
 - Configure the two distinct identities each provider needs: execution and invocation roles on AWS, runner and invoker service accounts on GCP.
 - Register a Worker Deployment Version, validate its Task Queue binding, and set it current.
@@ -28,9 +28,9 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 | Area | Supported |
 |---|---|
-| Compute | AWS Lambda and GCP Cloud Run — Public Preview |
+| Compute | AWS Lambda — Public Preview; GCP Cloud Run — check current availability |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
-| SDKs | Lambda: Go, Python, TypeScript, Java, .NET. Cloud Run: those plus Ruby and Rust |
+| SDKs | Go, Python, TypeScript, Java, and .NET on either provider |
 | Other compute providers | Not currently supported |
 
 For Temporal Cloud, the Namespace must be hosted on the same cloud provider as the compute — AWS for Lambda, GCP for Cloud Run. Regions need not match.
@@ -123,7 +123,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 
 ## Important operating constraints
 
-- Serverless Workers on AWS Lambda and GCP Cloud Run are Public Preview, not generally available.
+- Serverless Workers on AWS Lambda are Public Preview, not generally available. Check Cloud Run's current release status before deployment.
 - Every Workflow must use a Worker Versioning behavior: `Pinned` or `AutoUpgrade`.
 - The deployment name and build ID in Worker code must exactly match the registered Worker Deployment Version.
 - Production releases should map each build ID to one immutable build: a published Lambda version, or a dedicated Cloud Run Worker Pool.

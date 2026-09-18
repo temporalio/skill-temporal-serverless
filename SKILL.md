@@ -15,7 +15,7 @@ This skill helps users deploy and operate Temporal Workers on serverless compute
 | Cloud provider | Compute service | Support | Reference directory |
 |---|---|---|---|
 | AWS | Lambda | Supported — Public Preview, open to all Temporal Cloud customers | `references/aws-lambda/` |
-| GCP | Cloud Run | Supported — Public Preview, open to all Temporal Cloud customers | `references/gcp-cloud-run/` |
+| GCP | Cloud Run | Supported — check current availability before deployment | `references/gcp-cloud-run/` |
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is confirmed in the step 1 questions, not silently defaulted.
 
@@ -33,9 +33,7 @@ Every supported provider's directory carries the same shared layout — `setup.m
 
 The two columns are not interchangeable. A Lambda SDK reference describes a provider Worker package and its handler; the Cloud Run counterpart describes an ordinary long-lived Worker with Worker Versioning enabled, and there is no Cloud Run Worker package. Read the one for the confirmed provider.
 
-**Ruby and Rust run on Cloud Run and have no Lambda packages**, so they have no row above. There is no `sdk-ruby.md` or `sdk-rust.md`; for those two, follow `references/gcp-cloud-run/setup.md` and the SDK's own Cloud Run guide, and say that the skill carries no per-SDK reference for them.
-
-**Public Preview is not GA.** The APIs are still evolving and may change: pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
+**Pre-release and Public Preview are not GA.** For Cloud Run, check `references/gcp-cloud-run/setup.md` for its current release status and access requirements. For any pre-GA provider or API, pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
 
 ## Deployment workflow
 
@@ -97,11 +95,11 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 **A step is complete when its verification passed — not when its command exited zero.** Several commands in this workflow exit clean having done nothing: the traffic-shifting and key-revocation commands no-op when their confirmation prompt goes unanswered, and providers return from create and update calls while the resource is still settling. Check an item off against state you read back, not against an exit code. When a step's verification fails, say which step you are on and what it is blocked on rather than moving down the list.
 
-1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, .NET, and on Cloud Run also Ruby or Rust — **SDK support differs by provider**), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
+1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
 
-   **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description** — AWS Lambda and GCP Cloud Run are both Public Preview and open to all Temporal Cloud customers. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
+   **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description.** AWS Lambda is Public Preview and open to all Temporal Cloud customers. For GCP Cloud Run, follow the availability check in `references/gcp-cloud-run/setup.md` and use the current status and access requirements it establishes. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
 
-   **The Namespace usually settles it, so ask them together.** A Serverless Worker runs only on the cloud provider hosting its Namespace, so a user with only AWS Namespaces has no Cloud Run option. Where the user genuinely has both, the deciding factors include **Activity duration** (anything over Lambda's 15-minute ceiling rules Lambda out) and **SDK** (Ruby and Rust are Cloud Run only). Say which factor decided it rather than presenting the choice as arbitrary.
+   **The Namespace usually settles it, so ask them together.** A Serverless Worker runs only on the cloud provider hosting its Namespace, so a user with only AWS Namespaces has no Cloud Run option. Where the user genuinely has both, a deciding factor is **Activity duration**: anything over Lambda's 15-minute ceiling rules Lambda out. Say which factor decided it rather than presenting the choice as arbitrary.
 
    **Let the user pick the Namespace from a list; never make them retype one.** Namespace names are long and error-prone — a generated suffix on an account ID, `<name>-<suffix>.<account>`. Where control-plane access is available, `tcld namespace list` returns the full Namespace objects, so one call gives every name with its region — and a region ID is provider-prefixed (`aws-…`, `gcp-…`), so the same response tells you each Namespace's provider. Only the prefix carries meaning; the region itself imposes no constraint.
 
@@ -151,7 +149,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 3. **Author the Worker.** Follow the selected provider's Worker model; do not infer one from the phrase "serverless Worker."
 
    - **AWS Lambda:** install the SDK's serverless Worker package before writing code. It is usually shipped separately from the main SDK, and its Public Preview API and handler shape can drift. Read the installed package's actual API before writing the entry point.
-   - **GCP Cloud Run:** write an ordinary long-lived Worker that starts polling when the container starts. There is no Cloud Run serverless Worker package or per-invocation handler. For Go, Python, TypeScript, Java, and .NET, use the selected `references/gcp-cloud-run/sdk-<language>.md`; for Ruby or Rust, use `references/gcp-cloud-run/setup.md` and the SDK's current Cloud Run guide.
+   - **GCP Cloud Run:** write an ordinary long-lived Worker that starts polling when the container starts. There is no Cloud Run serverless Worker package or per-invocation handler. Use the selected `references/gcp-cloud-run/sdk-<language>.md`.
 
    Every Workflow must declare a versioning behavior (`Pinned` or `AutoUpgrade`), per Workflow or as a Worker-level default. The deployment name and build ID in the Worker must match the version that will be registered. → `references/concepts.md` and the applicable SDK reference; for Cloud Run, also `references/gcp-cloud-run/constraints.md`.
 
