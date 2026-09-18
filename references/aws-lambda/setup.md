@@ -25,39 +25,36 @@ The selected SDK reference links its maintained sample project.
 
 Steps 4–6 and the CLI troubleshooting paths use the `temporal` CLI. Install it and authenticate it to the target Temporal Service before those steps, or commands default to `localhost:7233` and fail against Temporal Cloud. The serverless `worker deployment create-version` subcommand and its `--aws-lambda-*` flags also require a recent CLI build — see "Check the CLI version" in Step 4. <!-- docs/develop/environment-configuration.mdx -->
 
-**Authenticate to Temporal Cloud (API key).** The CLI and the serverless Worker packages both read these environment variables. Set the non-secret values normally, but read the key privately in the user's own terminal so it never appears in shell history:
+**Authenticate to Temporal Cloud (API key).** Export environment variables (the CLI and the serverless Worker packages both read these):
 
 ```bash
 export TEMPORAL_ADDRESS="<namespace_id>.<account_id>.tmprl.cloud:7233"
 export TEMPORAL_NAMESPACE="<namespace_id>.<account_id>"
-printf 'Temporal API key: ' >&2
-IFS= read -r -s TEMPORAL_API_KEY
-printf '\n' >&2
-export TEMPORAL_API_KEY
+export TEMPORAL_API_KEY="<your-api-key>"
 ```
 
-A profile that already contains the key is also valid; pass `--profile prod` on each command. Configure or update only its non-secret values from the command line:
+or configure a profile and pass `--profile prod` on each command:
 
 ```bash
 temporal --profile prod config set --prop address --value "<namespace_id>.<account_id>.tmprl.cloud:7233"
 temporal --profile prod config set --prop namespace --value "<namespace_id>.<account_id>"
+temporal --profile prod config set --prop api_key --value "<your-api-key>"
 ```
 <!-- docs/develop/environment-configuration.mdx:122-131 -->
 
-An existing environment works the same way; pass `--env prod` or set `TEMPORAL_ENV`, and configure only non-secret values from the command line:
+or configure an environment and pass `--env prod` (or set `TEMPORAL_ENV`):
 
 ```bash
 temporal env set --env prod --key address --value "<namespace_id>.<account_id>.tmprl.cloud:7233"
 temporal env set --env prod --key namespace --value "<namespace_id>.<account_id>"
+temporal env set --env prod --key api-key --value "<your-api-key>"
 ```
 
-Never pass the key through `config set --value`, `env set --value`, `--api-key`, or an inline assignment. If an existing profile or environment has no key, use the private environment-variable prompt above instead. Do not run the secret-reading commands through an agent shell, ask the user to paste the key into conversation, or inspect the resulting variable.
-
-**Do not assume which of the three a user has, and do not migrate them.** `--env` (YAML, `temporal env`) is the long-standing mechanism; `--profile` (TOML, `temporal config`) is newer and the CLI still marks it EXPERIMENTAL. Both are supported — work with whichever is already configured. Read only the non-secret values you need rather than asking the user to re-enter them:
+**Do not assume which of the three a user has, and do not migrate them.** `--env` (YAML, `temporal env`) is the long-standing mechanism; `--profile` (TOML, `temporal config`) is newer and the CLI still marks it EXPERIMENTAL. Both are supported — work with whichever is already configured. Read the existing values rather than asking the user to re-enter them:
 
 ```bash
-temporal env get --env prod --key address                 # --env mechanism
-temporal --profile prod config get --prop address          # --profile mechanism
+temporal env get --env prod          # --env mechanism
+temporal config get --prop address   # --profile mechanism
 ```
 
 - For Temporal Cloud the Namespace is the fully-qualified `<namespace_id>.<account_id>`, not the bare name. <!-- docs/develop/environment-configuration.mdx:128-129 -->
@@ -75,7 +72,7 @@ If this fails with an auth error, note first that this is a **frontend** call �
 | | Control plane (accounts, Namespaces, API keys) | Namespace frontend (Workflows, Worker Deployments) |
 |---|---|---|
 | Interactive | `tcld login` | `temporal ...` with address + namespace |
-| Headless | `TEMPORAL_CLOUD_API_KEY` | `TEMPORAL_API_KEY` |
+| Headless | `--api-key` / `TEMPORAL_CLOUD_API_KEY` | `TEMPORAL_API_KEY` |
 
 **Use `tcld` for every Temporal Cloud control-plane operation** — accounts, Namespaces, API keys, users, service accounts. Do not use the unified CLI's `temporal cloud …` subcommands for them.
 
@@ -88,7 +85,15 @@ Two `tcld` mechanics worth knowing before you run it in an agent shell:
 - `tcld login --disable-pop-up` prints the URL instead of opening a browser. Auto-open is unreliable over SSH, in containers, and in remote sessions, and the user needs the URL in the conversation either way.
 - `tcld` prompts for confirmation before mutating operations. Non-interactively, pass the global `--auto_confirm` (note the underscore) or set `AUTO_CONFIRM=true`, then read the resulting state back — without it the command exits clean having changed nothing.
 
-**Go to the API key first.** It requires no CLI login, no browser handshake, and works on every account type. Have the user create the key in the Cloud UI, signing in however they normally do, then set it with the private prompt above. Confirm the address against the endpoint shown on the Namespace page — some Namespaces have regional endpoints that do not follow the pattern above.
+**Go to the API key first.** It requires no CLI login, no browser handshake, and works on every account type:
+
+```bash
+export TEMPORAL_ADDRESS="<namespace_id>.<account_id>.tmprl.cloud:7233"
+export TEMPORAL_NAMESPACE="<namespace_id>.<account_id>"
+export TEMPORAL_API_KEY="<created in the Cloud UI>"
+```
+
+Have the user create the key in the Cloud UI, signing in however they normally do, and confirm the address against the endpoint shown on the Namespace page — some Namespaces have regional endpoints that do not follow the pattern above. Never ask them to paste the key into the conversation.
 
 **A control-plane login is a convenience, not a prerequisite.** When it is available it saves asking:
 
