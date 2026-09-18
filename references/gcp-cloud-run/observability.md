@@ -2,7 +2,7 @@
 
 ## Use standard Worker telemetry
 
-**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/<sdk>/workers/serverless-workers/cloud-run.mdx, "Add observability" -->
+**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/go/workers/serverless-workers/cloud-run.mdx:115-118; docs/develop/python/workers/serverless-workers/cloud-run.mdx:132-135; docs/develop/typescript/workers/serverless-workers/cloud-run.mdx:139-142; docs/develop/java/workers/serverless-workers/cloud-run.mdx:152-155; docs/develop/dotnet/workers/serverless-workers/cloud-run.mdx:138-141 -->
 
 Do not add provider-specific helper layers, collector environment variables, or invocation-deadline flush logic. Export telemetry as you would from any long-lived container.
 

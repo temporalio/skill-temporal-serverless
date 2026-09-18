@@ -207,7 +207,7 @@ temporal worker deployment set-current-version \
   --namespace <NS> --deployment-name my-app --build-id build-1 --yes
 ```
 
-Without this, new traffic does not route to the version. The registration instance may already have started and bound the Task Queue, but that bootstrap does not make the version current. The command prompts for confirmation; **run non-interactively without `--yes` it exits having changed nothing**, which reads as success. Read the state back with `temporal worker deployment describe`.
+Without this, new traffic does not route to the version. The registration instance may already have started and bound the Task Queue, but that bootstrap does not make the version current. The command prompts for confirmation. **When run non-interactively without `--yes`, it exits having changed nothing**, which reads as success. Read the state back with `temporal worker deployment describe`.
 
 ## Step 8: Verify
 
