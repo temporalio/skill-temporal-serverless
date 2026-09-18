@@ -1,44 +1,49 @@
 # Temporal Serverless Workers Skill
 
-Deploy and operate [Temporal](https://temporal.io/) Workers on serverless compute with help from a coding agent. The skill guides an agent through the complete AWS Lambda lifecycle: scoping, access checks, Worker implementation, packaging, deployment, Temporal registration, verification, troubleshooting, updates, and rollback.
+Deploy and operate [Temporal](https://temporal.io/) Workers on serverless compute with help from a coding agent. The skill guides an agent through the complete lifecycle on AWS Lambda and GCP Cloud Run: scoping, access checks, Worker implementation, packaging, deployment, Temporal registration, verification, troubleshooting, updates, and rollback.
 
 > [!WARNING]
 > This skill is in Public Preview and will continue to evolve. Pin the Temporal SDK, serverless Worker package, and CLI versions for long-lived projects.
 
 > [!NOTE]
-> Temporal Serverless Workers on AWS Lambda are in Public Preview and are available to all Temporal Cloud customers without an access request. AWS Lambda is currently the only compute provider supported by this skill.
+> **AWS Lambda** is in Public Preview and available to all Temporal Cloud customers without an access request.
+> **GCP Cloud Run** availability can change. Check the release-status notice as described in the [Cloud Run prerequisites](references/gcp-cloud-run/setup.md#prerequisites) before deployment.
+
+> [!IMPORTANT]
+> The two providers have different execution models. Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is, what bounds an Activity, what there is to tune, and how failures present — guidance does not transfer between them.
 
 ## What the skill can do
 
-- Build Serverless Workers with the Go, Python, TypeScript, Java, or .NET SDK.
-- Package and deploy Workers to AWS Lambda with the correct architecture, timeout, and shutdown settings.
-- Configure the separate AWS roles used by the Lambda function and by Temporal.
+- Build Serverless Workers with the Go, Python, TypeScript, Java, or .NET SDK on either provider.
+- Package and deploy to AWS Lambda with the correct architecture, timeout, and shutdown settings — or containerize and deploy to a Cloud Run Worker Pool.
+- Configure the two distinct identities each provider needs: execution and invocation roles on AWS, runner and invoker service accounts on GCP.
 - Register a Worker Deployment Version, validate its Task Queue binding, and set it current.
-- Verify a deployment from both Temporal Workflow history and Lambda logs.
-- Diagnose Workers that are not invoked or do not complete Tasks.
-- Publish immutable Lambda versions, update deployments, and roll back safely.
-- Add OpenTelemetry observability with the AWS Distro for OpenTelemetry.
+- Verify a deployment from both Temporal Workflow history and the provider's logs.
+- Diagnose Workers that are never started, or that start but do not complete Tasks.
+- Keep each build immutable, update deployments, and roll back safely.
+- Add OpenTelemetry observability — the AWS Distro for OpenTelemetry on Lambda, the SDK's standard setup plus Cloud Logging on Cloud Run.
 - Configure self-hosted Temporal deployments that meet the serverless prerequisites.
 
 ## Support
 
 | Area | Supported |
 |---|---|
-| Compute | AWS Lambda — Public Preview |
+| Compute | AWS Lambda — Public Preview; GCP Cloud Run — check current availability |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
-| SDKs | Go, Python, TypeScript, Java, .NET |
+| SDKs | Go, Python, TypeScript, Java, and .NET on either provider |
 | Other compute providers | Not currently supported |
 
-For Temporal Cloud, the Namespace must be hosted on AWS. The Namespace and Lambda function may be in different AWS regions.
+For Temporal Cloud, the Namespace must be hosted on the same cloud provider as the compute — AWS for Lambda, GCP for Cloud Run. Regions need not match.
 
 ## Before you start
 
 Before starting, make sure you can sign in to:
 
-- An AWS account with permission to inspect and create the required Lambda, IAM, CloudFormation, and logging resources.
-- A Temporal Cloud Namespace hosted on AWS, or a compatible self-hosted Temporal Service.
+- For AWS Lambda: an AWS account with permission to inspect and create the required Lambda, IAM, CloudFormation, and logging resources.
+- For GCP Cloud Run: a GCP project with the Cloud Run and Artifact Registry APIs enabled, and permission to create Worker Pools, service accounts, and Secret Manager secrets.
+- A Temporal Cloud Namespace hosted on the same cloud provider as your compute, or a compatible self-hosted Temporal Service.
 
-You do not need to install or configure the AWS CLI, `tcld`, or the Temporal CLI before you begin. The skill checks what is already available and can help set up the tools and supported login flows needed for the task. If you prefer not to install a CLI, or a login method is unavailable, it can guide you through the corresponding Temporal Cloud UI or AWS console steps instead. It never asks you to paste credentials or secrets into the conversation.
+You do not need to install or configure the AWS CLI, `gcloud`, Terraform, `tcld`, or the Temporal CLI before you begin. The skill checks what is already available and can help set up the tools and supported login flows needed for the task. If you prefer not to install a CLI, or a login method is unavailable, it can guide you through the corresponding Temporal Cloud UI, AWS console, or Google Cloud console steps instead. It never asks you to paste credentials or secrets into the conversation.
 
 ## Installation
 
@@ -98,23 +103,31 @@ Package this Java Worker as a shaded jar and deploy it to Lambda.
 Deploy this .NET Worker to Lambda with a runtime-specific publish.
 ```
 
+```text
+Deploy this Go Worker to a GCP Cloud Run Worker Pool.
+```
+
+```text
+My Cloud Run Worker Pool is stuck at zero instances. Find out why.
+```
+
 For a new deployment, the skill follows five stages:
 
 1. **Scope** — confirm the SDK, compute provider, Namespace, region, and resource-naming prefix.
-2. **Access** — verify AWS and Temporal identities and permissions, then present the exact billable resources for approval.
-3. **Build** — install the serverless Worker package, inspect its current API, author the Worker, and deploy it.
-4. **Connect** — configure Temporal's invocation role, register the Worker Deployment Version, validate the Task Queue binding, and set the version current.
+2. **Access** — verify cloud-provider and Temporal identities and permissions, then present the exact billable resources for approval.
+3. **Build** — author the Worker and deploy it. On Lambda that means installing the serverless Worker package and inspecting its current API; on Cloud Run it means an ordinary long-lived Worker in a container image.
+4. **Connect** — grant Temporal access to the compute (an invocation role on AWS, an impersonated invoker service account on GCP), register the Worker Deployment Version, confirm it is reachable, and set the version current.
 5. **Verify and hand back** — run a Workflow, confirm two independent health signals, inventory every created resource, and offer teardown.
 
 Nothing is created before you approve the resource list. Troubleshooting and inspection requests skip the deployment walkthrough and begin with read-only diagnostics.
 
 ## Important operating constraints
 
-- Serverless Workers and their APIs are Public Preview, not generally available.
+- Serverless Workers on AWS Lambda are Public Preview, not generally available. Check Cloud Run's current release status before deployment.
 - Every Workflow must use a Worker Versioning behavior: `Pinned` or `AutoUpgrade`.
 - The deployment name and build ID in Worker code must exactly match the registered Worker Deployment Version.
-- Production releases should map each build ID to one immutable Lambda version.
-- Activities must finish within the Lambda invocation limit and configured shutdown buffer; Workflow duration remains unbounded.
+- Production releases should map each build ID to one immutable build: a published Lambda version, or a dedicated Cloud Run Worker Pool.
+- Activities must finish within the compute provider's execution bounds; Workflow duration remains unbounded. Lambda Activities are bounded by the invocation deadline and shutdown buffer, while Cloud Run Activities can be interrupted during scale-in. See [`references/concepts.md`](references/concepts.md) and the selected provider's SDK and constraints references.
 - Secrets belong in a secret store for shared or production deployments, not plaintext environment variables.
 - Temporal creates and manages the Worker Controller Instance (WCI); this skill never creates or manages it directly.
 
@@ -135,6 +148,18 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/aws-lambda/versioning.md`](references/aws-lambda/versioning.md) | Immutable releases, updates, and rollback |
 | [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | Shared ADOT Collector configuration, X-Ray enablement, and IAM permissions |
 | [`references/aws-lambda/self-hosted.md`](references/aws-lambda/self-hosted.md) | Self-hosted Temporal prerequisites and configuration |
+| [`references/gcp-cloud-run/sdk-go.md`](references/gcp-cloud-run/sdk-go.md) | Go versioned Worker, versioning behavior, connection configuration, image packaging, scale-in safety, and observability on Cloud Run |
+| [`references/gcp-cloud-run/sdk-python.md`](references/gcp-cloud-run/sdk-python.md) | Python versioned Worker, versioning behavior, connection configuration, image packaging, scale-in safety, and observability on Cloud Run |
+| [`references/gcp-cloud-run/sdk-typescript.md`](references/gcp-cloud-run/sdk-typescript.md) | TypeScript versioned Worker, versioning behavior, connection configuration, image packaging, scale-in safety, and observability on Cloud Run |
+| [`references/gcp-cloud-run/sdk-java.md`](references/gcp-cloud-run/sdk-java.md) | Java versioned Worker, versioning behavior, connection configuration, image packaging, scale-in safety, and observability on Cloud Run |
+| [`references/gcp-cloud-run/sdk-dotnet.md`](references/gcp-cloud-run/sdk-dotnet.md) | .NET versioned Worker, versioning behavior, connection configuration, image packaging, scale-in safety, and observability on Cloud Run |
+| [`references/gcp-cloud-run/setup.md`](references/gcp-cloud-run/setup.md) | End-to-end Cloud Run deployment: container image, Worker Pool, registration, verification, teardown |
+| [`references/gcp-cloud-run/iam.md`](references/gcp-cloud-run/iam.md) | Operator permissions, runner vs invoker service accounts, and the Terraform module |
+| [`references/gcp-cloud-run/constraints.md`](references/gcp-cloud-run/constraints.md) | What follows from Cloud Run's pool-of-instances model — instance lifetime, autoscaling, scale-in interrupting Activities — and what does not generalize |
+| [`references/gcp-cloud-run/versioning.md`](references/gcp-cloud-run/versioning.md) | One Worker Pool per build ID, the redeploy-into-a-live-pool hazard, and rollback |
+| [`references/gcp-cloud-run/diagnostics.md`](references/gcp-cloud-run/diagnostics.md) | Pool annotations, scaling failures, and Worker-side errors |
+| [`references/gcp-cloud-run/observability.md`](references/gcp-cloud-run/observability.md) | Logs and the scaling signals to watch |
+| [`references/gcp-cloud-run/self-hosted.md`](references/gcp-cloud-run/self-hosted.md) | Self-hosted prerequisites: dynamic config, the server's GCP identity, invoker creation |
 | [`assets/`](assets/) | CloudFormation templates for Temporal invocation roles |
 
 ## Feedback
