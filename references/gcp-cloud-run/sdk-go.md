@@ -8,7 +8,7 @@ Use this reference for Go-specific Worker construction, versioning behavior, con
 
 ## Inspect the versioning API before generating code
 
-Worker Versioning is a Public Preview surface and the option names differ between SDKs. Read the installed version's API rather than writing from memory:
+Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 go doc go.temporal.io/sdk/worker.DeploymentOptions
