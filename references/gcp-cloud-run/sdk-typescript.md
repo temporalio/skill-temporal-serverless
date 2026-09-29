@@ -109,4 +109,4 @@ export async function myActivity(items: string[]): Promise<string> {
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/typescript/platform/observability`.
+For TypeScript SDK configuration, see `docs/develop/typescript/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.

@@ -1,6 +1,8 @@
 # GCP Cloud Run — Diagnostics & troubleshooting
 
-Use `../wci.md` to locate the WCI and inspect its Workflow history. This guide interprets the Cloud Run-specific state and Activity failures.
+For the WCI lifecycle, Workflow ID pattern, and list/show commands, see [Worker Controller Instance (WCI)](../concepts.md#worker-controller-instance-wci).
+
+**A Running WCI does not prove that pool resizing works.** Inspect its Activity results before changing GCP resources. This guide interprets the Cloud Run-specific state and Activity failures.
 
 ## Scaling flow (when working correctly)
 

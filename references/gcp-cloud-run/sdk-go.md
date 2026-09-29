@@ -114,4 +114,4 @@ func MyActivity(ctx context.Context, input MyInput) (string, error) {
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/go/platform/observability`.
+For Go SDK configuration, see `docs/develop/go/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.
