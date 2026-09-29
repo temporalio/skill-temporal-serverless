@@ -2,13 +2,9 @@
 
 <!-- Source: docs/develop/go/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for Go-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
-
-**There is no Cloud Run Worker package.** This is an ordinary long-lived Go Worker plus Worker Versioning, which Serverless Workers require.
+Use this reference for Go-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
 ## Inspect the versioning API before generating code
-
-Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 go doc go.temporal.io/sdk/worker.DeploymentOptions
@@ -93,11 +89,9 @@ Use `CGO_ENABLED=0` with a `distroless/static` base. Go still reads system CA ro
 
 The versioned Worker example uses `w.Run(worker.InterruptCh())` and gives received Tasks up to eight seconds through `WorkerStopTimeout`. `InterruptCh` receives both `SIGINT` and `SIGTERM`, so Cloud Run's `SIGTERM` makes the Worker stop polling and begin its normal shutdown. Do not replace it with an unhandled blocking channel, and do not leave `WorkerStopTimeout` at its zero default when draining is required.
 
-Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves draining but cannot guarantee that a long Activity finishes; Activities must cooperate with cancellation and record Heartbeats as shown below.
-
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
+Apply the Heartbeat-resume invariant from `constraints.md` in Go:
 
 ```go
 func MyActivity(ctx context.Context, input MyInput) (string, error) {

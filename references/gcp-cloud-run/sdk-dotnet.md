@@ -2,13 +2,9 @@
 
 <!-- Source: docs/develop/dotnet/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for .NET-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
-
-**There is no Cloud Run Worker package.** This is an ordinary long-lived .NET Worker plus Worker Versioning, which Serverless Workers require.
+Use this reference for .NET-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
 ## Inspect the versioning API before generating code
-
-Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 dotnet list package
@@ -127,11 +123,11 @@ The Debian-based runtime image above includes CA certificates. Verify that any a
 
 Cloud Run sends `SIGTERM`, which is distinct from the `SIGINT` raised by Ctrl+C. The example registers both paths and cancels the token passed to `ExecuteAsync`. That stops polling and starts the Temporal Worker's shutdown sequence.
 
-`GracefulShutdownTimeout` defaults to zero. Keep a non-zero value below Cloud Run's ten-second termination window, leaving time for cancellation and final completions to propagate. Activities should observe `ActivityExecutionContext.Current.WorkerShutdownToken` or `CancellationToken` and record Heartbeats; Cloud Run can still send `SIGKILL` before a long Activity finishes.
+`GracefulShutdownTimeout` defaults to zero. Keep a non-zero value below the termination window described in `constraints.md`, leaving time for cancellation and final completions to propagate. Activities should observe `ActivityExecutionContext.Current.WorkerShutdownToken` or `CancellationToken` and record Heartbeats.
 
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
+Apply the Heartbeat-resume invariant from `constraints.md` in .NET:
 
 ```csharp
 [Activity]

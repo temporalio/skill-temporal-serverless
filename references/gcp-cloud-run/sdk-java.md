@@ -2,13 +2,9 @@
 
 <!-- Source: docs/develop/java/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for Java-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
-
-**There is no Cloud Run Worker package.** This is an ordinary long-lived Java Worker plus Worker Versioning, which Serverless Workers require.
+Use this reference for Java-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
 ## Inspect the versioning API before generating code
-
-Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 mvn -q dependency:get -Dartifact=io.temporal:temporal-sdk:<version>:jar:sources
@@ -124,11 +120,9 @@ The JVM reads the container memory limit but defaults the maximum heap to a quar
 
 Register the JVM shutdown hook before `factory.start()`, as in the versioned Worker example. Cloud Run's `SIGTERM` starts the hook; `factory.shutdown()` stops polling, and `awaitTermination` keeps the hook alive while received Tasks drain. `shutdown()` alone is asynchronous, so omitting the wait lets the JVM exit before draining. Do not use `shutdownNow()` as the normal signal path.
 
-Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves draining but cannot guarantee that a long Activity finishes; Activities must finish promptly or record Heartbeats so a retry can resume.
-
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
+Apply the Heartbeat-resume invariant from `constraints.md` in Java:
 
 ```java
 public class GreetingActivitiesImpl implements GreetingActivities {

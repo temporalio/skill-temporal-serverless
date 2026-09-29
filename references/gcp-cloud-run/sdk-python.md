@@ -2,13 +2,9 @@
 
 <!-- Source: docs/develop/python/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for Python-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
-
-**There is no Cloud Run Worker package.** This is an ordinary long-lived Python Worker plus Worker Versioning, which Serverless Workers require.
+Use this reference for Python-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
 ## Inspect the versioning API before generating code
-
-Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 python -c "import temporalio.worker as w; print([n for n in dir(w) if 'Deployment' in n])"
@@ -104,11 +100,9 @@ client = await Client.connect(**connect_config)
 
 Cloud Run sends `SIGTERM` before stopping an instance. The example converts it into an `asyncio.Event`; leaving the `async with worker` block calls `worker.shutdown()` and waits for the SDK's shutdown sequence. `graceful_shutdown_timeout` gives received Activities up to eight seconds before cancellation. Prefer this explicit path over cancelling `worker.run()`, because cancellation can also cancel the shutdown operation.
 
-Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves draining but cannot guarantee that a long Activity finishes; Activities must cooperate with cancellation and record Heartbeats as shown below.
-
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
+Apply the Heartbeat-resume invariant from `constraints.md` in Python:
 
 ```python
 @activity.defn
