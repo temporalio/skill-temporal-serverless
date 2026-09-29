@@ -174,4 +174,4 @@ Use a logging provider compatible with the SLF4J API version selected by the ins
 
 ## Observability
 
-A Cloud Run Worker emits the same traces and metrics as a Worker anywhere else, with no Cloud Run-specific wiring. Use the SDK's normal metrics export and OpenTelemetry tracing interceptors. → `observability.md`, and `docs/develop/java/platform/observability`.
+For Java SDK configuration, see `docs/develop/java/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.

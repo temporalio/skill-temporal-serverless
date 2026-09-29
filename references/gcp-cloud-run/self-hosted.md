@@ -59,9 +59,4 @@ The server impersonates the invoker service account, so it must first run as a G
 
 The Service scales the pool as an **invoker** service account, which only reads and scales the pool. The identity instances *run as* is the separate **runner** service account set on the pool in `setup.md`. → `iam.md` for the full distinction.
 
-Two grants:
-
-- The GCP identity the Service runs as (step 3) gets **`roles/iam.serviceAccountTokenCreator`** on the invoker.
-- The invoker gets a project-level Cloud Run role with at least **`run.workerPools.get`** and **`run.workerPools.update`**. `roles/run.developer` includes both.
-
-Use the Terraform module in `iam.md`, setting `impersonator_service_account_emails` to the GCP identity used by the Temporal Service. Use the module's `invoker_email` output as `--gcp-cloud-run-service-account` when registering the Worker Deployment Version, then follow `setup.md` from Step 1. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx:102-135 -->
+Use the Terraform module in `iam.md`, setting `impersonator_service_account_emails` to the GCP identity used by the Temporal Service. That reference is authoritative for the invoker and runner grants; they are the same for Temporal Cloud and self-hosted deployments. Use the module's `invoker_email` output as `--gcp-cloud-run-service-account` when registering the Worker Deployment Version, then follow `setup.md` from Step 1. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx:102-135 -->

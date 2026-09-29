@@ -104,7 +104,7 @@ To diagnose: invoke the Lambda function manually from the AWS Console. The conso
 
 **A manual invoke runs for nearly the whole timeout.** A serverless Worker keeps polling until its shutdown-deadline buffer, so a synchronous manual invoke runs for roughly the full Lambda timeout (e.g. ~590s of a 600s timeout), not a few seconds. From the AWS CLI (`aws lambda invoke`) this trips the default **60-second client read timeout** with a "Read timeout on endpoint" error — that is expected, **not** a Worker crash. Add `--cli-read-timeout 0` (or use `--invocation-type Event` for an async invoke), and judge health from the CloudWatch startup logs (Worker connected + polling), not from the CLI's exit. Remember this successful poll also auto-registers a provider-less version — see "Common cause" above.
 
-Inspect the WCI Workflow history for invocation Activity failures before changing AWS configuration. → `../wci.md`.
+**A running WCI is not proof anything works.** The WCI Workflow continue-as-news and keeps running even while its invocation/scaling Activities are failing, so its existence tells you nothing about invocation health. Read the WCI's history (below) and look for **Activity failures** to find the real error. Never infer health from the WCI merely existing or running.
 
 
 ---
@@ -149,9 +149,29 @@ To fix the loop, update the deployment name and build ID in the Worker code to m
 
 ---
 
-## Inspect Lambda-specific WCI state
+## WCI Workflow inspection
 
-First use the shared WCI reference to locate the WCI and inspect its Workflow history. Then use the version's Task Queue bindings to determine whether the Lambda started and polled successfully. → `../wci.md`.
+You never create or manage a WCI Workflow yourself — Temporal creates one automatically for each Worker Deployment Version that has a compute provider, and it lives in a `temporal-sys-*` Namespace division. Diagnose from Temporal's own signals (the WCI history) **before** touching AWS; do not enumerate Lambdas across regions or scan the AWS account to reverse-engineer state, which is invasive, slow, and unnecessary.
+
+List WCI Workflows in your Namespace: <!-- docs/encyclopedia/workers/serverless-workers.mdx:75 -->
+
+```bash
+temporal workflow list \
+  --namespace <NAMESPACE> \
+  --query 'TemporalNamespaceDivision = "TemporalWorkerControllerInstance"'
+```
+<!-- docs/encyclopedia/workers/serverless-workers.mdx:77-81 -->
+
+WCI Workflow IDs follow the pattern `temporal-sys-worker-controller-instance:<deployment-name>:<build-id>`. <!-- docs/encyclopedia/workers/serverless-workers.mdx:83 -->
+
+Inspect a WCI Workflow's history to see its recent Activity results: <!-- docs/encyclopedia/workers/serverless-workers.mdx:83-84 -->
+
+```bash
+temporal workflow show \
+  --namespace <NAMESPACE> \
+  --workflow-id 'temporal-sys-worker-controller-instance:<DEPLOYMENT_NAME>:<BUILD_ID>'
+```
+<!-- docs/encyclopedia/workers/serverless-workers.mdx:86-90 -->
 
 Describe a Worker Deployment Version and check Task Queue stats: <!-- docs/troubleshooting/serverless-workers.mdx:98 -->
 

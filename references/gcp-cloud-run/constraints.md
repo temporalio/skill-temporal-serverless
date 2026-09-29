@@ -1,12 +1,12 @@
 # GCP Cloud Run — execution-model constraints
 
-Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-lived instances, scaling it to zero when there is no work.** Temporal does *not* invoke your Worker per Task.
+Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-lived instances and can scale it to zero when its configured minimum is zero.** Temporal does *not* invoke your Worker per Task.
 
 ## Worker lifetime is an instance, not an invocation
 
 Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
-The WCI controls how many instances run; each instance manages its own polling and Task processing. For the WCI lifecycle and inspection commands, see `../wci.md`.
+The WCI controls how many instances run; each instance manages its own polling and Task processing. For WCI inspection commands and Cloud Run-specific failure interpretation, see `diagnostics.md`.
 
 ## Timing and Activity limits
 
