@@ -2,13 +2,9 @@
 
 <!-- Source: docs/develop/typescript/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for TypeScript-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For the shared Cloud Run deployment lifecycle, permissions, versioning model, observability, and diagnostics, see `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
-
-**There is no Cloud Run Worker package.** This is an ordinary long-lived TypeScript Worker plus Worker Versioning, which Serverless Workers require.
+Use this reference for TypeScript-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
 ## Inspect the versioning API before generating code
-
-Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 npm ls @temporalio/worker
@@ -91,11 +87,9 @@ Three things, all of which fail at startup rather than at build time:
 
 The versioned Worker example uses `await worker.run()`. The TypeScript SDK Runtime registers `SIGINT`, `SIGTERM`, `SIGQUIT`, and `SIGUSR2` as shutdown signals by default, so Cloud Run's `SIGTERM` starts the Worker's normal shutdown without an application-level signal handler. `shutdownGraceTime` gives received Activities eight seconds before cancellation; `shutdownForceTime` prevents a non-cooperative Activity from keeping the process alive until Cloud Run kills it. If the application installs a custom Runtime, preserve `SIGTERM` in its `shutdownSignals`.
 
-Cloud Run can send `SIGKILL` ten seconds later. Shutdown therefore improves draining but cannot guarantee that a long or non-cooperative Activity finishes; Activities must react to cancellation and record Heartbeats as shown below.
-
 ## Keep Activities safe across scale-in
 
-The WCI removes instances based on Task Queue activity, not on what an individual instance is doing, so **an instance running a long Activity can be stopped mid-execution.** Record the next unprocessed index only after processing succeeds, then read it from Heartbeat details so a retry resumes at that index:
+Apply the Heartbeat-resume invariant from `constraints.md` in TypeScript:
 
 ```ts
 import { activityInfo, heartbeat } from '@temporalio/activity';
