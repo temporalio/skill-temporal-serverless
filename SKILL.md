@@ -16,7 +16,7 @@ This skill helps users deploy and operate Temporal Workers on serverless compute
 | Cloud provider | Compute service | Support | Reference directory |
 |---|---|---|---|
 | AWS | Lambda | Supported — Public Preview, open to all Temporal Cloud customers | `references/aws-lambda/` |
-| GCP | Cloud Run | Not supported | — |
+| GCP | Cloud Run | Supported — Public Preview, open to all Temporal Cloud customers | `references/gcp-cloud-run/` |
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is confirmed in the step 1 questions, not silently defaulted.
 

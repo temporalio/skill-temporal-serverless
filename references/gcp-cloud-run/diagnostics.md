@@ -1,5 +1,7 @@
 # GCP Cloud Run — Diagnostics & troubleshooting
 
+Use `../wci.md` to locate the WCI and inspect its Workflow history. This guide interprets the Cloud Run-specific state and Activity failures.
+
 ## Scaling flow (when working correctly)
 
 <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:29-40 -->
@@ -125,7 +127,3 @@ If every check passes, the cause may be in Cloud Run rather than your configurat
 - [Google Cloud Service Health](https://status.cloud.google.com/) — active incidents by product and region.
 
 If a provider issue is confirmed, wait for recovery or move to another region. **Moving region means creating a new pool and updating the compute configuration**, since Temporal addresses a pool by project, region, and name.
-
-## Never create or manage the WCI
-
-Temporal creates one WCI per Worker Deployment Version with a compute provider, and a running WCI is not evidence that scaling works—it continues-as-new while its Activities fail. Read its history for Activity failures, and use the pool's `lastModifier` annotation to determine who made the latest update. Do not enumerate Cloud Run resources across regions to reverse-engineer state.
