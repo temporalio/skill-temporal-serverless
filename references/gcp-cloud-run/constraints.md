@@ -21,7 +21,7 @@ Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds lat
 
 **The WCI decides when to remove an instance from Task Queue activity, not from what any individual instance is doing.** It does not track how long an instance has been running or whether it is mid-Activity, so the instance Cloud Run stops may be one that is still executing work. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:112-116 -->
 
-Graceful shutdown lets short work drain but cannot guarantee an Activity will finish. **Use Activity Heartbeats** so interrupted work resumes from its last recorded progress instead of restarting.
+Graceful shutdown lets short work drain but cannot guarantee an Activity will finish. **Use Activity Heartbeats** so interrupted work resumes from its last recorded progress instead of restarting. Record the next unprocessed item only after processing succeeds, then resume from that Heartbeat detail on retry.
 
 ## Autoscaling behavior
 
