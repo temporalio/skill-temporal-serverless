@@ -8,7 +8,7 @@ Use this reference for Python-specific Worker construction, versioning behavior,
 
 ## Inspect the versioning API before generating code
 
-Worker Versioning is a Public Preview surface and the option names differ between SDKs. Read the installed version's API rather than writing from memory:
+Worker Versioning option names differ between SDKs. Read the installed version's API rather than writing from memory:
 
 ```bash
 python -c "import temporalio.worker as w; print([n for n in dir(w) if 'Deployment' in n])"
