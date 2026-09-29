@@ -181,7 +181,6 @@ Do not enable DEBUG logging globally in production without first verifying that 
 | No SDK logs | The default null logger is still in use; pass an `ILoggerFactory` to the client. |
 | `NativeCertsNotFound` | The runtime image lacks a readable CA store. Use the Debian runtime image or install CA certificates. |
 | `OperationCanceledException` immediately after SIGTERM | Expected when it is caught by the shutdown path shown above. |
-| Worker starts but the intended Workflow does not progress | Check the deployment name, build ID, Task Queue, and that the version is current. |
 
 ## Observability
 

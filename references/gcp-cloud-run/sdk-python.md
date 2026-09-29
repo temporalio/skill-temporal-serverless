@@ -138,7 +138,6 @@ Do not enable DEBUG logging globally in production without first verifying that 
 |---|---|
 | `NativeCertsNotFound` | The runtime image lacks CA certificates. Install `ca-certificates` and rebuild. |
 | `TransportError` during startup | Check the mounted API key, address including port, TLS, and Namespace. |
-| Worker starts but the intended Workflow does not progress | Check the deployment name, build ID, Task Queue, and that the version is current. |
 | No application `INFO` records | Configure the root logger before Worker construction; do not rely on an implicit handler. |
 
 ## Observability

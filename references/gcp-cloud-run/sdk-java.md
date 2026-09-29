@@ -171,7 +171,6 @@ Use a logging provider compatible with the SLF4J API version selected by the ins
 | No application or SDK logs | No compatible SLF4J provider is bound, or the configuration was not packaged in the jar. |
 | `NettyClientHandler ... OUTBOUND HEADERS` | Unsafe transport DEBUG logging is enabled. Raise `io.grpc` and `io.netty` to WARN and inspect for credential exposure. |
 | `UNAUTHENTICATED` | Check the Secret Manager mount and the key's Namespace permissions. |
-| Worker starts but the intended Workflow does not progress | Check the deployment name, build ID, Task Queue, and that the version is current. |
 
 ## Observability
 
