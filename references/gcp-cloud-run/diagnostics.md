@@ -89,7 +89,7 @@ If instances are running but the count stops growing while backlog builds:
     --gcp-cloud-run-scale-down-stabilization-duration 90s
   ```
 
-  The five scaler flags must be supplied together, even when changing only the maximum. Choose values appropriate for the version rather than blindly copying this default-shaped example; the initial count must be between the minimum and maximum. The scale-down stabilization flag requires Temporal CLI v1.8.3 or later. If the installed CLI is older, upgrade to v1.8.3 or later, or change the maximum through the version's Scaling and Lifecycle settings in the Temporal Cloud UI. Omitting the scaler flags leaves the existing settings unchanged and does not resolve a pool that is already at its ceiling.
+  Choose values appropriate for the version rather than blindly copying this default-shaped example; the initial count must be between the minimum and maximum. Follow the [CLI compatibility and coupled-flag guidance](setup.md#step-6-register-the-worker-deployment-version) when changing these settings. Omitting the scaler flags leaves the existing settings unchanged and does not resolve a pool that is already at its ceiling.
 - If the count stalls *below the configured maximum*, check the project's [Cloud Run quotas](https://cloud.google.com/run/quotas) for that region. Cloud Run caps instances and CPU per region regardless of what the WCI requests.
 
 ## Instances are running but Tasks are not completing
