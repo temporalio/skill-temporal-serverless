@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 ## Overview
 
-This skill helps users deploy and operate Temporal Workers on serverless compute controlled by the Worker Controller Instance (WCI). On Lambda, the WCI invokes short-lived Workers on demand; on Cloud Run, it resizes a pool of ordinary long-lived Workers. Both models scale to zero when idle. The skill produces Worker code, deployment configuration, connection configs, and packaging steps for the chosen SDK, and walks users through troubleshooting when serverless Workers aren't picking up Tasks.
+This skill helps users deploy and operate Temporal Workers on serverless compute controlled by the Worker Controller Instance (WCI). It produces Worker code, deployment configuration, connection configs, and packaging steps for the chosen SDK, and walks users through troubleshooting when serverless Workers aren't picking up Tasks.
 
 ## Supported compute providers
 
@@ -32,9 +32,9 @@ Every supported provider's directory carries the same shared layout — `setup.m
 | Java | `references/aws-lambda/sdk-java.md` | `references/gcp-cloud-run/sdk-java.md` |
 | .NET | `references/aws-lambda/sdk-dotnet.md` | `references/gcp-cloud-run/sdk-dotnet.md` |
 
-The two columns are not interchangeable. A Lambda SDK reference describes a provider Worker package and its handler; the Cloud Run counterpart describes an ordinary long-lived Worker with Worker Versioning enabled, and there is no Cloud Run Worker package. Read the one for the confirmed provider.
+The two columns are not interchangeable. Read the reference for the confirmed provider.
 
-**Public Preview is not GA.** Both providers are open to all Temporal Cloud customers without an access request, support ticket, or manual toggle. Pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
+**Public Preview APIs can evolve.** Pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
 
 ## Deployment workflow
 
@@ -98,7 +98,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
 
-   **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description.** AWS Lambda and GCP Cloud Run are both Public Preview and open to all Temporal Cloud customers. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
+   **Ask the compute provider as a real question now that there are two, and carry each option's status from the support table in its description.** Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
 
    **The Namespace usually settles it, so ask them together.** A Serverless Worker runs only on the cloud provider hosting its Namespace, so a user with only AWS Namespaces has no Cloud Run option. Where the user genuinely has both, a deciding factor is **Activity duration**: anything over Lambda's 15-minute ceiling rules Lambda out. Say which factor decided it rather than presenting the choice as arbitrary.
 

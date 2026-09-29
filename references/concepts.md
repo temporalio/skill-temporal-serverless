@@ -2,18 +2,6 @@
 
 <!-- Sources: docs/encyclopedia/workers/serverless-workers.mdx, docs/evaluate/development-production-features/serverless-workers/index.mdx -->
 
-## Release status
-
-**AWS Lambda — Public Preview since July 30, 2026.** Open to all Temporal Cloud customers. There is no access request, no support ticket, and no manual toggle to enable: a customer selects "AWS Lambda (Public Preview)" as the compute provider in the UI and sets up their Worker Deployment directly. Never route a user to support to "get access" for Lambda.
-
-**GCP Cloud Run — Public Preview.** Open to all Temporal Cloud customers with a GCP-hosted Namespace. There is no access request, support ticket, or manual toggle to enable; select GCP Cloud Run as the compute provider and proceed.
-
-Those are the two supported providers. Do not adapt either one's material to a third.
-
-**Do not carry facts between them.** Anything about Worker lifetime, Activity duration bounds, timeouts, packaging, or tuning is provider-specific. This page names the provider whenever the action differs: Lambda is invoked; Cloud Run is resized.
-
-Public Preview is not General Availability. APIs are still evolving and may be subject to backwards-incompatible changes between versions — pin SDK and CLI versions for anything long-lived, and read the installed package's real API surface rather than writing from memory.
-
 ## What is a Serverless Worker?
 
 A Serverless Worker is a Temporal Worker whose compute lifecycle is controlled by Temporal instead of by an independently operated Worker fleet. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43 -->
@@ -23,7 +11,7 @@ There is no always-on compute capacity to maintain: Temporal starts capacity whe
 
 A Serverless Worker uses the same Temporal SDKs as a traditional long-lived Worker. It registers Workflows and Activities the same way. <!-- docs/encyclopedia/workers/serverless-workers.mdx:47-49 -->
 
-What changes is the lifecycle, and only on Lambda does it change much: instead of polling continuously, the Worker is invoked on demand, starts, processes available Tasks, and shuts down — which is why Lambda needs a dedicated serverless Worker package (`aws-lambda/sdk-<language>.md`). **On Cloud Run the Worker code is unchanged from a long-lived Worker**; the only addition is Worker Versioning, and there is no Cloud Run Worker package at all.
+What changes is the lifecycle, and only on Lambda does it change much: instead of polling continuously, the Worker is invoked on demand, starts, processes available Tasks, and shuts down — which is why Lambda needs a dedicated serverless Worker package (`aws-lambda/sdk-<language>.md`). Cloud Run uses ordinary long-lived Worker APIs with no provider-specific package or handler. Worker Versioning is required, and scale-in-safe shutdown and Heartbeat behavior comes from `gcp-cloud-run/constraints.md` and the selected SDK reference.
 
 Serverless Workers require Worker Versioning. Each Serverless Worker must be associated with a Worker Deployment Version that has a compute provider configured. <!-- docs/encyclopedia/workers/serverless-workers.mdx:51-52 -->
 
@@ -180,7 +168,7 @@ May not be ideal when:
 
 <!-- docs/evaluate/development-production-features/serverless-workers/index.mdx:88-97 -->
 
-- Activities are long-running and cannot be interrupted, on a provider with a per-invocation ceiling — Lambda's is 15 minutes. Activities that run longer and cannot be broken into smaller steps need a different hosting strategy, or a provider without that ceiling.
+- Activities are long-running and cannot tolerate interruption. Lambda has a 15-minute invocation ceiling; Cloud Run has no invocation ceiling, but scale-in can still terminate an instance. Use an independently managed Worker for work that truly cannot be interrupted, or make the Activity resumable with Heartbeats.
 - Workloads require sustained high throughput. Long-lived Workers on dedicated compute may be more cost-effective and performant.
 - You need persistent connections and the provider invokes per unit of work. Some features require a persistent connection between the Worker and Temporal, which per-invocation Workers do not maintain; a pool-based provider holds one for the instance's lifetime.
 

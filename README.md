@@ -5,9 +5,6 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 > [!WARNING]
 > This skill is in Public Preview and will continue to evolve. Pin the Temporal SDK, serverless Worker package, and CLI versions for long-lived projects.
 
-> [!NOTE]
-> **AWS Lambda and GCP Cloud Run** are in Public Preview and available to all Temporal Cloud customers without an access request, support ticket, or manual toggle.
-
 > [!IMPORTANT]
 > The two providers have different execution models. Lambda invokes a function per unit of work and the Worker exits when the invocation ends. Cloud Run resizes a pool of long-lived instances, scaling to zero when idle. That changes what the Worker code is, what bounds an Activity, what there is to tune, and how failures present — guidance does not transfer between them.
 
@@ -122,7 +119,6 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 
 ## Important operating constraints
 
-- Serverless Workers on AWS Lambda and GCP Cloud Run are Public Preview, not generally available.
 - Every Workflow must use a Worker Versioning behavior: `Pinned` or `AutoUpgrade`.
 - The deployment name and build ID in Worker code must exactly match the registered Worker Deployment Version.
 - Production releases should map each build ID to one immutable build: a published Lambda version, or a dedicated Cloud Run Worker Pool.
