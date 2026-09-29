@@ -1,7 +1,6 @@
 ---
 name: temporal-serverless
 description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "Worker Pool", "deploy Temporal worker on Cloud Run", "gcloud run worker-pools", "invoker service account".'
-version: 0.6.2
 disable-model-invocation: true
 ---
 
@@ -219,12 +218,12 @@ Surface these early — they apply regardless of compute provider:
 - **A Namespace on the target cloud provider is required.** A Serverless Worker runs only on the cloud provider that hosts its Temporal Cloud Namespace — there is no cross-cloud pairing. Confirm the user has a Namespace on the provider they intend to run compute on *before* building anything; without one, the work stops there and they need either a Namespace on that provider or a different provider. A mismatch is not caught at deploy time — it fails later, at connection time. **Regions do not have to match:** a Namespace in one region can drive a compute unit in another, so never tell a user to move or re-create a Namespace to line up regions.
 - **Use `tcld` for every Temporal Cloud control-plane operation** — accounts, Namespaces, API keys, users, service accounts. Do not use the unified CLI's `temporal cloud …` subcommands for them. Worker Deployments and Workflows are *not* control-plane operations: they live on the Namespace frontend, have no `tcld` equivalent, and use `temporal worker deployment …`. → `references/<provider>/setup.md`.
 - **Versioning behavior is mandatory.** Every Workflow needs `Pinned` or `AutoUpgrade`, or the Worker sets a default.
+- **Deployment name and build ID must match exactly** between the Worker code and the Worker Deployment Version. A mismatch causes an invocation loop (Temporal invokes → Worker polls with the wrong version → Task not processed → invoke again). Signature: rapid repeated invocations with no Workflow progress.
+- **Use an immutable, versioned build per Build ID in production.** Pointing the provider at a mutable "latest" target lets code change under in-flight Workflows and cause non-determinism errors, even for Pinned Workflows. Keep a 1-to-1 mapping between each Build ID and one immutable build. → `references/<provider>/versioning.md`.
 
 **The following invocation-lifecycle principles are the existing AWS Lambda path. For Cloud Run, use `references/gcp-cloud-run/constraints.md` instead.**
 
-- **Deployment name and build ID must match exactly** between the Worker code and the Worker Deployment Version. A mismatch causes an invocation loop (Temporal invokes → Worker polls with the wrong version → Task not processed → invoke again). Signature: rapid repeated invocations with no Workflow progress.
 - **Set the invocation deadline high enough.** Providers often default to a very short timeout. If the first invocation times out before the Worker registers the Task Queue, the binding is never created and the Worker is never invoked again. → `references/<provider>/setup.md` for the exact default.
-- **Use an immutable, versioned build per Build ID in production.** Pointing the provider at a mutable "latest" target lets code change under in-flight Workflows and cause non-determinism errors, even for Pinned Workflows. Keep a 1-to-1 mapping between each Build ID and one immutable build. → `references/<provider>/versioning.md`.
 - **Tune the timeout triple together for long-running Activities:** (1) worker stop timeout > longest Activity runtime, (2) shutdown deadline buffer > worker stop timeout + shutdown hook time, (3) invocation deadline > longest Activity runtime + shutdown deadline buffer. Raising one alone does not help. If the longest Activity exceeds half the maximum invocation deadline, recommend Activity Heartbeats. → `references/concepts.md`, `references/<provider>/sdk-<language>.md`.
 - **Eager Activities are always disabled** — serverless invocations don't maintain persistent connections. Don't suggest them as an optimization.
 - **Activities are bounded by the invocation limit** (minus the shutdown deadline buffer); Workflow duration is unbounded and can span many invocations. Flag Activities that approach the provider's limit early. → `references/concepts.md`.
