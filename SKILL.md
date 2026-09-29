@@ -180,7 +180,7 @@ How to move through the workflow above.
 
 ## Never create or manage the WCI
 
-Temporal creates the WCI automatically once a Worker Deployment Version has a compute provider. You never create, start, or manage it. A WCI that exists or is running is *not* evidence that its provider action works — it continues-as-new and keeps running even while its Activities fail. Diagnose from Temporal's own signals: read the WCI Workflow history and look for Activity failures. Do not enumerate compute resources across regions or scan the account to reverse-engineer state. → `references/wci.md`, `references/<provider>/diagnostics.md`.
+Temporal creates the WCI automatically once a Worker Deployment Version has a compute provider. You never create, start, or manage it. A WCI that exists or is running is *not* evidence that invocation works — it continue-as-news and keeps running even while its Activities fail. Diagnose from Temporal's own signals: read the WCI Workflow history and look for Activity failures. Do not enumerate compute resources across regions or scan the account to reverse-engineer state. → `references/concepts.md`, `references/<provider>/diagnostics.md`.
 
 ## Provider-neutral principles
 
@@ -201,7 +201,7 @@ Surface these early — they apply regardless of compute provider:
 
 ## Troubleshooting
 
-Start by determining whether the Worker is being invoked at all. Then, in priority order: (1) **Validate Connection** in the Temporal UI (Workers > Deployments > select > Actions > Validate Connection) — checks credentials, role assumption, and reachability in one step; (2) check whether the version's **Task Queue is bound** — if it is, invocation and Worker startup provably work and the fault is downstream, which rules out most of the surface in one command; (3) confirm the version is **current** (CLI-created versions are not automatic, and a confirmation-prompted command may have silently done nothing); (4) check the compute provider's logs for connection, auth, or TLS errors; (5) if rapid repeated invocations show no progress, check the deployment name/build ID match. Distinguish a Temporal-side failure (reproduces no matter what you change on the provider side) from a genuine user-permission problem before editing anything. → `references/<provider>/diagnostics.md`, `references/wci.md`.
+Start by determining whether the Worker is being invoked at all. Then, in priority order: (1) **Validate Connection** in the Temporal UI (Workers > Deployments > select > Actions > Validate Connection) — checks credentials, role assumption, and reachability in one step; (2) check whether the version's **Task Queue is bound** — if it is, invocation and Worker startup provably work and the fault is downstream, which rules out most of the surface in one command; (3) confirm the version is **current** (CLI-created versions are not automatic, and a confirmation-prompted command may have silently done nothing); (4) check the compute provider's logs for connection, auth, or TLS errors; (5) if rapid repeated invocations show no progress, check the deployment name/build ID match. Distinguish a Temporal-side failure (reproduces no matter what you change on the provider side) from a genuine user-permission problem before editing anything. → `references/<provider>/diagnostics.md`, `references/concepts.md`.
 
 ## Common Pitfalls
 
@@ -222,8 +222,7 @@ Most questions need 2–3 reference files.
 
 | User intent | Reference file(s) |
 |---|---|
-| What is a Serverless Worker? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
-| What is the WCI? Locate it, inspect its Workflow history, or determine whether its provider action is failing. | `references/wci.md` + `references/<provider>/diagnostics.md` when diagnosing a provider action |
+| What is a Serverless Worker / the WCI? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
 | Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
 | Operator permissions and preflight; execution role vs Temporal invocation role; CloudFormation (Cloud + self-hosted). | `references/<provider>/iam.md` |
 | Update or redeploy; version the build, use a qualified ARN, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
@@ -234,7 +233,7 @@ Most questions need 2–3 reference files.
 | Java SDK-specific options and tuned defaults, artifact and imports, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-java.md` |
 | .NET SDK-specific options and tuned defaults, package and imports, API inspection, handler, RID-specific publish and packaging, runtime and deployment values, versioning-behavior configuration, connection config and `SSL_CERT_FILE`, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-dotnet.md` |
 | Add OpenTelemetry observability, Collector config, X-Ray, and IAM. | `references/<provider>/observability.md` + the selected `references/<provider>/sdk-<language>.md` |
-| Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` + `references/wci.md` + the selected `references/<provider>/sdk-<language>.md` |
+| Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
 | Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/concepts.md` (+ the selected `references/<provider>/sdk-<language>.md`) |
 
 ## Out of Scope
