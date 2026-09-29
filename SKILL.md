@@ -207,9 +207,9 @@ How to move through the workflow above.
 
 ## Never create or manage the WCI
 
-Temporal creates the WCI automatically once a Worker Deployment Version has a compute provider. You never create, start, or manage it. A WCI that exists or is running is *not* evidence that invocation works — it continue-as-news and keeps running even while its Activities fail. Diagnose from Temporal's own signals: read the WCI Workflow history and look for Activity failures. Do not enumerate compute resources across regions or scan the account to reverse-engineer state. For Lambda, use `references/concepts.md` and `references/aws-lambda/diagnostics.md`.
+Temporal creates and manages the WCI automatically once a Worker Deployment Version has a compute provider. Never create, start, or manage it yourself. Read `references/wci.md` for its lifecycle, inputs, inspection commands, and health interpretation.
 
-For Cloud Run, interpret “invocation works” as “the WCI successfully resizes the pool and an instance starts.” The shared WCI inspection commands are in the WCI section of `references/concepts.md`; Cloud Run-specific failure interpretation lives in `references/gcp-cloud-run/diagnostics.md`.
+Then use the selected provider's diagnostics: `references/aws-lambda/diagnostics.md` for Lambda invocation failures, or `references/gcp-cloud-run/diagnostics.md` for Cloud Run pool-resizing failures.
 
 ## Provider-neutral principles
 
@@ -275,7 +275,8 @@ Most questions need 2–3 reference files.
 
 | User intent | Reference file(s) |
 |---|---|
-| What is a Serverless Worker / the WCI? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
+| What is a Serverless Worker? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
+| What is the WCI? Inspect its Workflow, ID, or Activity results. | `references/wci.md` |
 | Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
 | Operator permissions and preflight; execution role vs Temporal invocation role; CloudFormation (Cloud + self-hosted). | `references/<provider>/iam.md` |
 | Update or redeploy; version the build, use a qualified ARN, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
@@ -286,7 +287,7 @@ Most questions need 2–3 reference files.
 | Java SDK-specific options and tuned defaults, artifact and imports, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-java.md` |
 | .NET SDK-specific options and tuned defaults, package and imports, API inspection, handler, RID-specific publish and packaging, runtime and deployment values, versioning-behavior configuration, connection config and `SSL_CERT_FILE`, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-dotnet.md` |
 | Add OpenTelemetry observability, Collector config, X-Ray, and IAM. | `references/<provider>/observability.md` + the selected `references/<provider>/sdk-<language>.md` |
-| Worker not invoked, Workflows not progressing, inspect the WCI. | `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
+| Worker not invoked, Workflows not progressing, inspect the WCI. | `references/wci.md` + `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` |
 | Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/concepts.md` (+ the selected `references/<provider>/sdk-<language>.md`) |
 
 ### GCP Cloud Run
