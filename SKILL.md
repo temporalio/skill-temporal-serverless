@@ -16,7 +16,7 @@ This skill helps users deploy and operate Temporal Workers on serverless compute
 | Cloud provider | Compute service | Support | Reference directory |
 |---|---|---|---|
 | AWS | Lambda | Supported — Public Preview, open to all Temporal Cloud customers | `references/aws-lambda/` |
-| GCP | Cloud Run | Supported — check current availability before deployment | `references/gcp-cloud-run/` |
+| GCP | Cloud Run | Supported — Public Preview, open to all Temporal Cloud customers | `references/gcp-cloud-run/` |
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is confirmed in the step 1 questions, not silently defaulted.
 
@@ -34,7 +34,7 @@ Every supported provider's directory carries the same shared layout — `setup.m
 
 The two columns are not interchangeable. A Lambda SDK reference describes a provider Worker package and its handler; the Cloud Run counterpart describes an ordinary long-lived Worker with Worker Versioning enabled, and there is no Cloud Run Worker package. Read the one for the confirmed provider.
 
-**Pre-release and Public Preview are not GA.** For Cloud Run, check `references/gcp-cloud-run/setup.md` for its current release status and access requirements. For any pre-GA provider or API, pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
+**Public Preview is not GA.** Both providers are open to all Temporal Cloud customers without an access request, support ticket, or manual toggle. Pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
 
 ## Deployment workflow
 
@@ -98,7 +98,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available and authenticated to the target. Each changes the specifics. → `references/concepts.md` for what the user is building; `references/<provider>/setup.md` for the compatibility and client-setup details.
 
-   **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description.** AWS Lambda is Public Preview and open to all Temporal Cloud customers. For GCP Cloud Run, follow the availability check in `references/gcp-cloud-run/setup.md` and use the current status and access requirements it establishes. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
+   **Ask the compute provider as a real question now that there are two, and carry each option's support status in its description.** AWS Lambda and GCP Cloud Run are both Public Preview and open to all Temporal Cloud customers. Skip the question only when the request already names a provider. Do not restate any of this in a paragraph before the questions; the option description is where it belongs.
 
    **The Namespace usually settles it, so ask them together.** A Serverless Worker runs only on the cloud provider hosting its Namespace, so a user with only AWS Namespaces has no Cloud Run option. Where the user genuinely has both, a deciding factor is **Activity duration**: anything over Lambda's 15-minute ceiling rules Lambda out. Say which factor decided it rather than presenting the choice as arbitrary.
 
@@ -205,7 +205,7 @@ How to move through the workflow above.
 
 ## Never create or manage the WCI
 
-Temporal creates the WCI automatically once a Worker Deployment Version has a compute provider. You never create, start, or manage it. A WCI that exists or is running is *not* evidence that its provider action works — it continues-as-new and keeps running even while invoke or resize Activities fail. Diagnose from Temporal's own signals: read the WCI Workflow history and look for Activity failures. Do not enumerate compute resources across regions or scan the account or project to reverse-engineer state. → `references/concepts.md`, `references/<provider>/diagnostics.md`.
+Temporal creates the WCI automatically once a Worker Deployment Version has a compute provider. You never create, start, or manage it. A WCI that exists or is running is *not* evidence that its provider action works — it continues-as-new and keeps running even while invoke or resize Activities fail. Diagnose from Temporal's own signals: read the WCI Workflow history and look for Activity failures. Do not enumerate compute resources across regions or scan the account or project to reverse-engineer state. → `references/wci.md`, `references/<provider>/diagnostics.md`.
 
 ## Provider-neutral principles
 
@@ -224,7 +224,7 @@ Surface these early — they apply regardless of compute provider:
 
 ## Troubleshooting
 
-Start by identifying the provider and asking the corresponding lifecycle question: **did Lambda invoke the function, or did Cloud Run receive a pool resize and start an instance?** Then, in priority order: (1) use **Validate Connection** in the Temporal UI, interpreting only what the selected provider says it proves; (2) inspect the registration bootstrap and check whether the version's expected **Task Queue types are bound**; (3) confirm the version is **current**; (4) read the provider's logs for startup, connection, authentication, or TLS errors; and (5) check the deployment name/build ID match, using the provider-specific symptom rather than assuming an invocation loop. Distinguish a Temporal-side failure from a genuine provider-permission problem before editing anything. → `references/<provider>/diagnostics.md`, `references/concepts.md`.
+Start by identifying the provider and asking the corresponding lifecycle question: **did Lambda invoke the function, or did Cloud Run receive a pool resize and start an instance?** Then, in priority order: (1) use **Validate Connection** in the Temporal UI, interpreting only what the selected provider says it proves; (2) inspect the registration bootstrap and check whether the version's expected **Task Queue types are bound**; (3) confirm the version is **current**; (4) read the provider's logs for startup, connection, authentication, or TLS errors; and (5) check the deployment name/build ID match, using the provider-specific symptom rather than assuming an invocation loop. Distinguish a Temporal-side failure from a genuine provider-permission problem before editing anything. → `references/<provider>/diagnostics.md`, `references/wci.md`.
 
 ## Common Pitfalls
 
@@ -244,7 +244,8 @@ Most questions need 2–3 reference files.
 
 | User intent | Reference file(s) |
 |---|---|
-| What is a Serverless Worker / the WCI? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
+| What is a Serverless Worker? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
+| What is the WCI? Locate it, inspect its Workflow history, or determine whether its provider action is failing. | `references/wci.md` + `references/<provider>/diagnostics.md` when diagnosing a provider action |
 | Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
 | Operator permissions and preflight; the compute unit's own identity vs the identity Temporal uses; infrastructure-as-code (CloudFormation on Lambda, Terraform on Cloud Run). | `references/<provider>/iam.md` |
 | Update or redeploy; make each build immutable, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
@@ -255,7 +256,7 @@ Most questions need 2–3 reference files.
 | Java SDK-specific Worker construction and options, artifact and imports, API inspection, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, graceful shutdown, OpenTelemetry integration, logging, and diagnostic signatures. | `references/<provider>/sdk-java.md` |
 | .NET SDK-specific Worker construction and options, package and imports, API inspection, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, graceful shutdown, OpenTelemetry integration, logging, and diagnostic signatures. | `references/<provider>/sdk-dotnet.md` |
 | Add OpenTelemetry observability, collector config, tracing, and the permissions it needs. | `references/<provider>/observability.md` + the selected `references/<provider>/sdk-<language>.md` |
-| Worker not started, pool not resized, or Workflows not progressing; inspect the WCI. | `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
+| Worker not started, pool not resized, or Workflows not progressing; inspect the WCI. | `references/<provider>/diagnostics.md` + `references/wci.md` + the selected `references/<provider>/sdk-<language>.md` |
 | Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/concepts.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/gcp-cloud-run/constraints.md` for Cloud Run) |
 | How long does a Worker live? What bounds an Activity? What does this provider pin or disable? What differs from another provider? | `references/concepts.md` + the selected SDK reference (+ `references/gcp-cloud-run/constraints.md` for Cloud Run) |
 

@@ -6,7 +6,7 @@
 
 **AWS Lambda — Public Preview since July 30, 2026.** Open to all Temporal Cloud customers. There is no access request, no support ticket, and no manual toggle to enable: a customer selects "AWS Lambda (Public Preview)" as the compute provider in the UI and sets up their Worker Deployment directly. Never route a user to support to "get access" for Lambda.
 
-**GCP Cloud Run — check current availability before deployment.** Follow the release-status procedure in `gcp-cloud-run/setup.md`; do not infer its current status or access requirements from this overview.
+**GCP Cloud Run — Public Preview.** Open to all Temporal Cloud customers with a GCP-hosted Namespace. There is no access request, support ticket, or manual toggle to enable; select GCP Cloud Run as the compute provider and proceed.
 
 Those are the two supported providers. Do not adapt either one's material to a third.
 
@@ -37,30 +37,7 @@ With Serverless Workers, Temporal starts the Worker. <!-- docs/encyclopedia/work
 
 ### Worker Controller Instance (WCI)
 
-The Worker Controller Instance (WCI) is a system Workflow that scales Serverless Workers based on Task Queue conditions. <!-- docs/encyclopedia/workers/serverless-workers.mdx:66 -->
-One WCI Workflow runs per Worker Deployment Version that has a compute provider configured. The WCI runs in the same Namespace as your Worker Deployment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:67-68 -->
-
-The WCI responds to sync match failures and periodically reads Task Queue metrics. It turns those inputs into an action compatible with the provider: invoke a Lambda function, or update a Cloud Run Worker Pool's manual instance count. <!-- docs/encyclopedia/workers/serverless-workers.mdx:70-72; docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:38-56; docs/troubleshooting/serverless-workers/cloud-run.mdx:48-63 -->
-
-You can list WCI Workflows in your Namespace: <!-- docs/encyclopedia/workers/serverless-workers.mdx:75 -->
-
-```bash
-temporal workflow list \
-  --namespace <NAMESPACE> \
-  --query 'TemporalNamespaceDivision = "TemporalWorkerControllerInstance"'
-```
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:77-81 -->
-
-WCI Workflow IDs follow the pattern `temporal-sys-worker-controller-instance:<deployment-name>:<build-id>`. <!-- docs/encyclopedia/workers/serverless-workers.mdx:83 -->
-
-You can inspect a WCI Workflow's history to see its recent Activity results: <!-- docs/encyclopedia/workers/serverless-workers.mdx:83-84 -->
-
-```bash
-temporal workflow show \
-  --namespace <NAMESPACE> \
-  --workflow-id 'temporal-sys-worker-controller-instance:<DEPLOYMENT_NAME>:<BUILD_ID>'
-```
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:86-90 -->
+The WCI converts Task Queue conditions into a provider-specific scaling action. Read `wci.md` when the user asks what the WCI is, needs to inspect its Workflow history, or needs to distinguish a running WCI from a working provider action.
 
 ### Shared Task routing
 
