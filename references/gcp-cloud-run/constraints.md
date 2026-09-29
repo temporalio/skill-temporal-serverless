@@ -6,7 +6,7 @@ Consequences of Cloud Run's execution model: **Temporal resizes a pool of long-l
 
 Each pool instance runs **standard long-lived Worker code**: it connects, registers Workflows and Activities, and polls the Task Queue for its whole lifetime. There is no handler, no per-Task lifecycle, and **no serverless Worker package**. Some SDKs add optional conveniences, but none are required. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:27-34 -->
 
-The WCI controls how many instances run; each instance manages its own polling and Task processing.
+The WCI controls how many instances run; each instance manages its own polling and Task processing. For the WCI lifecycle and inspection commands, see `../wci.md`.
 
 ## Timing and Activity limits
 
@@ -27,7 +27,7 @@ Graceful shutdown lets short work drain but cannot guarantee an Activity will fi
 
 <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:36-69 -->
 
-The WCI combines two mechanisms:
+Cloud Run's rate-based WCI algorithm combines two mechanisms:
 
 - **Immediate** — bring up instances when a Task arrives and no Worker is free to take it (a sync match failure). Absorbs bursts without waiting for the evaluation cycle.
 - **Periodic** — rate-based re-sizing. The WCI measures how fast Tasks arrive and how fast one Worker processes them, computes the instance count needed, and applies it through the Cloud Run admin API.

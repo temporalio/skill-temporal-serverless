@@ -4,7 +4,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 
 ## Prerequisites
 
-- **Cloud Run availability.** Before a Temporal Cloud deployment, check the release-status notice in the [Cloud Run deployment guide](https://docs.temporal.io/production-deployment/worker-deployments/serverless-workers/cloud-run). If it says **Pre-release**, confirm that the user already has access; otherwise direct them to Temporal Support or their account team. If it says **Public Preview** or later, proceed without an access check. If the page is unavailable or unclear, ask the user to confirm rather than guessing.
+- **Cloud Run — Public Preview.** Available to all Temporal Cloud customers. There is no access request, support ticket, or manual toggle to enable; select GCP Cloud Run as the compute provider and proceed with the deployment.
 - A Temporal Cloud account with a **GCP-hosted Namespace**, or self-hosted Temporal Service v1.31.0+. The Namespace must be hosted on GCP; its region need not match the pool's.
 - For self-hosted, complete `self-hosted.md` first.
 - Every Workflow must declare a versioning behavior, or the Worker must set a default.
