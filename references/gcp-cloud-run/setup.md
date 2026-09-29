@@ -178,7 +178,7 @@ temporal worker deployment create-version \
 | `--gcp-cloud-run-utilization-target` | Target average utilization in `(0, 1]`; defaults to `0.8`. |
 | `--gcp-cloud-run-scale-down-stabilization-duration` | How long the scaler waits after the most recent sync match failure before scaling in; defaults to `90s`. Set it to `0s` to disable the wait. |
 
-The five scaler flags are a coupled group: **either omit all five and accept the defaults (`0`, `30`, `0`, `0.8`, `90s`), or provide all five together.** Supplying only one—even only a higher maximum—fails CLI validation. The scale-down stabilization flag requires Temporal CLI v1.8.3 or later. With an older CLI, omit all five and accept the default scaling settings rather than supplying a partial group.
+The five scaler flags are a coupled group: **either omit all five and accept the defaults (`0`, `30`, `0`, `0.8`, `90s`), or provide all five together.** Supplying only one—even only a higher maximum—fails CLI validation. Providing the group requires Temporal CLI v1.8.3 or later; with an older CLI, upgrade to v1.8.3 or later, or configure Scaling and Lifecycle settings in the Temporal Cloud UI. Omit all five only when the defaults are acceptable for a newly created version. On an existing version, omission leaves its current scaling settings unchanged.
 
 Through the UI, the version is set current automatically; through the CLI it is a separate step.
 
