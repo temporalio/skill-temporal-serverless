@@ -42,10 +42,10 @@ After emergency recovery, return to one pool per Build ID for the next release s
 
 ## Rolling out a new build
 
-1. Build and push a new image tagged with the new build ID.
+1. Choose the new build ID first, pass it into the Worker through the SDK guide's required environment variable or build argument, and build and push an image tagged with that ID. Do not only retag an image whose embedded Worker identity still names the previous build.
 2. **Create a new Worker Pool** at zero instances for that build ID, with the same runner service account.
 3. Register a new Worker Deployment Version pointing at the new pool, with a build ID matching the new Worker code.
-4. Confirm registration bootstrapped the pool: its `lastModifier` shows the invoker and the expected Task Queue types are bound. Treat the separate UI Validate Connection action as a read-only check. → `diagnostics.md`.
+4. Confirm registration bootstrapped the pool: the expected Task Queue types are bound, the deployed image digest matches the intended artifact, and the Worker startup log announces the new build ID. `lastModifier` showing the invoker proves only that Temporal wrote the pool's requested count. Treat the separate UI Validate Connection action as a read-only check. → `diagnostics.md`.
 5. Set the new version current, or ramp to it.
 6. **Leave the old pool in place** while Pinned Workflows still run on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:91-92 -->
 
