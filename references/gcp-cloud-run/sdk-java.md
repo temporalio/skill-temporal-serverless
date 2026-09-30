@@ -4,13 +4,34 @@
 
 Use this reference for Java-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
+## Install and scaffold
+
+Use Java 21 and pin the SDK in `pom.xml`:
+
+```xml
+<properties>
+  <maven.compiler.release>21</maven.compiler.release>
+</properties>
+
+<dependency>
+  <groupId>io.temporal</groupId>
+  <artifactId>temporal-sdk</artifactId>
+  <version>1.40.0</version>
+</dependency>
+```
+
+The `temporal-serviceclient` classes used below are a transitive dependency of `temporal-sdk`; do not omit them when inspecting or shading the application.
+
 ## Inspect the versioning API before generating code
 
 ```bash
-mvn -q dependency:get -Dartifact=io.temporal:temporal-sdk:<version>:jar:sources
-unzip -o ~/.m2/repository/io/temporal/temporal-sdk/<version>/temporal-sdk-<version>-sources.jar \
+mvn -q dependency:get -Dartifact=io.temporal:temporal-sdk:1.40.0:jar:sources
+mvn -q dependency:get -Dartifact=io.temporal:temporal-serviceclient:1.40.0:jar:sources
+unzip -o ~/.m2/repository/io/temporal/temporal-sdk/1.40.0/temporal-sdk-1.40.0-sources.jar \
   'io/temporal/worker/WorkerDeploymentOptions.java' 'io/temporal/common/WorkerDeploymentVersion.java' -d /tmp/src
 ```
+
+If the project intentionally uses another SDK version, substitute that exact version in all three places and inspect its sources before generating code.
 
 ## Versioned Worker
 
@@ -33,6 +54,9 @@ import java.util.concurrent.TimeUnit;
 
 public final class Main {
   public static void main(String[] args) {
+    String deploymentName = requireEnv("TEMPORAL_DEPLOYMENT_NAME");
+    String buildId = requireEnv("TEMPORAL_BUILD_ID");
+    String taskQueue = requireEnv("TEMPORAL_TASK_QUEUE");
     String apiKey = System.getenv("TEMPORAL_API_KEY");
 
     WorkflowServiceStubs service =
@@ -53,12 +77,12 @@ public final class Main {
     WorkerFactory factory = WorkerFactory.newInstance(client);
     Worker worker =
         factory.newWorker(
-            System.getenv("TEMPORAL_TASK_QUEUE"),
+            taskQueue,
             WorkerOptions.newBuilder()
                 .setDeploymentOptions(
                     WorkerDeploymentOptions.newBuilder()
                         .setUseVersioning(true)
-                        .setVersion(new WorkerDeploymentVersion("my-app", "build-1"))
+                        .setVersion(new WorkerDeploymentVersion(deploymentName, buildId))
                         .setDefaultVersioningBehavior(VersioningBehavior.PINNED)
                         .build())
                 .build());
@@ -71,6 +95,17 @@ public final class Main {
       factory.awaitTermination(8, TimeUnit.SECONDS);
     }));
     factory.start();
+    System.out.printf(
+        "Worker started deployment=%s build=%s taskQueue=%s%n",
+        deploymentName, buildId, taskQueue);
+  }
+
+  private static String requireEnv(String name) {
+    String value = System.getenv(name);
+    if (value == null || value.isBlank()) {
+      throw new IllegalStateException(name + " must be set");
+    }
+    return value;
   }
 }
 ```
@@ -108,13 +143,61 @@ Java uses gRPC/Netty and the JVM truststore, so it is unaffected by the `NativeC
 
 ## Image packaging
 
-Use the application's normal Java container packaging. The following command assumes `/app/worker.jar` is an executable fat jar containing its dependencies and sizes the heap to the instance:
+Create an executable fat jar. The service descriptor transformer is required; without it, shaded gRPC providers can disappear at runtime:
+
+```xml
+<build>
+  <finalName>worker</finalName>
+  <plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-shade-plugin</artifactId>
+      <version>3.6.1</version>
+      <executions>
+        <execution>
+          <phase>package</phase>
+          <goals><goal>shade</goal></goals>
+          <configuration>
+            <createDependencyReducedPom>false</createDependencyReducedPom>
+            <transformers>
+              <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+              <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                <mainClass>example.Main</mainClass>
+              </transformer>
+            </transformers>
+          </configuration>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
+```
+
+Build and run it in a Java 21 image:
 
 ```dockerfile
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /src
+COPY pom.xml ./
+RUN mvn -q dependency:go-offline
+COPY src ./src
+RUN mvn -q -DskipTests package
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY --from=build /src/target/worker.jar ./worker.jar
 CMD ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/worker.jar"]
 ```
 
-The JVM reads the container memory limit but defaults the maximum heap to a quarter of it, leaving most of a small instance unused. A pool defaults to 512 MiB per instance, so raise `--memory` when creating it if the Worker needs more. → `setup.md` Step 2.
+```gitignore
+.git
+.gitignore
+.idea
+target
+*.iml
+```
+
+Cloud Run Worker Pools run this image as `linux/amd64`. The JVM reads the container memory limit but defaults the maximum heap to a quarter of it, leaving most of a small instance unused. A pool defaults to 512 MiB per instance, so raise `--memory` when creating it if the Worker needs more. → `setup.md` Step 2.
 
 ## Graceful shutdown on scale-in
 
@@ -123,6 +206,28 @@ Register the JVM shutdown hook before `factory.start()`, as in the versioned Wor
 ## Keep Activities safe across scale-in
 
 Apply the Heartbeat-resume invariant from `constraints.md` in Java:
+
+```java
+import io.temporal.activity.ActivityOptions;
+import io.temporal.common.RetryOptions;
+import io.temporal.workflow.Workflow;
+import java.time.Duration;
+
+private final GreetingActivities activities =
+    Workflow.newActivityStub(
+        GreetingActivities.class,
+        ActivityOptions.newBuilder()
+            .setStartToCloseTimeout(Duration.ofMinutes(10))
+            .setHeartbeatTimeout(Duration.ofSeconds(10))
+            .setRetryOptions(
+                RetryOptions.newBuilder()
+                    .setInitialInterval(Duration.ofSeconds(1))
+                    .setMaximumAttempts(5)
+                    .build())
+            .build());
+```
+
+The Activity records the next item to process:
 
 ```java
 public class GreetingActivitiesImpl implements GreetingActivities {

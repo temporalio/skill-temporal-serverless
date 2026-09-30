@@ -4,6 +4,17 @@
 
 Use this reference for Python-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
+## Install and scaffold
+
+Create an isolated environment and pin the SDK version validated for this guide:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install temporalio==1.34.0
+.venv/bin/python -m pip freeze > requirements.txt
+```
+
 ## Inspect the versioning API before generating code
 
 ```bash
@@ -18,6 +29,7 @@ Pass `deployment_config` to `Worker()`. The Worker reads its connection settings
 
 ```python
 import asyncio
+import logging
 import os
 import signal
 from datetime import timedelta
@@ -32,17 +44,21 @@ from my_workflows import MyWorkflow
 
 
 async def main() -> None:
+    logging.basicConfig(level=logging.INFO)
+    deployment_name = os.environ["TEMPORAL_DEPLOYMENT_NAME"]
+    build_id = os.environ["TEMPORAL_BUILD_ID"]
+    task_queue = os.environ["TEMPORAL_TASK_QUEUE"]
     client = await Client.connect(**ClientConfig.load_client_connect_config())
 
     worker = Worker(
         client,
-        task_queue=os.environ["TEMPORAL_TASK_QUEUE"],
+        task_queue=task_queue,
         workflows=[MyWorkflow],
         activities=[my_activity],
         deployment_config=WorkerDeploymentConfig(
             version=WorkerDeploymentVersion(
-                deployment_name="my-app",
-                build_id="build-1",
+                deployment_name=deployment_name,
+                build_id=build_id,
             ),
             use_worker_versioning=True,
             default_versioning_behavior=VersioningBehavior.PINNED,
@@ -55,6 +71,12 @@ async def main() -> None:
         loop.add_signal_handler(sig, stop.set)
 
     async with worker:
+        logging.info(
+            "Worker started deployment=%s build=%s taskQueue=%s",
+            deployment_name,
+            build_id,
+            task_queue,
+        )
         await stop.wait()
 
 
@@ -94,7 +116,38 @@ client = await Client.connect(**connect_config)
 
 ## Image packaging
 
-`pip install "temporalio>=1.30.0,<2"` and run the Worker module as the entrypoint. Python shares the Rust core, so a minimal base image needs `ca-certificates` present. → `setup.md` Step 2.
+Cloud Run Worker Pools run this image as `linux/amd64`. Build wheels separately and install them into a slim runtime with CA certificates:
+
+```dockerfile
+FROM python:3.13-slim AS build
+WORKDIR /src
+COPY requirements.txt ./
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+FROM python:3.13-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /wheels /wheels
+RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
+WORKDIR /app
+COPY . .
+CMD ["python", "-m", "worker"]
+```
+
+Use this `.gcloudignore`:
+
+```gitignore
+.git
+.gitignore
+.idea
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+```
+
+Change `worker` only if the module containing `main()` has a different name. Python shares the Rust core, so the runtime image needs `ca-certificates`. → `setup.md` Step 2.
 
 ## Graceful shutdown on scale-in
 
@@ -103,6 +156,33 @@ Cloud Run sends `SIGTERM` before stopping an instance. The example converts it i
 ## Keep Activities safe across scale-in
 
 Apply the Heartbeat-resume invariant from `constraints.md` in Python:
+
+```python
+from datetime import timedelta
+
+from temporalio import workflow
+from temporalio.common import RetryPolicy
+
+from my_activities import my_activity
+
+
+@workflow.defn
+class MyWorkflow:
+    @workflow.run
+    async def run(self, items: list[str]) -> str:
+        return await workflow.execute_activity(
+            my_activity,
+            items,
+            start_to_close_timeout=timedelta(minutes=10),
+            heartbeat_timeout=timedelta(seconds=10),
+            retry_policy=RetryPolicy(
+                initial_interval=timedelta(seconds=1),
+                maximum_attempts=5,
+            ),
+        )
+```
+
+The Activity records the next item to process:
 
 ```python
 @activity.defn
