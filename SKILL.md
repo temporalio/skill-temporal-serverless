@@ -81,11 +81,11 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 >
 > **Build**
 > ⬜ Write the Worker against the installed package's real API
-> ⬜ Cross-compile, package, deploy the compute unit, wait for it to report ready
+> ⬜ Build for the target platform, package, deploy the compute unit, wait for it to report ready
 >
 > **Connect**
-> ⬜ Create the role Temporal assumes to invoke the Worker
-> ⬜ Register the Worker Deployment Version, confirm the validation invocation bound the Task Queue, set it current
+> ⬜ Grant Temporal permission to inspect and start or resize the compute unit
+> ⬜ Register the Worker Deployment Version, confirm registration bound the Task Queue, set it current
 >
 > **Verify and hand back**
 > ⬜ Start a Workflow and confirm it executes, from both the Temporal side and the provider's logs
@@ -95,7 +95,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 |---|---|---|
 | Scope | 1 | SDK, compute provider, Namespace, and naming prefix are all confirmed by the user. |
 | Access | 2 | Compute provider and Temporal both authenticated, permissions confirmed, and the list of resources to create approved. |
-| Build | 3–4 | The compute unit is deployed and reports ready, built for the architecture it runs on. |
+| Build | 3–4 | The provider-specific package or image is published, deployed, and reports ready for its target platform. |
 | Connect | 5–6 | The Task Queue is bound and the version is current. |
 | Verify and hand back | 7–8 | A Workflow completed, two independent signals agree, the inventory is delivered, and teardown has been offered. |
 
@@ -150,7 +150,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
    **Before the first account-mutating command, list what you are about to create — with final names — and get approval.** Name the target account and region, then every resource: compute unit, execution role, infrastructure stack, log group, deployment name, and Task Queue. Say plainly that they are live and billable. This is the mirror of the inventory in step 8, and it is worth more here than there: it makes the naming prefix concrete while changing it is still free, and the deployment name, build ID, and Task Queue become expensive to change once step 3 compiles them into the Worker. Skip it only when nothing will be created — a troubleshooting or inspection task.
 
-   The inventory above is the unchanged AWS Lambda path. For Cloud Run, list the project and region, image repository and image, Worker Pool, runner and invoker service accounts, Terraform state, logs, secrets, deployment name, build ID, and Task Queue instead.
+   The inventory above is the unchanged AWS Lambda path. For Cloud Run, list API enablement and the Cloud Build submission, project and region, image repository and image, Worker Pool, runner and invoker service accounts, Terraform state, logs, secrets, deployment name, build ID, and Task Queue instead.
 
 ### AWS Lambda: steps 3–8
 
@@ -176,9 +176,9 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 5. **Grant Temporal permission to scale the pool.** Keep the runner service account used by pool instances separate from the invoker service account Temporal impersonates. Reuse compatible shared IAM infrastructure when it already exists. → `references/gcp-cloud-run/iam.md`.
 
-6. **Register the Worker Deployment Version, verify the registration bootstrap, then set it current.** Point the version at the pool and invoker service account, provide all five scaling settings together or omit all five, and confirm the expected Task Queue types are bound before shifting traffic. → `references/gcp-cloud-run/setup.md`.
+6. **Register the Worker Deployment Version, verify the registration bootstrap, then set it current.** Point the version at the pool and invoker service account, provide the complete scaler group supported by the installed CLI or omit the group, and confirm the expected Task Queue types are bound before shifting traffic. → `references/gcp-cloud-run/setup.md`.
 
-7. **Verify.** Start a Workflow, confirm its history progresses, and confirm the Worker Pool logs show startup, polling, and Task execution. If it does not progress, inspect the pool annotations and WCI Workflow history. → `references/gcp-cloud-run/diagnostics.md`.
+7. **Verify.** Start a Workflow, confirm its history progresses, and confirm the Worker Pool logs show startup, polling, and Task execution. If it does not progress, start with the version's expected Task Queue bindings, then follow the WDV/WCI/provider decision table. → `references/gcp-cloud-run/diagnostics.md`.
 
 8. **Hand back the inventory first; offer teardown as the closing note.** Include the image digest, Worker Pool, runner and invoker service accounts, Terraform state, secrets, project, region, deployment name, and build ID. Follow the same inventory-before-teardown and approval rules as the Lambda path. → `references/gcp-cloud-run/setup.md`.
 
@@ -199,7 +199,7 @@ How to move through the workflow above.
   For anything that creates, updates, or deletes, name the resource and the target account or Namespace explicitly — an approval prompt should arrive with its justification already on screen, not after it.
 - **Read the current state instead of recalling it.** Check the installed package's API, the CLI's own `--help` for the flags you are about to pass, the compute unit's reported state, and the CLI version. Each of these has drifted in practice: a Public Preview SDK whose fields moved, a CLI too old to have the serverless subcommand at all, a resource that reports success while still settling.
 - **Do not chain `cd` with commands that create or modify files.** A compound `cd <dir> && <write>` triggers a manual approval prompt no matter how the user's permissions are configured, so scaffolding a project this way asks for approval on every run. Use absolute paths, or the tool's own directory flag (`go -C <dir> …`), and rely on the shell's working directory persisting between calls — the `cd` buys nothing and costs a prompt. Keep the command count down for the same reason: one `go get` covering both packages beats two.
-- **Verify each step before building the next on top of it.** Compile the Worker before packaging it, confirm the package's target architecture before uploading, wait for the compute unit to be ready before publishing a build, and confirm the Task Queue is bound before shifting traffic. Deployment failures here surface far from their cause — an architecture or dependency mismatch appears only at first invocation, and a first-invocation failure appears as "the Worker is never invoked", several steps later.
+- **Verify each step before building the next on top of it.** Compile the Worker before packaging it, confirm the package or image targets the platform it will run on, publish the immutable build before deploying compute, wait for the compute unit to be ready, and confirm the Task Queue is bound before shifting traffic. Deployment failures here surface far from their cause — an architecture or dependency mismatch may appear only when compute first starts, and a runtime startup failure later appears as "the Worker never polls."
 - **When something fails, read the actual error before changing anything.** Fetch the failure reason from the provider (deployment events, logs, status fields) and fix that. Do not retry the same command with variations, and do not start editing permissions or trust policies on the theory that the problem might be access — most first-invocation failures are not permission problems, and some failures are on Temporal's side and will reproduce no matter what you change.
 - **Treat the user's account as shared and pre-existing.** Assume other deployments, roles, and stacks are already there. Look before creating, extend rather than duplicate, and never delete or repurpose something you did not create without asking. When you do work around existing infrastructure — a different name, a reused role — say so explicitly in your summary rather than leaving it as a silent deviation.
 - **Confirm the end state from two independent signals.** A Workflow that completes in the Temporal UI *and* the Worker's own logs showing startup, Task Queue registration, and Task execution. One signal alone can mislead: a system Workflow that exists and is running proves nothing about invocation health, and a command that exits zero may have done nothing at all if it was waiting on a confirmation prompt.
@@ -218,11 +218,12 @@ Surface these early — they apply regardless of compute provider:
 - **A Namespace on the target cloud provider is required.** A Serverless Worker runs only on the cloud provider that hosts its Temporal Cloud Namespace — there is no cross-cloud pairing. Confirm the user has a Namespace on the provider they intend to run compute on *before* building anything; without one, the work stops there and they need either a Namespace on that provider or a different provider. A mismatch is not caught at deploy time — it fails later, at connection time. **Regions do not have to match:** a Namespace in one region can drive a compute unit in another, so never tell a user to move or re-create a Namespace to line up regions.
 - **Use `tcld` for every Temporal Cloud control-plane operation** — accounts, Namespaces, API keys, users, service accounts. Do not use the unified CLI's `temporal cloud …` subcommands for them. Worker Deployments and Workflows are *not* control-plane operations: they live on the Namespace frontend, have no `tcld` equivalent, and use `temporal worker deployment …`. → `references/<provider>/setup.md`.
 - **Versioning behavior is mandatory.** Every Workflow needs `Pinned` or `AutoUpgrade`, or the Worker sets a default.
-- **Deployment name and build ID must match exactly** between the Worker code and the Worker Deployment Version. A mismatch causes an invocation loop (Temporal invokes → Worker polls with the wrong version → Task not processed → invoke again). Signature: rapid repeated invocations with no Workflow progress.
+- **Deployment name and build ID must match exactly** between the Worker code and the Worker Deployment Version. A mismatched Worker polls under another version and never creates the intended Task Queue binding.
 - **Use an immutable, versioned build per Build ID in production.** Pointing the provider at a mutable "latest" target lets code change under in-flight Workflows and cause non-determinism errors, even for Pinned Workflows. Keep a 1-to-1 mapping between each Build ID and one immutable build. → `references/<provider>/versioning.md`.
 
 **The following invocation-lifecycle principles are the existing AWS Lambda path. For Cloud Run, use `references/gcp-cloud-run/constraints.md` instead.**
 
+- **A Lambda identity mismatch causes an invocation loop.** Temporal invokes, the Worker polls with the wrong version, the Task remains unprocessed, and Temporal invokes again. The signature is rapid repeated invocations with no Workflow progress.
 - **Set the invocation deadline high enough.** Providers often default to a very short timeout. If the first invocation times out before the Worker registers the Task Queue, the binding is never created and the Worker is never invoked again. → `references/<provider>/setup.md` for the exact default.
 - **Tune the timeout triple together for long-running Activities:** (1) worker stop timeout > longest Activity runtime, (2) shutdown deadline buffer > worker stop timeout + shutdown hook time, (3) invocation deadline > longest Activity runtime + shutdown deadline buffer. Raising one alone does not help. If the longest Activity exceeds half the maximum invocation deadline, recommend Activity Heartbeats. → `references/concepts.md`, `references/<provider>/sdk-<language>.md`.
 - **Eager Activities are always disabled** — serverless invocations don't maintain persistent connections. Don't suggest them as an optimization.
@@ -242,7 +243,7 @@ Start by determining whether the Worker is being invoked at all. Then, in priori
 
 ### GCP Cloud Run
 
-Start by determining whether the WCI requested a pool resize and whether an instance started. Then check Validate Connection with its read-only limitation, Task Queue bindings, current-version routing, pool annotations, Worker logs, deployment name/build ID, maximum count, and regional quota. → `references/gcp-cloud-run/diagnostics.md`.
+Start with the intended version's expected Task Queue bindings. If they are absent, correlate the WCI registration result, requested pool count, `lastModifier`, image digest, and Worker startup identity log using the decision table. If they are present, continue with current-version routing and Task execution. Treat Validate Connection as a read-only pool lookup, not proof that Temporal can resize the pool. → `references/gcp-cloud-run/diagnostics.md`.
 
 ## Common Pitfalls
 
@@ -261,11 +262,12 @@ High-impact mistakes — warn the user proactively. Each is a symptom → cause 
 
 ### GCP Cloud Run
 
-1. **Deployment name / build ID mismatch.** Instances start but poll under the wrong version and do not process the intended Tasks. Make both values match the registered version.
+1. **Deployment name / build ID mismatch.** One steady instance may start and announce another build while the intended version never binds its Task Queue. That instance polls and processes Tasks only for the version it announces; the immediate consequence is incorrect extra capacity requested by the intended version's WCI, not cross-version execution. Make both values match the registered version.
 2. **Runner and invoker service accounts confused.** The runner is attached to instances; Temporal impersonates the invoker to read and resize the pool. → `references/gcp-cloud-run/iam.md`.
 3. **Mutable live pool.** Redeploying a new image into a pool used by a live Worker Deployment Version changes code underneath that version. Use one pool per build ID. → `references/gcp-cloud-run/versioning.md`.
 4. **Scale-in interrupts an Activity.** Graceful shutdown cannot guarantee completion. Heartbeat resumable progress and keep the shutdown timeout below Cloud Run's termination window. → `references/gcp-cloud-run/constraints.md`.
 5. **Task Queue shared with an independently managed fleet.** The rate-based scaler sees the full queue workload and provisions duplicate capacity. Use a separate Task Queue. → `references/gcp-cloud-run/constraints.md`.
+6. **Validate Connection passes but the pool never resizes.** For Cloud Run it proves impersonation and `run.workerPools.get`, but does not exercise `run.workerPools.update` or start an instance. Check the registration bootstrap, Task Queue binding, and update permission. → `references/gcp-cloud-run/diagnostics.md`.
 
 ## Routing to reference files
 
