@@ -4,6 +4,18 @@
 
 Use this reference for TypeScript-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
+## Install and scaffold
+
+Initialize the project and pin the SDK and compiler versions validated for this guide:
+
+```bash
+npm init -y
+npm install @temporalio/activity@1.24.0 @temporalio/client@1.24.0 @temporalio/worker@1.24.0 @temporalio/workflow@1.24.0
+npm install --save-dev typescript@7.0.2 @types/node@22.20.4
+npx tsc --init --rootDir src --outDir dist --module commonjs --target es2022 --esModuleInterop
+npm pkg set scripts.build='tsc' scripts.start='node dist/worker.js'
+```
+
 ## Inspect the versioning API before generating code
 
 ```bash
@@ -18,20 +30,29 @@ Pass `workerDeploymentOptions` to `Worker.create()`. The Worker reads its connec
 ```ts
 import { NativeConnection, Worker } from '@temporalio/worker';
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} must be set`);
+  return value;
+}
+
 async function main(): Promise<void> {
+  const deploymentName = requiredEnv('TEMPORAL_DEPLOYMENT_NAME');
+  const buildId = requiredEnv('TEMPORAL_BUILD_ID');
+  const taskQueue = requiredEnv('TEMPORAL_TASK_QUEUE');
   const connection = await NativeConnection.connect({
-    address: process.env.TEMPORAL_ADDRESS,
-    apiKey: process.env.TEMPORAL_API_KEY,
+    address: requiredEnv('TEMPORAL_ADDRESS'),
+    apiKey: requiredEnv('TEMPORAL_API_KEY'),
     tls: true,
   });
 
   const worker = await Worker.create({
     connection,
-    namespace: process.env.TEMPORAL_NAMESPACE!,
-    taskQueue: process.env.TEMPORAL_TASK_QUEUE!,
+    namespace: requiredEnv('TEMPORAL_NAMESPACE'),
+    taskQueue,
     workflowsPath: require.resolve('./workflows'),
     workerDeploymentOptions: {
-      version: { deploymentName: 'my-app', buildId: 'build-1' },
+      version: { deploymentName, buildId },
       useWorkerVersioning: true,
       defaultVersioningBehavior: 'PINNED',
     },
@@ -39,6 +60,7 @@ async function main(): Promise<void> {
     shutdownForceTime: '9s',
   });
 
+  console.info(`Worker started deployment=${deploymentName} build=${buildId} taskQueue=${taskQueue}`);
   await worker.run();
 }
 
@@ -83,6 +105,39 @@ Three things, all of which fail at startup rather than at build time:
 
 → `setup.md` Step 2, `diagnostics.md`.
 
+Use this multi-stage image and `.gcloudignore`:
+
+```dockerfile
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
+
+FROM node:22-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+CMD ["node", "dist/worker.js"]
+```
+
+```gitignore
+.git
+.gitignore
+.idea
+node_modules
+dist
+npm-debug.log
+```
+
+Cloud Run Worker Pools run this image as `linux/amd64`.
+
 ## Graceful shutdown on scale-in
 
 The versioned Worker example uses `await worker.run()`. The TypeScript SDK Runtime registers `SIGINT`, `SIGTERM`, `SIGQUIT`, and `SIGUSR2` as shutdown signals by default, so Cloud Run's `SIGTERM` starts the Worker's normal shutdown without an application-level signal handler. `shutdownGraceTime` gives received Activities eight seconds before cancellation; `shutdownForceTime` prevents a non-cooperative Activity from keeping the process alive until Cloud Run kills it. If the application installs a custom Runtime, preserve `SIGTERM` in its `shutdownSignals`.
@@ -90,6 +145,26 @@ The versioned Worker example uses `await worker.run()`. The TypeScript SDK Runti
 ## Keep Activities safe across scale-in
 
 Apply the Heartbeat-resume invariant from `constraints.md` in TypeScript:
+
+```ts
+import { proxyActivities } from '@temporalio/workflow';
+import type * as activities from './activities';
+
+const { myActivity } = proxyActivities<typeof activities>({
+  startToCloseTimeout: '10m',
+  heartbeatTimeout: '10s',
+  retry: {
+    initialInterval: '1s',
+    maximumAttempts: 5,
+  },
+});
+
+export async function myWorkflow(items: string[]): Promise<string> {
+  return myActivity(items);
+}
+```
+
+The Activity records the next item to process:
 
 ```ts
 import { activityInfo, heartbeat } from '@temporalio/activity';

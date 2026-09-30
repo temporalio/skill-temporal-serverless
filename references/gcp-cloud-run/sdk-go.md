@@ -4,13 +4,25 @@
 
 Use this reference for Go-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
 
+## Install and scaffold
+
+From the application directory, initialize the module and pin the versions validated for this guide. `contrib/envconfig` is a separate Go module:
+
+```bash
+go mod init example.com/myapp
+go get go.temporal.io/sdk@v1.49.0 go.temporal.io/sdk/contrib/envconfig@v1.0.2
+```
+
 ## Inspect the versioning API before generating code
 
 ```bash
-go doc go.temporal.io/sdk/worker.DeploymentOptions
-go doc go.temporal.io/sdk/worker.WorkerDeploymentVersion
+SDK_DIR=$(go list -m -f '{{.Dir}}' go.temporal.io/sdk)
+rg -n -A40 'type WorkerDeploymentOptions struct' "$SDK_DIR/internal/worker.go"
+rg -n -A12 'type WorkerDeploymentVersion struct' "$SDK_DIR/internal/worker.go"
 go doc go.temporal.io/sdk/workflow.RegisterOptions
 ```
+
+The exported Worker types are aliases, so ordinary `go doc` may print only `type X = internal.Y`; inspect the aliased definitions in the installed module as above.
 
 ## Versioned Worker
 
@@ -33,19 +45,23 @@ import (
 )
 
 func main() {
+	deploymentName := mustEnv("TEMPORAL_DEPLOYMENT_NAME")
+	buildID := mustEnv("TEMPORAL_BUILD_ID")
+	taskQueue := mustEnv("TEMPORAL_TASK_QUEUE")
+
 	c, err := client.Dial(envconfig.MustLoadDefaultClientOptions())
 	if err != nil {
 		log.Fatalln("Unable to create client", err)
 	}
 	defer c.Close()
 
-	w := worker.New(c, os.Getenv("TEMPORAL_TASK_QUEUE"), worker.Options{
+	w := worker.New(c, taskQueue, worker.Options{
 		WorkerStopTimeout: 8 * time.Second,
 		DeploymentOptions: worker.DeploymentOptions{
 			UseVersioning: true,
 			Version: worker.WorkerDeploymentVersion{
-				DeploymentName: "my-app",
-				BuildID:        "build-1",
+				DeploymentName: deploymentName,
+				BuildID:        buildID,
 			},
 		},
 	})
@@ -54,10 +70,19 @@ func main() {
 		VersioningBehavior: workflow.VersioningBehaviorPinned,
 	})
 	w.RegisterActivity(myapp.MyActivity)
+	log.Printf("Worker started deployment=%s build=%s taskQueue=%s", deploymentName, buildID, taskQueue)
 
 	if err := w.Run(worker.InterruptCh()); err != nil {
 		log.Fatalln("Unable to start worker", err)
 	}
+}
+
+func mustEnv(name string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		log.Fatalf("%s must be set", name)
+	}
+	return value
 }
 ```
 
@@ -83,7 +108,34 @@ w.RegisterWorkflowWithOptions(myapp.MyWorkflow, workflow.RegisterOptions{
 
 ## Image packaging
 
-Use `CGO_ENABLED=0` with a `distroless/static` base. Go still reads system CA roots; that image includes them. → `setup.md` Step 2.
+Cloud Run Worker Pools run this image as `linux/amd64`. Use `CGO_ENABLED=0` with a distroless static runtime:
+
+```dockerfile
+FROM golang:1.26-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -o /out/worker ./cmd/worker
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/worker /worker
+ENTRYPOINT ["/worker"]
+```
+
+Place this `.gcloudignore` beside the Dockerfile so build context does not include local binaries or repository metadata:
+
+```gitignore
+.git
+.gitignore
+.idea
+bin
+dist
+tmp
+```
+
+The distroless image includes system CA roots. Adjust `./cmd/worker` only if the actual main package lives elsewhere. → `setup.md` Step 2.
 
 ## Graceful shutdown on scale-in
 
@@ -92,6 +144,31 @@ The versioned Worker example uses `w.Run(worker.InterruptCh())` and gives receiv
 ## Keep Activities safe across scale-in
 
 Apply the Heartbeat-resume invariant from `constraints.md` in Go:
+
+```go
+import (
+	"time"
+
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
+)
+
+func MyWorkflow(ctx workflow.Context, input MyInput) (string, error) {
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Minute,
+		HeartbeatTimeout:    10 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval: time.Second,
+			MaximumAttempts: 5,
+		},
+	})
+	var result string
+	err := workflow.ExecuteActivity(ctx, MyActivity, input).Get(ctx, &result)
+	return result, err
+}
+```
+
+The Activity records the next item to process:
 
 ```go
 func MyActivity(ctx context.Context, input MyInput) (string, error) {
