@@ -267,4 +267,4 @@ var client = await TemporalClient.ConnectAsync(connectOptions);
 await telemetry.FlushAsync(TimeSpan.FromSeconds(2));
 ```
 
-The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the extension unless that Collector path is enabled. The complete maintained example is in [samples-dotnet PR #236](https://github.com/temporalio/samples-dotnet/pull/236).
+The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the extension unless that Collector path is enabled. The complete example under review is in [samples-dotnet PR #236](https://github.com/temporalio/samples-dotnet/pull/236).

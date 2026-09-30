@@ -310,4 +310,4 @@ otelPlugin.newFlushHook().run(Duration.ofSeconds(2));
 service.shutdown();
 ```
 
-Import `io.temporal.gcp.cloudrun.opentelemetry.CloudRunOpenTelemetryPlugin` and `java.time.Duration`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete maintained example is in [samples-java PR #801](https://github.com/temporalio/samples-java/pull/801).
+Import `io.temporal.gcp.cloudrun.opentelemetry.CloudRunOpenTelemetryPlugin` and `java.time.Duration`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete example under review is in [samples-java PR #801](https://github.com/temporalio/samples-java/pull/801).

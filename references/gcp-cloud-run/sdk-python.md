@@ -247,4 +247,4 @@ traces_flushed = await asyncio.to_thread(
 )
 ```
 
-The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete maintained example is in [samples-python PR #376](https://github.com/temporalio/samples-python/pull/376).
+The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete example under review is in [samples-python PR #376](https://github.com/temporalio/samples-python/pull/376).
