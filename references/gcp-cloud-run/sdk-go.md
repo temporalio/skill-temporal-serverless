@@ -191,4 +191,28 @@ func MyActivity(ctx context.Context, input MyInput) (string, error) {
 
 ## Observability
 
-For Go SDK configuration, see `docs/develop/go/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.
+For the optional Cloud Run OpenTelemetry path, add the released contrib module:
+
+```bash
+go get go.temporal.io/sdk/contrib/gcp/cloudrun/otel@v0.1.0
+```
+
+Create the plugin before dialing, append it to the client options, and flush it only after the Worker and client have stopped:
+
+```go
+otelPlugin, err := otel.NewPlugin(ctx, otel.PluginOptions{})
+if err != nil {
+	log.Fatalln("Unable to create OpenTelemetry plugin", err)
+}
+clientOptions := envconfig.MustLoadDefaultClientOptions()
+clientOptions.Plugins = append(clientOptions.Plugins, otelPlugin)
+
+// After w.Stop() and c.Close():
+flushCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+defer cancel()
+if err := otelPlugin.Shutdown(flushCtx); err != nil {
+	log.Println("Failed to flush OpenTelemetry", err)
+}
+```
+
+Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete maintained example is in [samples-go PR #554](https://github.com/temporalio/samples-go/pull/554).

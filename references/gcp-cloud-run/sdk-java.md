@@ -281,4 +281,33 @@ Use a logging provider compatible with the SLF4J API version selected by the ins
 
 ## Observability
 
-For Java SDK configuration, see `docs/develop/java/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.
+For the optional Cloud Run OpenTelemetry path, add the released helper alongside the same SDK version:
+
+```xml
+<dependency>
+  <groupId>io.temporal</groupId>
+  <artifactId>temporal-gcp-cloud-run-opentelemetry</artifactId>
+  <version>1.40.0</version>
+</dependency>
+```
+
+Register the plugin on the service stubs so it propagates to the client and Worker, then run its bounded flush hook during shutdown:
+
+```java
+CloudRunOpenTelemetryPlugin otelPlugin =
+    CloudRunOpenTelemetryPlugin.newBuilder().build();
+WorkflowServiceStubsOptions serviceOptions =
+    WorkflowServiceStubsOptions.newBuilder()
+        .setTarget(System.getenv("TEMPORAL_ADDRESS"))
+        .setEnableHttps(true)
+        .addApiKey(() -> System.getenv("TEMPORAL_API_KEY"))
+        .setPlugins(otelPlugin)
+        .build();
+WorkflowServiceStubs service = WorkflowServiceStubs.newServiceStubs(serviceOptions);
+
+// After the Worker factory has terminated:
+otelPlugin.newFlushHook().run(Duration.ofSeconds(2));
+service.shutdown();
+```
+
+Import `io.temporal.gcp.cloudrun.opentelemetry.CloudRunOpenTelemetryPlugin` and `java.time.Duration`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete maintained example is in [samples-java PR #801](https://github.com/temporalio/samples-java/pull/801).

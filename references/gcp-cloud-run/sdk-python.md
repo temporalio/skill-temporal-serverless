@@ -222,4 +222,29 @@ Do not enable DEBUG logging globally in production without first verifying that 
 
 ## Observability
 
-For Python SDK configuration, see `docs/develop/python/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.
+For the optional Cloud Run OpenTelemetry path, install the SDK extra validated by the combined sample:
+
+```bash
+.venv/bin/python -m pip install 'temporalio[cloud-run-worker-otel]==1.34.0'
+```
+
+Add the plugin to the same client used by the Worker and flush it after the Worker stops:
+
+```python
+from datetime import timedelta
+from temporalio.contrib.gcp.cloud_run.opentelemetry import OpenTelemetryPlugin
+
+plugin = OpenTelemetryPlugin(add_temporal_spans=True)
+client = await Client.connect(
+    **ClientConfig.load_client_connect_config(),
+    plugins=[plugin],
+)
+
+# After the Worker context exits:
+traces_flushed = await asyncio.to_thread(
+    plugin.shutdown,
+    timedelta(seconds=2),
+)
+```
+
+The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete maintained example is in [samples-python PR #376](https://github.com/temporalio/samples-python/pull/376).
