@@ -242,4 +242,29 @@ Do not enable DEBUG logging globally in production without first verifying that 
 
 ## Observability
 
-For .NET SDK configuration, see `docs/develop/dotnet/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.
+For the optional Cloud Run OpenTelemetry path, add the released extension matching the SDK version:
+
+```bash
+dotnet add MyWorker/MyWorker.csproj package Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry --version 1.20.0
+```
+
+Apply its defaults to the same connect options used by the Worker, retain the returned handle, and flush after the Worker stops:
+
+```csharp
+using Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry;
+
+var connectOptions = new TemporalClientConnectOptions(
+    Environment.GetEnvironmentVariable("TEMPORAL_ADDRESS")!)
+{
+    Namespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE")!,
+    ApiKey = Environment.GetEnvironmentVariable("TEMPORAL_API_KEY"),
+    Tls = new(),
+};
+using var telemetry = connectOptions.ApplyGoogleCloudRunOpenTelemetryDefaults();
+var client = await TemporalClient.ConnectAsync(connectOptions);
+
+// After worker.ExecuteAsync returns:
+await telemetry.FlushAsync(TimeSpan.FromSeconds(2));
+```
+
+The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the extension unless that Collector path is enabled. The complete maintained example is in [samples-dotnet PR #236](https://github.com/temporalio/samples-dotnet/pull/236).

@@ -184,4 +184,6 @@ export async function myActivity(items: string[]): Promise<string> {
 
 ## Observability
 
-For TypeScript SDK configuration, see `docs/develop/typescript/platform/observability`. For shared Cloud Run behavior and provider-specific scaling signals, see `observability.md`.
+The current combined Cloud Run samples do not define a TypeScript-specific Cloud Run OpenTelemetry helper. Use the TypeScript SDK's standard OpenTelemetry configuration and point its OTLP exporter at the Collector sidecar on `http://localhost:4317`.
+
+Use the multi-container topology and IAM in `observability.md`, keep telemetry optional, and preserve the Worker's existing shutdown handling. Do not substitute a helper from another SDK or claim that one is required. For the SDK configuration, see `docs/develop/typescript/platform/observability`.
