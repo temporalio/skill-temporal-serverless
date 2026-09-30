@@ -30,6 +30,8 @@ temporal --profile <PROFILE> worker deployment describe-version \
 
 The decisive registration signal is `taskQueuesInfos` containing the expected Task Queue with lowercase `workflow` and `activity` types. The field is absent until a Worker identifying as this deployment and build ID polls. If the Worker intentionally polls only one type, adjust the predicate to require only that type. Provider writes, requested capacity, and a Running WCI support the diagnosis but do not replace this check.
 
+In the five-SDK test, the binding appeared in about 20–40 seconds. Treat this as an observation, not a timeout or service guarantee.
+
 | Result | Interpretation | Next check |
 |---|---|---|
 | Expected Task Queue types are bound | Registration succeeded for this WDV. | Confirm the version is current, then diagnose Task execution. |
@@ -98,7 +100,7 @@ Registration performs this bootstrap: the WCI reads the pool, updates its manual
 
 ### Re-run a failed registration bootstrap
 
-Fix the image, configuration, credentials, or IAM cause first. A successful compute-configuration change runs the WCI update path and registration bootstrap, but resubmitting an unchanged configuration has not been verified as an in-place retry mechanism. Do not rely on an unchanged update to repair registration.
+Fix the image, configuration, credentials, or IAM cause first. A successful compute-configuration change is expected to run the WCI update path and registration bootstrap, but resubmitting an unchanged configuration has not been verified as an in-place retry mechanism. Do not rely on an unchanged update to repair registration.
 
 The tested recovery is to delete and recreate the WDV under strict guards: confirm it is neither Current nor Ramping and its drainage status is `DRAINED`, obtain approval, delete it, and wait for its old WCI Workflow to close before recreating it. A test run observed about 40 seconds; use Workflow state rather than that duration as the gate. Never delete a version that may still receive Pinned Workflow Tasks, and do not create a third pool merely to retrigger registration.
 
