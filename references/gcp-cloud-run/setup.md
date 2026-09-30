@@ -157,7 +157,7 @@ gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
 
 | Parameter | Description |
 |---|---|
-| `--image` | The image pushed in Step 3. |
+| `--image` | The digest recorded after Step 3. |
 | `--service-account` | The **runner** service account instances run as. **Not** the invoker Temporal impersonates. → `iam.md`. |
 | `--instances` | Set to `0`; the WCI takes ownership of the count when the Worker Deployment Version is registered. |
 | `--set-env-vars` | Non-secret configuration. |
