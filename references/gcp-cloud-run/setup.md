@@ -12,21 +12,28 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - `gcloud` CLI installed and authenticated. The Google Cloud console or Terraform also work.
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
 - A Temporal SDK supported by this skill: Go, Python, TypeScript, Java, or .NET.
+- A Temporal Cloud API key that can access the target Namespace. Create one in the Temporal Cloud UI under **Settings → API Keys**, or, after showing the operation and receiving approval, with `tcld apikey create --name <NAME> --duration <DURATION>`. `tcld` creates a key for its current user; prefer a service-account-owned key for shared or long-lived Workers and a short-lived user key for a personal test. The same credential is needed in two places: the operator's Temporal CLI profile and the Worker's Secret Manager secret.
 
 <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
-The `temporal` CLI commands in Steps 6 and 7 must inherit authentication from an existing profile or from the process environment. **Never append `--api-key <value>` or put the key in an inline assignment.** If `TEMPORAL_API_KEY` is not already populated, set it privately in the user's own terminal without putting the value in shell history:
+The `temporal` CLI commands in Steps 6–8 need address, Namespace, and API-key authentication. For an agent-driven run, configure a named profile in the user's own terminal: an exported variable in that terminal does not reach the agent's shell. Never append `--api-key <value>` or put the key in an inline assignment.
 
 ```bash
-export TEMPORAL_ADDRESS="<address>:7233"
-export TEMPORAL_NAMESPACE="<namespace>"
 printf 'Temporal API key: ' >&2
 IFS= read -r -s TEMPORAL_API_KEY
 printf '\n' >&2
-export TEMPORAL_API_KEY
+dots=${TEMPORAL_API_KEY//[^.]/}
+if [ "${#dots}" -ne 2 ]; then
+  printf 'Expected a JWT-shaped key with two dots; profile was not changed\n' >&2
+else
+  temporal --profile <PROFILE> config set --prop address --value "<address>:7233"
+  temporal --profile <PROFILE> config set --prop namespace --value "<namespace>"
+  temporal --profile <PROFILE> config set --prop api_key --value "$TEMPORAL_API_KEY"
+fi
+unset TEMPORAL_API_KEY dots
 ```
 
-Do not run the secret-reading commands through an agent shell, ask the user to paste the key into conversation, or inspect the resulting variable. A configured Temporal CLI profile is equally valid and avoids a session environment variable.
+Do not run the secret-reading commands through an agent shell, ask the user to paste the key into conversation, or inspect the resulting variable. On macOS the default profile file is `~/Library/Application Support/temporalio/temporal.toml`. The examples below pass `--profile <PROFILE>` explicitly; omit it only when using a different already-configured authentication mechanism, including self-hosted mTLS.
 
 ## Prepare a clean GCP project
 
@@ -62,19 +69,27 @@ gcloud iam service-accounts create <RUNNER_SERVICE_ACCOUNT_ID> \
   --project <YOUR_GCP_PROJECT>
 ```
 
-Create the Secret Manager secret before deploying the pool:
+Create the Secret Manager secret before deploying the pool, then add the API key without a trailing newline. Run the version command only in the user's own terminal:
 
 ```bash
 gcloud secrets create <SECRET_NAME> \
   --replication-policy automatic \
   --project <YOUR_GCP_PROJECT>
 
-gcloud secrets versions add <SECRET_NAME> \
-  --data-file=- \
-  --project <YOUR_GCP_PROJECT>
+printf 'Temporal API key: ' >&2
+IFS= read -r -s TEMPORAL_API_KEY
+printf '\nlen=%s\n' "${#TEMPORAL_API_KEY}" >&2
+dots=${TEMPORAL_API_KEY//[^.]/}
+if [ "${#dots}" -ne 2 ]; then
+  printf 'Expected a JWT-shaped key with two dots; secret version was not added\n' >&2
+else
+  printf %s "$TEMPORAL_API_KEY" | gcloud secrets versions add <SECRET_NAME> \
+    --data-file=- --project <YOUR_GCP_PROJECT>
+fi
+unset TEMPORAL_API_KEY dots
 ```
 
-Run the `versions add` command only in the user's own terminal, provide the Temporal API key on standard input, and then send EOF. Never ask for the value in conversation or run it through an agent shell where input or output may be captured.
+`gcloud` stores standard input byte for byte, so pasting the key, pressing Enter, and then sending EOF stores a newline and corrupts the credential. Secret versions are immutable: if a bad version was added, add a correct version as above, confirm `latest` selects it, and then disable or destroy the bad version as appropriate.
 
 Grant only the runner access to that secret:
 
@@ -106,11 +121,22 @@ Follow the selected SDK's Cloud Run guidance for the container image, runtime, e
 
 ```bash
 gcloud builds submit \
+  <APP_DIR> \
   --tag <REGION>-docker.pkg.dev/<YOUR_GCP_PROJECT>/<REPOSITORY>/my-temporal-worker:build-1 \
   --project <YOUR_GCP_PROJECT>
 ```
 
 Tag the image with the build ID. It keeps image, pool, and Worker Deployment Version aligned, which matters because the compute configuration cannot pin a revision (→ `constraints.md`).
+
+Record the immutable digest after the build:
+
+```bash
+gcloud artifacts docker images describe \
+  <REGION>-docker.pkg.dev/<YOUR_GCP_PROJECT>/<REPOSITORY>/my-temporal-worker:build-1 \
+  --format='value(image_summary.digest)'
+```
+
+Prefer deploying `<IMAGE>@sha256:<DIGEST>` so a later tag update cannot change what the pool runs.
 
 The happy path deliberately uses Cloud Build's global endpoint. Supplying `--region` can require additional regional build and staging-bucket setup, depending on the project's Cloud Build bucket policy. If regional builds are required for a private pool or data-residency policy, pre-create or select the regional source/log buckets, grant the build identity access, and then add `--region <REGION>`.
 
@@ -125,7 +151,7 @@ gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
   --project <YOUR_GCP_PROJECT> \
   --service-account <RUNNER_SERVICE_ACCOUNT> \
   --instances 0 \
-  --set-env-vars TEMPORAL_ADDRESS=<address>:7233,TEMPORAL_NAMESPACE=<namespace>,TEMPORAL_TASK_QUEUE=my-task-queue \
+  --set-env-vars TEMPORAL_ADDRESS=<address>:7233,TEMPORAL_NAMESPACE=<namespace>,TEMPORAL_TASK_QUEUE=my-task-queue,TEMPORAL_DEPLOYMENT_NAME=my-app,TEMPORAL_BUILD_ID=build-1 \
   --set-secrets TEMPORAL_API_KEY=<SECRET_NAME>:latest
 ```
 
@@ -139,6 +165,20 @@ gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
 
 **Put the API key in Secret Manager from the start.** Do not introduce a plaintext environment-variable deployment step.
 
+Wait for Cloud Run to report the pool ready and record the ready revision:
+
+```bash
+gcloud run worker-pools describe my-temporal-worker-pool-build-1 \
+  --region <REGION> --project <YOUR_GCP_PROJECT> \
+  --format='yaml(status.conditions,status.latestReadyRevisionName)'
+
+gcloud run worker-pools revisions describe <LATEST_READY_REVISION> \
+  --region <REGION> --project <YOUR_GCP_PROJECT> \
+  --format='yaml(status.imageDigest)'
+```
+
+Require the `Ready` condition to be true and the revision digest to match the recorded image digest. A pool can be Ready at zero instances without ever starting the image; registration is the first runtime test.
+
 ## Step 5: Grant Temporal permission to scale the pool
 
 Cloud Run has no invocation grant. Temporal **impersonates an invoker service account** and drives the Cloud Run admin API. Create it with Temporal's Terraform module — the Cloud UI supplies a filled-in template under **Workers → Create Worker Deployment → Access**. → `iam.md` for the module, its variables, and the two-service-account distinction.
@@ -148,9 +188,9 @@ Terraform's `invoker_email` output is what Step 6 needs.
 ## Step 6: Register the Worker Deployment Version
 
 ```bash
-temporal worker deployment create --namespace <NS> --name my-app
+temporal --profile <PROFILE> worker deployment create --namespace <NS> --name my-app
 
-temporal worker deployment create-version \
+temporal --profile <PROFILE> worker deployment create-version \
   --namespace <NS> \
   --deployment-name my-app \
   --build-id build-1 \
@@ -178,7 +218,13 @@ temporal worker deployment create-version \
 | `--gcp-cloud-run-utilization-target` | Target average utilization in `(0, 1]`; defaults to `0.8`. |
 | `--gcp-cloud-run-scale-down-stabilization-duration` | How long the scaler waits after the most recent sync match failure before scaling in; defaults to `90s`. Set it to `0s` to disable the wait. |
 
-The five scaler flags are a coupled group: **either omit all five and accept the defaults (`0`, `30`, `0`, `0.8`, `90s`), or provide all five together.** Supplying only one—even only a higher maximum—fails CLI validation. Providing the group requires Temporal CLI v1.8.3 or later; with an older CLI, upgrade to v1.8.3 or later, or configure Scaling and Lifecycle settings in the Temporal Cloud UI. Omit all five only when the defaults are acceptable for a newly created version. On an existing version, omission leaves its current scaling settings unchanged.
+The accepted scaler group depends on the installed CLI. **Read `temporal worker deployment create-version --help` before constructing the command:**
+
+- CLI v1.8.2 accepts four coupled flags: minimum, maximum, initial, and utilization target. Remove `--gcp-cloud-run-scale-down-stabilization-duration` from the example above.
+- CLI v1.8.3 and later accept all five flags shown above.
+- On either version, omit the whole supported group to accept the defaults (`0`, `30`, `0`, `0.8`, and a server-side `90s` stabilization duration).
+
+Supplying only part of the supported group fails CLI validation. On an existing version, omitting the scaler flags leaves its current settings unchanged.
 
 Through the UI, the version is set current automatically; through the CLI it is a separate step.
 
@@ -190,20 +236,27 @@ Use both views to verify the checkpoint:
 
 ```bash
 # has any Worker ever polled under this version?
-temporal worker deployment describe-version \
-  --namespace <NS> --deployment-name my-app --build-id build-1 --report-task-queue-stats
+temporal --profile <PROFILE> worker deployment describe-version \
+  --namespace <NS> --deployment-name my-app --build-id build-1 \
+  --report-task-queue-stats -o json \
+  | jq -e --arg tq 'my-task-queue' '
+      [.taskQueuesInfos[]? | select(.name == $tq) | .type] as $types
+      | (($types | index("workflow")) != null and
+         ($types | index("activity")) != null)'
 
 # has Temporal ever actually written to the pool?
 gcloud run worker-pools describe my-temporal-worker-pool-build-1 \
   --region <REGION> --project <PROJECT> --format=yaml
 ```
 
-In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. → `diagnostics.md`.
+The `jq -e` checkpoint passes only when `taskQueuesInfos` contains the expected Task Queue with lowercase `workflow` and `activity` types. The field is absent until a Worker actually polls. In the five-SDK test it appeared in about 20–40 seconds; treat that as an observation, not a timeout or service guarantee. If the Worker intentionally polls only one type, require only that type.
+
+In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. That proves only that Temporal wrote the requested pool size; it does not prove that the intended image started or that the Worker bound the Task Queue. Confirm the pool's deployed digest and a Worker startup log that announces the expected deployment name, build ID, and Task Queue. → `diagnostics.md`.
 
 ## Step 7: Set the version current
 
 ```bash
-temporal worker deployment set-current-version \
+temporal --profile <PROFILE> worker deployment set-current-version \
   --namespace <NS> --deployment-name my-app --build-id build-1 --yes
 ```
 
@@ -212,12 +265,14 @@ Without this, new traffic does not route to the version. The registration instan
 ## Step 8: Verify
 
 ```bash
-temporal workflow start \
+temporal --profile <PROFILE> workflow start \
   --namespace <NS> --task-queue my-task-queue \
   --type MyWorkflow --input '"Hello, serverless!"'
 ```
 
 Tasks arriving with no active pollers cause the WCI to raise the instance count; Cloud Run starts an instance, the Worker connects and processes the Task.
+
+A Workflow started immediately after registration normally runs on the instance that registration started; it verifies the warm path, not scale-from-zero. To test the cold path, first wait until the requested count is zero and the logs show the registration instance received `SIGTERM`, then start a second Workflow and measure until the Worker startup/polling log appears.
 
 Confirm from two independent signals:
 
@@ -237,7 +292,7 @@ Scale the pool to zero before deleting the version so its pollers stop without d
 
 1. Unset the current version — a Current version cannot be deleted:
    ```bash
-   temporal worker deployment set-current-version \
+   temporal --profile <PROFILE> worker deployment set-current-version \
      --namespace <NS> --deployment-name my-app --unversioned --yes
    ```
 2. Scale the pool to zero, which ends polling:
@@ -246,9 +301,9 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    ```
 3. Wait for drainage, then delete the version, then the deployment:
    ```bash
-   temporal worker deployment describe-version --namespace <NS> --deployment-name my-app --build-id build-1
-   temporal worker deployment delete-version --namespace <NS> --deployment-name my-app --build-id build-1
-   temporal worker deployment delete --namespace <NS> --name my-app
+   temporal --profile <PROFILE> worker deployment describe-version --namespace <NS> --deployment-name my-app --build-id build-1
+   temporal --profile <PROFILE> worker deployment delete-version --namespace <NS> --deployment-name my-app --build-id build-1
+   temporal --profile <PROFILE> worker deployment delete --namespace <NS> --name my-app
    ```
 4. Delete the Worker Pool:
    ```bash

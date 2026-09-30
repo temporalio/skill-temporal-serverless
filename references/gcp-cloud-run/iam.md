@@ -39,9 +39,22 @@ The invoker also needs **`roles/iam.serviceAccountUser` on the runner service ac
 
 Temporal publishes [`serverless-workers/gcp/cloud-run`](https://github.com/temporalio/terraform-modules/tree/main/modules/serverless-workers/gcp/cloud-run), which creates the invoker service account and applies the grants.
 
-Start from the template under **Workers → Create Worker Deployment → Access** because Temporal Cloud fills in the account-specific `impersonator_service_account_emails`. Its shape is: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:723-744 -->
+Start from the template under **Workers → Create Worker Deployment → Access** because Temporal Cloud fills in the account-specific `impersonator_service_account_emails`. For a standalone root module, declare the Google provider constraint expected by the module and configure the project explicitly; reconcile any existing root constraint before running `terraform init`: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:723-744 -->
 
 ```hcl
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 4.0"
+    }
+  }
+}
+
+provider "google" {
+  project = "<YOUR_GCP_PROJECT>"
+}
+
 module "serverless-worker-cloud-run" {
   source = "github.com/temporalio/terraform-modules//modules/serverless-workers/gcp/cloud-run"
 
@@ -76,6 +89,19 @@ Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when reg
 
 One invoker can serve several pools, so before creating a second one, look for an existing account and consider reusing it. **Do not `terraform destroy` state you did not create.** The module's default `invoker_account_id` may already be owned by an earlier deployment in the project.
 
+```bash
+gcloud iam service-accounts list \
+  --project <PROJECT> \
+  --filter='email:temporal-worker-pool-invoker@<PROJECT>.iam.gserviceaccount.com' \
+  --format='value(email)'
+
+gcloud iam service-accounts get-iam-policy \
+  temporal-worker-pool-invoker@<PROJECT>.iam.gserviceaccount.com \
+  --project <PROJECT>
+```
+
+Use the existing policy as a cross-check for the impersonator identities supplied by the UI template, but do not infer that an account is safe to reuse from its name alone. Confirm who owns its Terraform state and whether its project-level Cloud Run role covers the new pool.
+
 ## Operator GCP permissions
 
 The identity running the `gcloud`/Terraform commands needs, at minimum:
@@ -98,6 +124,8 @@ Run before anything that creates or modifies GCP resources. Confirm the required
 ```bash
 gcloud auth list                                   # which identity
 gcloud config get-value project                    # which project
+gcloud projects describe <PROJECT> --format='value(projectId)'
+gcloud auth application-default print-access-token >/dev/null && echo "terraform ADC: ok"
 gcloud services list --enabled --project <PROJECT> --format='value(config.name)'
 gcloud run worker-pools list --region <REGION> >/dev/null && echo "cloud run: ok"
 gcloud iam service-accounts list >/dev/null && echo "iam read: ok"
@@ -114,3 +142,5 @@ For a same-project build using Cloud Build's default service account, Artifact R
 **Classify an authentication failure before acting on it.** An absent or expired credential may require `gcloud auth login`, or `gcloud auth application-default login` for Terraform; an authenticated identity that is denied a specific action has an authorization problem. Never collect credentials in conversation and never ask the user to paste a service account key — Google recommends against long-lived keys outright.
 
 **Confirm the project explicitly before creating anything.** `gcloud config get-value project` is ambient state that is easy to be wrong about. Name the project in the approval list and verify it rather than trusting the default.
+
+**Allow for IAM propagation.** A newly created service account can return `404` on an immediate IAM-policy binding even though creation succeeded. Re-describe the exact account and retry the same binding after a short wait; do not create a replacement account or rewrite the policy in response to this transient state.

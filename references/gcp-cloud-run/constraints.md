@@ -21,7 +21,7 @@ Cloud Run sends `SIGTERM` during scale-in and can send `SIGKILL` ten seconds lat
 
 **The WCI decides when to remove an instance from Task Queue activity, not from what any individual instance is doing.** It does not track how long an instance has been running or whether it is mid-Activity, so the instance Cloud Run stops may be one that is still executing work. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:112-116 -->
 
-Graceful shutdown lets short work drain but cannot guarantee an Activity will finish. **Use Activity Heartbeats** so interrupted work resumes from its last recorded progress instead of restarting. Record the next unprocessed item only after processing succeeds, then resume from that Heartbeat detail on retry.
+Graceful shutdown lets short work drain but cannot guarantee an Activity will finish. **Use Activity Heartbeats and set a Workflow-side Heartbeat Timeout** so an interrupted attempt is detected and retried promptly. Heartbeat calls without a Heartbeat Timeout do not provide timely recovery; the retry may wait until Start-to-Close expires. Set Start-to-Close above the longest expected attempt and configure a Retry Policy appropriate for the operation. Record the next unprocessed item only after processing succeeds, then resume from that Heartbeat detail on retry. The selected SDK reference includes the complete Activity options.
 
 ## Autoscaling behavior
 
@@ -36,7 +36,9 @@ It sizes to a **target utilization of 80% by default** rather than loading every
 
 **Scale-in is deliberately more conservative than scale-out:** it holds capacity while sync match failures are still occurring and applies a cooldown before reducing the pool. With no work, it can scale to zero; the next sync match failure or backlog scales it back up.
 
-The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, target utilization `0.8`, and scale-down stabilization duration `90s`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. The CLI treats its five scaler settings as a coupled group; see [Register the Worker Deployment Version](setup.md#step-6-register-the-worker-deployment-version) for the exact flags, CLI version requirement, and older-version fallback. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138; temporal worker deployment create-version --help -->
+The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, target utilization `0.8`, and scale-down stabilization duration `90s`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. CLI v1.8.2 couples four flags; v1.8.3 and later couple five. See [Register the Worker Deployment Version](setup.md#step-6-register-the-worker-deployment-version) for the exact forms. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138; temporal worker deployment create-version --help -->
+
+The `90s` duration begins after the most recent sync-match failure and is only one gate in scale-in; it is not a promise that the pool reaches zero 90 seconds after registration or Workflow completion. In the five-SDK test, registration capacity returned to zero in about five minutes, while post-Workflow scale-down took roughly 70 seconds to 2.5 minutes. Treat those as observations from one run per SDK, not guarantees.
 
 An initial count and minimum of zero do not suppress registration. The rate-based algorithm temporarily requests at least one instance when the version is registered so its Task Queues can bind, then normal scaling can return the pool to zero. A pool that later stops growing under backlog is either at its configured maximum or at a regional Cloud Run quota.
 
