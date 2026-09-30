@@ -12,7 +12,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - `gcloud` CLI installed and authenticated. The Google Cloud console or Terraform also work.
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
 - A Temporal SDK supported by this skill: Go, Python, TypeScript, Java, or .NET.
-- A Temporal Cloud API key that can access the target Namespace. Create one in the Temporal Cloud UI under **Settings → API Keys**, or, after showing the operation and receiving approval, with `tcld apikey create --name <NAME> --duration <DURATION>`. `tcld` creates a key for its current user; prefer a service-account-owned key for shared or long-lived Workers and a short-lived user key for a personal test. The same credential is needed in two places: the operator's Temporal CLI profile and the Worker's Secret Manager secret.
+- A Temporal Cloud API key that can access the target Namespace. Create one in the Temporal Cloud UI under **Settings → API Keys**, or, after showing the operation and receiving approval, with `tcld apikey create --name <NAME> --duration <DURATION>`. That command creates a key for the current user; add `--service-account-id <ID>` to create it for an existing service account instead. Prefer a service-account-owned key for shared or long-lived Workers and a short-lived user key for a personal test. The credential is needed twice: in the operator's Temporal CLI profile and in the Worker's Secret Manager runtime secret.
 
 <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
