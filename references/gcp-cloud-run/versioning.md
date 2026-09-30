@@ -14,7 +14,7 @@ Pool-per-build remains the production rule because Temporal identifies a Worker 
 
 ```bash
 gcloud run worker-pools deploy <POOL_NAME> \
-  --image <REGION>-docker.pkg.dev/<PROJECT>/<REPOSITORY>/<IMAGE>:<TAG> \
+  --image <REGION>-docker.pkg.dev/<PROJECT>/<REPOSITORY>/<IMAGE>@sha256:<DIGEST> \
   --region <REGION> \
   --project <PROJECT> \
   --no-promote
