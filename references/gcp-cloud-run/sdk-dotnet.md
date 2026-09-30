@@ -144,6 +144,8 @@ CMD ["dotnet", "MyWorker.dll"]
 
 `MyWorker.dll` must match the project's `<AssemblyName>` (or the project filename when `AssemblyName` is unset), and `<TargetFramework>` must remain `net9.0` for this image. Cloud Run Worker Pools run it as `linux/amd64`.
 
+Save the following alongside the Dockerfile as `.gcloudignore`. The Dockerfile uses `COPY . .`, so excluding local `bin/` and `obj/` prevents stale restore or build output from entering the Cloud Build context:
+
 ```gitignore
 .git
 .gitignore

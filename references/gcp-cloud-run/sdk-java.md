@@ -189,6 +189,8 @@ COPY --from=build /src/target/worker.jar ./worker.jar
 CMD ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/worker.jar"]
 ```
 
+Save the following alongside the Dockerfile as `.gcloudignore` so Cloud Build does not upload local build output or IDE metadata:
+
 ```gitignore
 .git
 .gitignore
