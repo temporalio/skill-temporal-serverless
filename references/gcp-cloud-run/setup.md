@@ -9,7 +9,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - For self-hosted, complete `self-hosted.md` first.
 - Every Workflow must declare a versioning behavior, or the Worker must set a default.
 - A GCP project with billing enabled and permission to enable service APIs and create Worker Pools, Artifact Registry repositories, Cloud Build jobs, service accounts, and Secret Manager secrets.
-- `gcloud` CLI installed and authenticated. The Google Cloud console or Terraform also work.
+- `gcloud` CLI and `jq` installed; authenticate `gcloud` before the preflight. The Google Cloud console or Terraform also work.
 - **Terraform** installed — Temporal ships the IAM setup as a Terraform module.
 - A Temporal SDK supported by this skill: Go, Python, TypeScript, Java, or .NET.
 - A Temporal Cloud API key that can access the target Namespace. Create one in the Temporal Cloud UI under **Settings → API Keys**, or, after showing the operation and receiving approval, with `tcld apikey create --name <NAME> --duration <DURATION>`. That command creates a key for the current user; add `--service-account-id <ID>` to create it for an existing service account instead. Prefer a service-account-owned key for shared or long-lived Workers and a short-lived user key for a personal test. The credential is needed twice: in the operator's Temporal CLI profile and in the Worker's Secret Manager runtime secret.
@@ -136,7 +136,7 @@ gcloud artifacts docker images describe \
   --format='value(image_summary.digest)'
 ```
 
-Prefer deploying `<IMAGE>@sha256:<DIGEST>` so a later tag update cannot change what the pool runs.
+Deploy the recorded digest rather than the mutable tag so a later tag update cannot change what the pool runs.
 
 The happy path deliberately uses Cloud Build's global endpoint. Supplying `--region` can require additional regional build and staging-bucket setup, depending on the project's Cloud Build bucket policy. If regional builds are required for a private pool or data-residency policy, pre-create or select the regional source/log buckets, grant the build identity access, and then add `--region <REGION>`.
 
@@ -146,7 +146,7 @@ The happy path deliberately uses Cloud Build's global endpoint. Supplying `--reg
 
 ```bash
 gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
-  --image <REGION>-docker.pkg.dev/<YOUR_GCP_PROJECT>/<REPOSITORY>/my-temporal-worker:build-1 \
+  --image <REGION>-docker.pkg.dev/<YOUR_GCP_PROJECT>/<REPOSITORY>/my-temporal-worker@sha256:<DIGEST> \
   --region <REGION> \
   --project <YOUR_GCP_PROJECT> \
   --service-account <RUNNER_SERVICE_ACCOUNT> \
@@ -218,7 +218,7 @@ temporal --profile <PROFILE> worker deployment create-version \
 | `--gcp-cloud-run-utilization-target` | Target average utilization in `(0, 1]`; defaults to `0.8`. |
 | `--gcp-cloud-run-scale-down-stabilization-duration` | How long the scaler waits after the most recent sync match failure before scaling in; defaults to `90s`. Set it to `0s` to disable the wait. |
 
-The accepted scaler group depends on the installed CLI. **Read `temporal worker deployment create-version --help` before constructing the command:**
+The accepted scaler group depends on the installed CLI. **Read `temporal worker deployment create-version --help` before constructing the command. This is the canonical compatibility guidance for scaler flags:**
 
 - CLI v1.8.2 accepts four coupled flags: minimum, maximum, initial, and utilization target. Remove `--gcp-cloud-run-scale-down-stabilization-duration` from the example above.
 - CLI v1.8.3 and later accept all five flags shown above.
@@ -232,24 +232,12 @@ Through the UI, the version is set current automatically; through the CLI it is 
 
 Creating the Worker Deployment Version starts its WCI, which temporarily raises the pool to at least one instance so the Worker can bind its Task Queues. This occurs even when the minimum and initial instance counts are `0`. Wait for the expected Task Queue types before setting the version current. The separate UI **Validate Connection** action checks pool read access only and is not a substitute for this registration check. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:824-827 -->
 
-Use both views to verify the checkpoint:
+First run the machine-checkable [Task Queue binding check](diagnostics.md#start-here-did-the-expected-worker-bind). Do not continue until it finds the expected Task Queue and types. Then verify that Temporal wrote to the pool:
 
 ```bash
-# has any Worker ever polled under this version?
-temporal --profile <PROFILE> worker deployment describe-version \
-  --namespace <NS> --deployment-name my-app --build-id build-1 \
-  --report-task-queue-stats -o json \
-  | jq -e --arg tq 'my-task-queue' '
-      [.taskQueuesInfos[]? | select(.name == $tq) | .type] as $types
-      | (($types | index("workflow")) != null and
-         ($types | index("activity")) != null)'
-
-# has Temporal ever actually written to the pool?
 gcloud run worker-pools describe my-temporal-worker-pool-build-1 \
   --region <REGION> --project <PROJECT> --format=yaml
 ```
-
-The `jq -e` checkpoint passes only when `taskQueuesInfos` contains the expected Task Queue with lowercase `workflow` and `activity` types. The field is absent until a Worker actually polls. In the five-SDK test it appeared in about 20–40 seconds; treat that as an observation, not a timeout or service guarantee. If the Worker intentionally polls only one type, require only that type.
 
 In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. That proves only that Temporal wrote the requested pool size; it does not prove that the intended image started or that the Worker bound the Task Queue. Confirm the pool's deployed digest and a Worker startup log that announces the expected deployment name, build ID, and Task Queue. → `diagnostics.md`.
 

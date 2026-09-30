@@ -98,20 +98,9 @@ Registration performs this bootstrap: the WCI reads the pool, updates its manual
 
 ### Re-run a failed registration bootstrap
 
-Fix the image, configuration, credentials, or IAM cause first. Then re-submit the existing compute configuration; the WDV update path reruns the registration bootstrap:
+Fix the image, configuration, credentials, or IAM cause first. A successful compute-configuration change runs the WCI update path and registration bootstrap, but resubmitting an unchanged configuration has not been verified as an in-place retry mechanism. Do not rely on an unchanged update to repair registration.
 
-```bash
-  temporal --profile <PROFILE> worker deployment update-version-compute-config \
-  --namespace <NS> --deployment-name <NAME> --build-id <BUILD_ID> \
-  --gcp-cloud-run-project <PROJECT> \
-  --gcp-cloud-run-region <REGION> \
-  --gcp-cloud-run-worker-pool <POOL_NAME> \
-  --gcp-cloud-run-service-account <INVOKER_SERVICE_ACCOUNT>
-```
-
-Watch for a new registration Activity, then rerun the binding check. Do not create a third pool merely to retrigger registration.
-
-Delete and recreate the WDV only as a guarded fallback: confirm it is neither Current nor Ramping and its drainage status is `DRAINED`, obtain approval, delete it, and wait for its old WCI Workflow to close before recreating it. A test run observed about 40 seconds; use Workflow state rather than that duration as the gate. Never delete a version that may still receive Pinned Workflow Tasks.
+The tested recovery is to delete and recreate the WDV under strict guards: confirm it is neither Current nor Ramping and its drainage status is `DRAINED`, obtain approval, delete it, and wait for its old WCI Workflow to close before recreating it. A test run observed about 40 seconds; use Workflow state rather than that duration as the gate. Never delete a version that may still receive Pinned Workflow Tasks, and do not create a third pool merely to retrigger registration.
 
 ### 3. Is the version current?
 
@@ -137,7 +126,7 @@ temporal --profile <PROFILE> worker deployment update-version-compute-config \
     --gcp-cloud-run-scale-down-stabilization-duration 90s
   ```
 
-  Choose values appropriate for the version rather than blindly copying this default-shaped example; the initial count must be between the minimum and maximum. The example is for CLI v1.8.3 and later; remove the stabilization flag on v1.8.2. Follow the [CLI compatibility and coupled-flag guidance](setup.md#step-6-register-the-worker-deployment-version) when changing these settings. Omitting the scaler flags leaves the existing settings unchanged and does not resolve a pool that is already at its ceiling.
+  Choose values appropriate for the version rather than blindly copying this default-shaped example; the initial count must be between the minimum and maximum. Before running it, adapt the complete flag group using the canonical [CLI compatibility and coupled-flag guidance](setup.md#step-6-register-the-worker-deployment-version). Omitting the scaler flags leaves the existing settings unchanged and does not resolve a pool that is already at its ceiling.
 - If the count stalls *below the configured maximum*, check the project's [Cloud Run quotas](https://cloud.google.com/run/quotas) for that region. Cloud Run caps instances and CPU per region regardless of what the WCI requests.
 
 ## Instances are running but Tasks are not completing
