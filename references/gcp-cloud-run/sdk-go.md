@@ -215,4 +215,4 @@ if err := otelPlugin.Shutdown(flushCtx); err != nil {
 }
 ```
 
-Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete maintained example is in [samples-go PR #554](https://github.com/temporalio/samples-go/pull/554).
+Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete example under review is in [samples-go PR #554](https://github.com/temporalio/samples-go/pull/554).
