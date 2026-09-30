@@ -117,6 +117,8 @@ Two things the Worker must do:
 
 Follow the selected SDK's Cloud Run guidance for the container image, runtime, entrypoint, certificate requirements, and memory settings.
 
+The basic path uses one Worker container. If the user asks for OpenTelemetry export to Google Cloud, use the multi-container Worker Pool manifest and Collector sidecar described in `observability.md` instead of trying to add the sidecar with this file's single-container `deploy` command.
+
 ## Step 3: Build and push the image
 
 ```bash

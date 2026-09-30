@@ -1,12 +1,30 @@
 # GCP Cloud Run — observability
 
-## Use standard Worker telemetry
+## OpenTelemetry on Cloud Run
 
-**A Cloud Run Serverless Worker emits the same traces and metrics as a Worker anywhere else.** It is an ordinary long-lived Worker, so the SDK's normal metrics and OpenTelemetry tracing setup applies unchanged, and each SDK's general observability guide is the right reference. <!-- docs/develop/go/workers/serverless-workers/cloud-run.mdx:115-118; docs/develop/python/workers/serverless-workers/cloud-run.mdx:132-135; docs/develop/typescript/workers/serverless-workers/cloud-run.mdx:139-142; docs/develop/java/workers/serverless-workers/cloud-run.mdx:152-155; docs/develop/dotnet/workers/serverless-workers/cloud-run.mdx:138-141 -->
+**A Cloud Run Serverless Worker is an ordinary long-lived Worker, so OpenTelemetry remains optional.** Standard SDK logging and telemetry configuration still works. Do not add a Collector sidecar when the user has not asked for telemetry export.
 
-Do not add provider-specific helper layers, collector environment variables, or invocation-deadline flush logic. Export telemetry as you would from any long-lived container.
+When OpenTelemetry is required, prefer the SDK's Cloud Run OpenTelemetry helper where one is available. The Go, Python, Java, and .NET helpers configure Temporal SDK/Core metrics and traces for OTLP/gRPC export to a local Collector and provide a bounded shutdown flush. TypeScript currently uses the SDK's standard OpenTelemetry integration instead. See the selected `sdk-<language>.md` reference for the exact package and setup.
 
-Some SDKs add optional Cloud Run conveniences, such as OpenTelemetry helpers. **They are optional**, and where they exist they are documented in that SDK's Cloud Run guide. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:31-34 -->
+The recommended Cloud Run topology is:
+
+1. The Worker exports OTLP over gRPC to `http://localhost:4317`.
+2. A [Google-Built OpenTelemetry Collector](https://cloud.google.com/stackdriver/docs/instrumentation/opentelemetry-collector-cloud-run) runs as a sidecar in the same Worker Pool instance.
+3. The Collector exports metrics to Google Managed Service for Prometheus and traces to the Google Cloud Telemetry API, using the runner service account's Application Default Credentials.
+
+Deploy this topology with a multi-container Worker Pool YAML and `gcloud run worker-pools replace`; the single-container `deploy` command in `setup.md` is the basic path. The manifest must:
+
+- make the Worker depend on the Collector with `run.googleapis.com/container-dependencies`;
+- give the Collector a startup probe and pin its image to a tested version rather than `latest`;
+- mount the Collector configuration from Secret Manager;
+- set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` when the SDK helper does not already default to it; and
+- budget CPU and memory for both containers.
+
+Start the Collector before the Worker. On `SIGTERM`, stop the Worker and close the Temporal client before flushing the SDK helper. Keep the flush timeout within Cloud Run's roughly ten-second termination window; the SDK examples use a shorter bounded timeout.
+
+Use the Google collector configuration as the baseline instead of inventing a provider-specific exporter pipeline. For the combined Temporal examples and exact manifests, see the [Cloud Run documentation PR](https://github.com/temporalio/documentation/pull/5292) and the official sample PR for the selected SDK. Do not put the Collector's full YAML in this skill; it changes independently and is easier to verify in the maintained sample.
+
+The runner needs additional roles and APIs only when this optional Collector path is enabled. → `iam.md`.
 
 ## Logs
 
