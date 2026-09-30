@@ -20,7 +20,10 @@ The runtime identity the pool's instances use to reach other Google Cloud servic
 
 - `roles/secretmanager.secretAccessor` on each secret you mount, including the Temporal API key.
 - `roles/logging.logWriter` **only if** the Worker writes through the Cloud Logging API rather than stdout/stderr.
+- `roles/monitoring.metricWriter` and `roles/telemetry.tracesWriter` **only if** the optional OpenTelemetry Collector in `observability.md` exports metrics and traces to Google Cloud.
 - Whatever else your Workflows and Activities call.
+
+The Collector uses the runner's Application Default Credentials. If its configuration is mounted from Secret Manager, the runner also needs `roles/secretmanager.secretAccessor` on that configuration secret. These observability grants belong to the runner, not the invoker.
 
 ## Invoker service account
 
@@ -135,7 +138,7 @@ gcloud secrets describe <SECRET_NAME> --project <PROJECT>
 terraform version
 ```
 
-Required services: `run.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, `iamcredentials.googleapis.com`, and `cloudresourcemanager.googleapis.com`. A `describe` returning Not Found is acceptable for a clean project; record that the named resource will be created and include it in the approval list. A permission error is not the same as absence—stop and resolve access before creating anything.
+Required services: `run.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, `iamcredentials.googleapis.com`, and `cloudresourcemanager.googleapis.com`. When the optional Collector path in `observability.md` is enabled, also enable `monitoring.googleapis.com` and `telemetry.googleapis.com`. A `describe` returning Not Found is acceptable for a clean project; record that the named resource will be created and include it in the approval list. A permission error is not the same as absence—stop and resolve access before creating anything.
 
 For a same-project build using Cloud Build's default service account, Artifact Registry access is normally provided automatically. If the build uses a user-specified service account, the repository is in another project, or an organization policy removed the default grant, inspect that account and grant `roles/artifactregistry.writer` on this repository before submitting the build.
 
