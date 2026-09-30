@@ -22,7 +22,7 @@ Deploy this topology with a multi-container Worker Pool YAML and `gcloud run wor
 
 Start the Collector before the Worker. On `SIGTERM`, stop the Worker and close the Temporal client before flushing the SDK helper. Keep the flush timeout within Cloud Run's roughly ten-second termination window; the SDK examples use a shorter bounded timeout.
 
-Use the Google collector configuration as the baseline instead of inventing a provider-specific exporter pipeline. For the combined Temporal examples and exact manifests, see the [Cloud Run documentation PR](https://github.com/temporalio/documentation/pull/5292) and the official sample PR for the selected SDK. Do not put the Collector's full YAML in this skill; it changes independently and is easier to verify in the maintained sample.
+Use the Collector configuration from the Temporal Cloud Run sample as the baseline instead of inventing a provider-specific exporter pipeline. Keep batching on the traces pipeline only: batching Temporal's cumulative metrics can merge a shutdown flush with a recent periodic export and produce a duplicate Monitoring write. For the combined Temporal examples and exact manifests, see the [Cloud Run documentation PR](https://github.com/temporalio/documentation/pull/5292) and the official sample PR for the selected SDK. Do not put the Collector's full YAML in this skill; it changes independently and is easier to verify in the sample.
 
 The runner needs additional roles and APIs only when this optional Collector path is enabled. → `iam.md`.
 
