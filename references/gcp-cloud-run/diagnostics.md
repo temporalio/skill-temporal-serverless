@@ -98,7 +98,7 @@ Workers → Deployments → select deployment → Actions → **Validate Connect
 
 On failure, check each part of the compute configuration against the pool:
 
-- **Project, region, pool name.** Temporal addresses the pool as `projects/<PROJECT>/locations/<REGION>/workerPools/<POOL_NAME>`. **A wrong region reports the pool as not found, identical to a wrong name** — so a "not found" does not tell you which field is wrong. It can also be a permission failure: while the invoker's grants are still propagating, `ValidateSpec` fails with a 403 on `iam.serviceAccounts.getAccessToken` and the CLI reports the pool as not found. Read the WCI's `ValidateSpec` result before changing any names.
+- **Project, region, pool name.** Temporal addresses the pool as `projects/<YOUR_GCP_PROJECT>/locations/<REGION>/workerPools/<POOL_NAME>`. **A wrong region reports the pool as not found, identical to a wrong name** — so a "not found" does not tell you which field is wrong. It can also be a permission failure: while the invoker's grants are still propagating, `ValidateSpec` fails with a 403 on `iam.serviceAccounts.getAccessToken` and the CLI reports the pool as not found. Read the WCI's `ValidateSpec` result before changing any names.
 - **Impersonation.** Temporal's identity needs `roles/iam.serviceAccountTokenCreator` on the invoker. The Terraform module grants this on Cloud; self-hosted grants it to the server's GCP identity.
 - **Invoker permissions.** `run.workerPools.get` to read, `run.workerPools.update` to scale.
 

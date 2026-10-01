@@ -121,13 +121,13 @@ Strip the `serviceAccount:` prefix before using the values. Show the list to the
 
 ```bash
 gcloud iam service-accounts list \
-  --project <PROJECT> \
-  --filter='email:<INVOKER_ACCOUNT_ID>@<PROJECT>.iam.gserviceaccount.com' \
+  --project <YOUR_GCP_PROJECT> \
+  --filter='email:<INVOKER_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com' \
   --format='value(email)'
 
 gcloud iam service-accounts get-iam-policy \
-  <INVOKER_ACCOUNT_ID>@<PROJECT>.iam.gserviceaccount.com \
-  --project <PROJECT>
+  <INVOKER_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com \
+  --project <YOUR_GCP_PROJECT>
 ```
 
 Do not infer that an account is safe to reuse from its name alone. When the user does name one to reuse, confirm that its project-level Cloud Run role covers the new pool.
@@ -154,14 +154,14 @@ Run before anything that creates or modifies GCP resources. Confirm the required
 ```bash
 gcloud auth list                                   # which identity
 gcloud config get-value project                    # which project
-gcloud projects describe <PROJECT> --format='value(projectId)'
+gcloud projects describe <YOUR_GCP_PROJECT> --format='value(projectId)'
 gcloud auth application-default print-access-token >/dev/null && echo "terraform ADC: ok"
-gcloud services list --enabled --project <PROJECT> --format='value(config.name)'
+gcloud services list --enabled --project <YOUR_GCP_PROJECT> --format='value(config.name)'
 gcloud run worker-pools list --region <REGION> >/dev/null && echo "cloud run: ok"
 gcloud iam service-accounts list >/dev/null && echo "iam read: ok"
-gcloud artifacts repositories describe <REPOSITORY> --location <REGION> --project <PROJECT>
-gcloud iam service-accounts describe <RUNNER_SERVICE_ACCOUNT_EMAIL> --project <PROJECT>
-gcloud secrets describe <SECRET_NAME> --project <PROJECT>
+gcloud artifacts repositories describe <REPOSITORY> --location <REGION> --project <YOUR_GCP_PROJECT>
+gcloud iam service-accounts describe <RUNNER_SERVICE_ACCOUNT_EMAIL> --project <YOUR_GCP_PROJECT>
+gcloud secrets describe <SECRET_NAME> --project <YOUR_GCP_PROJECT>
 terraform version
 ```
 
