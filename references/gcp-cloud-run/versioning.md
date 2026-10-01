@@ -14,9 +14,9 @@ Pool-per-build remains the production rule because Temporal identifies a Worker 
 
 ```bash
 gcloud run worker-pools deploy <POOL_NAME> \
-  --image <REGION>-docker.pkg.dev/<PROJECT>/<REPOSITORY>/<IMAGE>@sha256:<DIGEST> \
+  --image <REGION>-docker.pkg.dev/<YOUR_GCP_PROJECT>/<REPOSITORY>/<IMAGE>@sha256:<DIGEST> \
   --region <REGION> \
-  --project <PROJECT> \
+  --project <YOUR_GCP_PROJECT> \
   --no-promote
 ```
 
@@ -26,7 +26,7 @@ This is a guardrail, not immutable versioning: the pool's revision split remains
 gcloud run worker-pools update-instance-split <POOL_NAME> \
   --to-revisions=<KNOWN_GOOD_REVISION>=100 \
   --region <REGION> \
-  --project <PROJECT>
+  --project <YOUR_GCP_PROJECT>
 ```
 
 `--to-latest` is **not** that rollback: it assigns instances to the current and future `LATEST` revision. Use it only when deliberately removing the sticky `--no-promote` behavior and restoring automatic promotion of future revisions:
@@ -35,7 +35,7 @@ gcloud run worker-pools update-instance-split <POOL_NAME> \
 gcloud run worker-pools update-instance-split <POOL_NAME> \
   --to-latest \
   --region <REGION> \
-  --project <PROJECT>
+  --project <YOUR_GCP_PROJECT>
 ```
 
 After emergency recovery, return to one pool per Build ID for the next release so Temporal version routing and deployed code cannot drift independently.

@@ -271,7 +271,7 @@ First run the machine-checkable [Task Queue binding check](diagnostics.md#start-
 
 ```bash
 gcloud run worker-pools describe my-temporal-worker-pool-build-1 \
-  --region <REGION> --project <PROJECT> --format=yaml
+  --region <REGION> --project <YOUR_GCP_PROJECT> --format=yaml
 ```
 
 In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. That proves only that Temporal wrote the requested pool size; it does not prove that the intended image started or that the Worker bound the Task Queue. Confirm the pool's deployed digest and a Worker startup log that announces the expected deployment name, build ID, and Task Queue. → `diagnostics.md`.
@@ -317,7 +317,7 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    ```
 2. Scale the pool to zero, which ends polling:
    ```bash
-   gcloud run worker-pools update <POOL_NAME> --instances 0 --region <REGION> --project <PROJECT>
+   gcloud run worker-pools update <POOL_NAME> --instances 0 --region <REGION> --project <YOUR_GCP_PROJECT>
    ```
 3. Wait for drainage, then delete the version, then the deployment:
    ```bash
@@ -327,7 +327,7 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    ```
 4. Delete the Worker Pool:
    ```bash
-   gcloud run worker-pools delete <POOL_NAME> --region <REGION> --project <PROJECT>
+   gcloud run worker-pools delete <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
    ```
 5. `terraform destroy` the IAM module — **only if this deployment created it.** One invoker service account can serve several pools, so a shared one may still be in use. → `iam.md`.
 6. Delete the container image from Artifact Registry, and any Secret Manager secrets created for this deployment. Delete the Artifact Registry repository too if this run created it. Ask before revoking a Temporal Cloud API key: it is account-scoped, not deployment-scoped. Once nothing else uses the local CLI profile, remove it with `temporal config delete-profile --profile <PROFILE>`.
