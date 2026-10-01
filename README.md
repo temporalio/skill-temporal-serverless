@@ -31,8 +31,7 @@ It also supports GCP Cloud Run Worker Pools through a separate pool-based path, 
 
 | Area | Supported |
 |---|---|
-| Compute | AWS Lambda — Public Preview |
-| Compute | GCP Cloud Run — Public Preview |
+| Compute | AWS Lambda and GCP Cloud Run — Public Preview |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
 | SDKs | Go, Python, TypeScript, Java, .NET |
 | Other compute providers | Not currently supported by this skill |
