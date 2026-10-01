@@ -188,4 +188,4 @@ export async function myActivity(items: string[]): Promise<string> {
 
 The current combined Cloud Run samples do not define a TypeScript-specific Cloud Run OpenTelemetry helper. Use the TypeScript SDK's standard OpenTelemetry configuration and point its OTLP exporter at the Collector sidecar on `http://localhost:4317`.
 
-Use the multi-container topology and IAM in `observability.md`, keep telemetry optional, and preserve the Worker's existing shutdown handling. Do not substitute a helper from another SDK or claim that one is required. For the SDK configuration, see `docs/develop/typescript/platform/observability`.
+Use the multi-container topology and IAM in `observability.md`, keep telemetry optional, and preserve the Worker's existing shutdown handling. If the application shuts down the OpenTelemetry SDK on exit, bound that shutdown to about one second: with `shutdownForceTime` at nine seconds, little more remains of Cloud Run's roughly ten-second termination window. Do not substitute a helper from another SDK or claim that one is required. For the SDK configuration, see `docs/develop/typescript/platform/observability`.

@@ -228,7 +228,7 @@ For the optional Cloud Run OpenTelemetry path, install the SDK extra validated b
 .venv/bin/python -m pip install 'temporalio[cloud-run-worker-otel]==1.34.0'
 ```
 
-Add the plugin to the same client used by the Worker and flush it after the Worker stops:
+Add the plugin to the same client used by the Worker and flush it after the Worker stops. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
 
 ```python
 from datetime import timedelta
@@ -243,7 +243,7 @@ client = await Client.connect(
 # After the Worker context exits:
 traces_flushed = await asyncio.to_thread(
     plugin.shutdown,
-    timedelta(seconds=2),
+    timedelta(seconds=1),
 )
 ```
 

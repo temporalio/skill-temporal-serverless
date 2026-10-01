@@ -291,7 +291,7 @@ For the optional Cloud Run OpenTelemetry path, add the released helper alongside
 </dependency>
 ```
 
-Register the plugin on the service stubs so it propagates to the client and Worker, then run its bounded flush hook during shutdown:
+Register the plugin on the service stubs so it propagates to the client and Worker, then run its bounded flush hook during shutdown. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
 
 ```java
 CloudRunOpenTelemetryPlugin otelPlugin =
@@ -306,7 +306,7 @@ WorkflowServiceStubsOptions serviceOptions =
 WorkflowServiceStubs service = WorkflowServiceStubs.newServiceStubs(serviceOptions);
 
 // After the Worker factory has terminated:
-otelPlugin.newFlushHook().run(Duration.ofSeconds(2));
+otelPlugin.newFlushHook().run(Duration.ofSeconds(1));
 service.shutdown();
 ```
 
