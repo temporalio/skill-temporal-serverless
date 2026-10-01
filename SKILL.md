@@ -74,10 +74,10 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 **Word each item as plain language about what happens, not as a compressed step title,** and name both sides concretely — the confirmed compute provider and Temporal, never "both sides." Follow this shape:
 
 > **Scope**
-> ✅ Confirm SDK (Go), compute provider (AWS Lambda), Namespace (`<ns>`), and naming prefix (`<prefix>`)
+> ✅ Confirm SDK (Go), compute provider (`<provider>`), Namespace (`<ns>`), and naming prefix (`<prefix>`)
 >
 > **Access**
-> ⏳ Check credentials and permissions on AWS and on Temporal, then show the exact list of resources to be created and wait for your approval
+> ⏳ Check credentials and permissions for `<provider>` and Temporal, then show the exact list of resources to be created and wait for your approval
 >
 > **Build**
 > ⬜ Write the Worker against the installed package's real API

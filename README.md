@@ -49,7 +49,7 @@ Before starting, make sure you can sign in to:
 - A Temporal Cloud Namespace hosted on AWS, or a compatible self-hosted Temporal Service.
 - For Cloud Run instead: a GCP project with permission to inspect and create Worker Pools, Artifact Registry images, IAM bindings, Secret Manager secrets, and logs, plus a GCP-hosted Namespace or compatible self-hosted Temporal Service.
 
-You do not need to install or configure the AWS CLI, `tcld`, or the Temporal CLI before you begin. The skill checks what is already available and can help set up the tools and supported login flows needed for the task. If you prefer not to install a CLI, or a login method is unavailable, it can guide you through the corresponding Temporal Cloud UI or AWS console steps instead. It never asks you to paste credentials or secrets into the conversation.
+You do not need to install or configure the AWS CLI, `gcloud`, `tcld`, or the Temporal CLI before you begin. The skill checks what is already available and can help set up the tools and supported login flows needed for the task. If you prefer not to install a CLI, or a login method is unavailable, it can guide you through the corresponding Temporal Cloud UI, AWS console, or Google Cloud console steps instead. It never asks you to paste credentials or secrets into the conversation.
 
 ## Installation
 
@@ -181,7 +181,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/gcp-cloud-run/constraints.md`](references/gcp-cloud-run/constraints.md) | Pool lifecycle, autoscaling, scale-in interruption, and mixed-fleet constraints |
 | [`references/gcp-cloud-run/diagnostics.md`](references/gcp-cloud-run/diagnostics.md) | Worker Pool scaling, WCI Activity failures, annotations, quotas, and Worker logs |
 | [`references/gcp-cloud-run/versioning.md`](references/gcp-cloud-run/versioning.md) | One Worker Pool per build ID, immutable releases, and rollback |
-| [`references/gcp-cloud-run/observability.md`](references/gcp-cloud-run/observability.md) | Standard Worker telemetry, Cloud Logging, and provider-specific scaling signals |
+| [`references/gcp-cloud-run/observability.md`](references/gcp-cloud-run/observability.md) | Cloud Run OpenTelemetry helpers, Google-built Collector sidecar, Cloud Logging, and provider-specific scaling signals |
 | [`references/gcp-cloud-run/self-hosted.md`](references/gcp-cloud-run/self-hosted.md) | Self-hosted Temporal Service prerequisites and GCP identity configuration |
 | [`assets/`](assets/) | CloudFormation templates for Temporal invocation roles |
 
