@@ -21,8 +21,8 @@ Do not rely on the locally installed SDK's default framework. For example, a .NE
 ```bash
 dotnet list package
 unzip -p ~/.nuget/packages/temporalio/<version>/temporalio.<version>.nupkg \
-  'lib/net*/Temporalio.xml' \
-  | rg -n -A12 'T:Temporalio\.(Worker\.WorkerDeploymentOptions|Common\.WorkerDeploymentVersion)'
+  'lib/netstandard2.0/Temporalio.xml' \
+  | grep -n -A12 -E 'T:Temporalio\.(Worker\.WorkerDeploymentOptions|Common\.WorkerDeploymentVersion)'
 ```
 
 Run `dotnet restore` first so the `.nupkg` and XML documentation exist locally. If inspection runs in a temporary SDK container, mount the NuGet cache and install `unzip`; `NUGET_XMLDOC_MODE=skip` removes the XML file this command needs.
