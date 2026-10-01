@@ -197,7 +197,7 @@ For the optional Cloud Run OpenTelemetry path, add the released contrib module:
 go get go.temporal.io/sdk/contrib/gcp/cloudrun/otel@v0.1.0
 ```
 
-Create the plugin before dialing and append it to the client options. When this optional path is enabled, remove the main example's `defer c.Close()` and make shutdown order explicit: `w.Run` stops the Worker before it returns, then close the client, then flush telemetry.
+Create the plugin before dialing and append it to the client options. When this optional path is enabled, remove the main example's `defer c.Close()` and make shutdown order explicit: `w.Run` stops the Worker before it returns, then close the client, then flush telemetry. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
 
 ```go
 ctx := context.Background()
@@ -216,7 +216,7 @@ if err != nil {
 runErr := w.Run(worker.InterruptCh())
 c.Close()
 
-flushCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+flushCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 flushErr := otelPlugin.Shutdown(flushCtx)
 cancel()
 if flushErr != nil {

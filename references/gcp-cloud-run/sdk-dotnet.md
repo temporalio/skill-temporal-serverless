@@ -248,7 +248,7 @@ For the optional Cloud Run OpenTelemetry path, add the released extension matchi
 dotnet add MyWorker/MyWorker.csproj package Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry --version 1.20.0
 ```
 
-Apply its defaults to the same connect options used by the Worker, retain the returned handle, and flush after the Worker stops:
+Apply its defaults to the same connect options used by the Worker, retain the returned handle, and flush after the Worker stops. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
 
 ```csharp
 using Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry;
@@ -264,7 +264,7 @@ using var telemetry = connectOptions.ApplyGoogleCloudRunOpenTelemetryDefaults();
 var client = await TemporalClient.ConnectAsync(connectOptions);
 
 // After worker.ExecuteAsync returns:
-await telemetry.FlushAsync(TimeSpan.FromSeconds(2));
+await telemetry.FlushAsync(TimeSpan.FromSeconds(1));
 ```
 
 The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the extension unless that Collector path is enabled. The complete example under review is in [samples-dotnet PR #236](https://github.com/temporalio/samples-dotnet/pull/236).
