@@ -20,7 +20,7 @@ Deploy this topology with a multi-container Worker Pool YAML and `gcloud run wor
 - set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` when the SDK helper does not already default to it; and
 - budget CPU and memory for both containers.
 
-Start the Collector before the Worker. On `SIGTERM`, stop the Worker and close the Temporal client before flushing the SDK helper. Keep the flush timeout within Cloud Run's roughly ten-second termination window; the SDK examples use a shorter bounded timeout.
+Start the Collector before the Worker. On `SIGTERM`, stop the Worker and close the Temporal client before flushing the SDK helper. Cloud Run can send `SIGKILL` about ten seconds after `SIGTERM`, and the flush runs after the Worker drains, so **the drain timeout, client close, and flush timeout must fit inside that window together**. With an eight-second drain, keep the flush to one second or less, or shorten the drain when telemetry matters more than in-flight work, for example a six-second drain and a two-second flush.
 
 Use the Collector configuration from the Temporal Cloud Run sample as the baseline instead of inventing a provider-specific exporter pipeline. Keep batching on the traces pipeline only: batching Temporal's cumulative metrics can merge a shutdown flush with a recent periodic export and produce a duplicate Monitoring write. For the combined Temporal examples and exact manifests, see the [Cloud Run documentation PR](https://github.com/temporalio/documentation/pull/5292) and the official sample PR for the selected SDK. Do not put the Collector's full YAML in this skill; it changes independently and is easier to verify in the sample.
 
@@ -30,13 +30,7 @@ The runner needs additional roles and APIs only when this optional Collector pat
 
 Cloud Run collects `stdout` and `stderr` into [Cloud Logging](https://cloud.google.com/run/docs/logging) through its own infrastructure. **The runner service account needs no grant for this** — `roles/logging.logWriter` is required only if the Worker writes through the Cloud Logging API instead. → `iam.md`.
 
-Read a pool's logs:
-
-```bash
-gcloud run worker-pools logs read <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
-```
-
-**A scaled-to-zero pool emits no new logs.** `logs read` returns historical entries; `logs tail` shows new output only while an instance is running.
+Read a pool's logs, including its resize audit entries, with the [pool log query](diagnostics.md#read-the-pool-logs). **A scaled-to-zero pool emits no new logs.**
 
 ## What to watch that is specific to this provider
 

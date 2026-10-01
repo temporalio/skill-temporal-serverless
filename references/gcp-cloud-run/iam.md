@@ -62,15 +62,21 @@ module "serverless-worker-cloud-run" {
   source = "github.com/temporalio/terraform-modules//modules/serverless-workers/gcp/cloud-run"
 
   project_id         = "<YOUR_GCP_PROJECT>"
-  invoker_account_id = "temporal-worker-pool-invoker"
+  invoker_account_id = "<PREFIX>-invoker"
 
   impersonator_service_account_emails = [
     "<provided by Temporal Cloud>",
   ]
 
-  runner_service_account_email = "temporal-worker-pool-runner@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com"
+  runner_service_account_email = "<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com"
+}
+
+output "invoker_email" {
+  value = module.serverless-worker-cloud-run.invoker_email
 }
 ```
+
+The `output` block is required: a module's outputs are not visible from the root module unless it re-exports them, and Step 6 needs `invoker_email`.
 
 | Variable | Required | Description |
 |---|---|---|
@@ -81,29 +87,50 @@ module "serverless-worker-cloud-run" {
 | `invoker_display_name` | No | Defaults to `Temporal Serverless Worker Pool Invoker`. |
 | `deploy_roles` | No | Project-level Cloud Run roles for the invoker. Defaults to `roles/run.developer`. A substitute must include `run.workerPools.get` and `run.workerPools.update`. |
 
+Keep the root module in its own directory, `<TF_DIR>`, and pass `-chdir` instead of changing directory. Plan first, check the plan against the approved resource list, then apply exactly that plan:
+
 ```bash
-terraform init
-terraform apply
+terraform -chdir=<TF_DIR> init
+terraform -chdir=<TF_DIR> plan -out=tfplan
+terraform -chdir=<TF_DIR> show tfplan
+terraform -chdir=<TF_DIR> apply tfplan
+terraform -chdir=<TF_DIR> output -raw invoker_email
 ```
 
-Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when registering the version.
+Applying a saved plan cannot create anything the reviewed plan did not show. If the agent's environment blocks the apply, have the user run `terraform -chdir=<TF_DIR> apply tfplan` in their own terminal; the plan file keeps it identical to what was reviewed.
+
+Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when registering the version, after allowing for IAM propagation (below).
+
+### Where `impersonator_service_account_emails` comes from
+
+The values are Temporal Cloud's identities for **your Temporal Cloud account**, of the form `serverless-<account>@…`. The authoritative source is the UI template above. When the agent cannot see the UI and an invoker created for the same Temporal Cloud account already exists in the project, read the identities from its policy:
+
+```bash
+gcloud iam service-accounts get-iam-policy <EXISTING_INVOKER_EMAIL> \
+  --project <YOUR_GCP_PROJECT> \
+  --flatten='bindings[].members' \
+  --filter='bindings.role:roles/iam.serviceAccountTokenCreator' \
+  --format='value(bindings.members)'
+```
+
+Strip the `serviceAccount:` prefix before using the values. Show the list to the user and get explicit confirmation that these are their account's identities. Never take them from an invoker that belongs to another Temporal Cloud account, and never hard-code them in reusable files.
 
 ### Check for an existing shared invoker
 
-One invoker can serve several pools, so before creating a second one, look for an existing account and consider reusing it. **Do not `terraform destroy` state you did not create.** The module's default `invoker_account_id` may already be owned by an earlier deployment in the project.
+**Default to a dedicated invoker named with the run's prefix**, such as `<PREFIX>-invoker`; service-account IDs are 6–30 characters. Reuse an existing invoker only when the user names it and confirms they own its Terraform state, because an agent cannot establish that ownership itself. Before creating, check that the chosen name is free. **Do not `terraform destroy` state you did not create.** The module's default `invoker_account_id`, `temporal-worker-pool-invoker`, may already belong to an earlier deployment in the project.
 
 ```bash
 gcloud iam service-accounts list \
   --project <PROJECT> \
-  --filter='email:temporal-worker-pool-invoker@<PROJECT>.iam.gserviceaccount.com' \
+  --filter='email:<INVOKER_ACCOUNT_ID>@<PROJECT>.iam.gserviceaccount.com' \
   --format='value(email)'
 
 gcloud iam service-accounts get-iam-policy \
-  temporal-worker-pool-invoker@<PROJECT>.iam.gserviceaccount.com \
+  <INVOKER_ACCOUNT_ID>@<PROJECT>.iam.gserviceaccount.com \
   --project <PROJECT>
 ```
 
-Use the existing policy as a cross-check for the impersonator identities supplied by the UI template, but do not infer that an account is safe to reuse from its name alone. Confirm who owns its Terraform state and whether its project-level Cloud Run role covers the new pool.
+Do not infer that an account is safe to reuse from its name alone. When the user does name one to reuse, confirm that its project-level Cloud Run role covers the new pool.
 
 ## Operator GCP permissions
 
@@ -146,4 +173,4 @@ For a same-project build using Cloud Build's default service account, Artifact R
 
 **Confirm the project explicitly before creating anything.** `gcloud config get-value project` is ambient state that is easy to be wrong about. Name the project in the approval list and verify it rather than trusting the default.
 
-**Allow for IAM propagation.** A newly created service account can return `404` on an immediate IAM-policy binding even though creation succeeded. Re-describe the exact account and retry the same binding after a short wait; do not create a replacement account or rewrite the policy in response to this transient state.
+**Allow for IAM propagation.** A newly created service account can return `404` on an immediate IAM-policy binding even though creation succeeded. Re-describe the exact account and retry the same binding after a short wait; do not create a replacement account or rewrite the policy in response to this transient state. The same applies to the grants the Terraform module applies: Temporal's impersonation of the invoker can fail with a 403 on `iam.serviceAccounts.getAccessToken` for a minute or more after `apply`, and `create-version` then reports the pool as not found. → `setup.md` Steps 5 and 6.
