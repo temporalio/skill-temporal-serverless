@@ -12,7 +12,7 @@ Initialize the project and pin the SDK and compiler versions validated for this 
 npm init -y
 npm install @temporalio/activity@1.24.0 @temporalio/client@1.24.0 @temporalio/worker@1.24.0 @temporalio/workflow@1.24.0
 npm install --save-dev typescript@7.0.2 @types/node@22.20.4
-npx tsc --init --rootDir src --outDir dist --module commonjs --target es2022 --esModuleInterop
+npx tsc --init --rootDir src --outDir dist --module commonjs --target es2022 --esModuleInterop --verbatimModuleSyntax false --types node
 npm pkg set scripts.build='tsc' scripts.start='node dist/worker.js'
 ```
 
@@ -29,6 +29,7 @@ Pass `workerDeploymentOptions` to `Worker.create()`. The Worker reads its connec
 
 ```ts
 import { NativeConnection, Worker } from '@temporalio/worker';
+import * as activities from './activities';
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -51,6 +52,7 @@ async function main(): Promise<void> {
     namespace: requiredEnv('TEMPORAL_NAMESPACE'),
     taskQueue,
     workflowsPath: require.resolve('./workflows'),
+    activities,
     workerDeploymentOptions: {
       version: { deploymentName, buildId },
       useWorkerVersioning: true,

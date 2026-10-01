@@ -17,8 +17,8 @@ go get go.temporal.io/sdk@v1.49.0 go.temporal.io/sdk/contrib/envconfig@v1.0.2
 
 ```bash
 SDK_DIR=$(go list -m -f '{{.Dir}}' go.temporal.io/sdk)
-rg -n -A40 'type WorkerDeploymentOptions struct' "$SDK_DIR/internal/worker.go"
-rg -n -A12 'type WorkerDeploymentVersion struct' "$SDK_DIR/internal/worker.go"
+rg -n -A40 --glob '*.go' 'WorkerDeploymentOptions struct' "$SDK_DIR/internal"
+rg -n -A12 --glob '*.go' 'WorkerDeploymentVersion struct' "$SDK_DIR/internal"
 go doc go.temporal.io/sdk/workflow.RegisterOptions
 ```
 
