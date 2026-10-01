@@ -271,7 +271,7 @@ If the application uses `logback-classic`, include an explicit `src/main/resourc
 </configuration>
 ```
 
-Use a logging provider compatible with the SLF4J API version selected by the installed Temporal SDK. If Cloud Logging ever contains an `authorization` or `Bearer` value, restrict the transport logger immediately and rotate the exposed Temporal API key.
+The SDK logs through SLF4J, and the pom above declares no provider. Without one, SDK logs are dropped; the Worker's startup line still prints because it uses `System.out`. Add `ch.qos.logback:logback-classic:1.5.38`: it brings `slf4j-api` 2.0.x, which Maven selects over the SDK's transitive 1.7.36, and with `temporal-sdk` 1.40.0 it binds and logs. Do not downgrade to logback 1.2.x to match the SDK's older SLF4J line. If Cloud Logging ever contains an `authorization` or `Bearer` value, restrict the transport logger immediately and rotate the exposed Temporal API key.
 
 | Log signature | Meaning / action |
 |---|---|

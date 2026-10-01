@@ -6,20 +6,30 @@ Use this reference for Go-specific Worker construction, versioning behavior, con
 
 ## Install and scaffold
 
-From the application directory, initialize the module and pin the versions validated for this guide. `contrib/envconfig` is a separate Go module:
+Initialize the module and pin the versions validated for this guide. Use `go -C <APP_DIR>` instead of changing directory. `contrib/envconfig` is a separate Go module:
 
 ```bash
-go mod init example.com/myapp
-go get go.temporal.io/sdk@v1.49.0 go.temporal.io/sdk/contrib/envconfig@v1.0.2
+go -C <APP_DIR> mod init example.com/myapp
+go -C <APP_DIR> get go.temporal.io/sdk@v1.49.0 go.temporal.io/sdk/contrib/envconfig@v1.0.2
+```
+
+The examples assume this layout: the Workflows and Activities in the module's root package, imported as `example.com/myapp`, and the Worker's `main` in `cmd/worker/`:
+
+```text
+<APP_DIR>/
+  go.mod  go.sum
+  workflows.go  activities.go     # package myapp
+  cmd/worker/main.go              # package main
+  Dockerfile  .gcloudignore
 ```
 
 ## Inspect the versioning API before generating code
 
 ```bash
-SDK_DIR=$(go list -m -f '{{.Dir}}' go.temporal.io/sdk)
-rg -n -A40 --glob '*.go' 'WorkerDeploymentOptions struct' "$SDK_DIR/internal"
-rg -n -A12 --glob '*.go' 'WorkerDeploymentVersion struct' "$SDK_DIR/internal"
-go doc go.temporal.io/sdk/workflow.RegisterOptions
+SDK_DIR=$(go -C <APP_DIR> list -m -f '{{.Dir}}' go.temporal.io/sdk)
+grep -rn -A40 --include='*.go' 'WorkerDeploymentOptions struct' "$SDK_DIR/internal"
+grep -rn -A12 --include='*.go' 'WorkerDeploymentVersion struct' "$SDK_DIR/internal"
+go -C <APP_DIR> doc go.temporal.io/sdk/workflow.RegisterOptions
 ```
 
 The exported Worker types are aliases, so ordinary `go doc` may print only `type X = internal.Y`; inspect the aliased definitions in the installed module as above.

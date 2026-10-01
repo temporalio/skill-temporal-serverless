@@ -10,8 +10,8 @@ Initialize the project and pin the SDK and compiler versions validated for this 
 
 ```bash
 npm init -y
-npm install @temporalio/activity@1.24.0 @temporalio/client@1.24.0 @temporalio/worker@1.24.0 @temporalio/workflow@1.24.0
-npm install --save-dev typescript@7.0.2 @types/node@22.20.4
+npm install --save-exact @temporalio/activity@1.24.0 @temporalio/client@1.24.0 @temporalio/worker@1.24.0 @temporalio/workflow@1.24.0
+npm install --save-exact --save-dev typescript@7.0.2 @types/node@22.20.4
 npx tsc --init --rootDir src --outDir dist --module commonjs --target es2022 --esModuleInterop --verbatimModuleSyntax false --types node
 npm pkg set scripts.build='tsc' scripts.start='node dist/worker.js'
 ```

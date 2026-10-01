@@ -15,12 +15,23 @@ python3 -m venv .venv
 .venv/bin/python -m pip freeze > requirements.txt
 ```
 
+Run every local Python command through `.venv/bin/python`, so it uses the pinned SDK rather than the system interpreter. The examples assume this layout; the image runs the Worker with `python -m worker`:
+
+```text
+<APP_DIR>/
+  requirements.txt
+  worker.py          # main()
+  my_workflows.py    # MyWorkflow
+  my_activities.py   # my_activity
+  Dockerfile  .gcloudignore
+```
+
 ## Inspect the versioning API before generating code
 
 ```bash
-python -c "import temporalio.worker as w; print([n for n in dir(w) if 'Deployment' in n])"
-python -c "from temporalio.worker import WorkerDeploymentConfig; help(WorkerDeploymentConfig)"
-python -c "from temporalio.common import VersioningBehavior; print(list(VersioningBehavior))"
+.venv/bin/python -c "import temporalio.worker as w; print([n for n in dir(w) if 'Deployment' in n])"
+.venv/bin/python -c "from temporalio.worker import WorkerDeploymentConfig; help(WorkerDeploymentConfig)"
+.venv/bin/python -c "from temporalio.common import VersioningBehavior; print(list(VersioningBehavior))"
 ```
 
 ## Versioned Worker
@@ -102,7 +113,7 @@ class MyWorkflow:
 
 ## Connection configuration
 
-`temporalio.envconfig` loads client configuration from environment variables and an optional TOML file. Set non-secret values with `--set-env-vars` on the pool and mount the API key or TLS material from Secret Manager with `--set-secrets`. → `setup.md` Step 4.
+`temporalio.envconfig` loads client configuration from environment variables and an optional TOML file. The variables it reads include `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY`, `TEMPORAL_PROFILE`, `TEMPORAL_CONFIG_FILE`, and the `TEMPORAL_TLS_*` settings. **Setting an API key turns TLS on** with default options unless TLS is configured explicitly, so a Temporal Cloud Worker needs no separate TLS variable. Set non-secret values with `--set-env-vars` on the pool and mount the API key or TLS material from Secret Manager with `--set-secrets`. → `setup.md` Step 4.
 
 `ClientConfig.load_client_connect_config()` returns keyword arguments for `Client.connect`, which is why it is unpacked with `**`. To inspect or override values first, load the profile instead:
 
