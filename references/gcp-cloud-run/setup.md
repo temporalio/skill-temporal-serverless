@@ -262,7 +262,9 @@ temporal --profile <PROFILE> workflow start \
 
 Tasks arriving with no active pollers cause the WCI to raise the instance count; Cloud Run starts an instance, the Worker connects and processes the Task.
 
-A Workflow started immediately after registration normally runs on the instance that registration started; it verifies the warm path, not scale-from-zero. To test the cold path, first wait until the requested count is zero and the logs show the registration instance received `SIGTERM`, then start a second Workflow and measure until the Worker startup/polling log appears.
+The scaler minimum is `0`, and the pool normally returns to zero within a few minutes after registration or work completes. Do not wait for scale-to-zero during normal verification: the Workflow above verifies routing and execution, but registration scale-down can race it, so do not classify that run as reliably warm or cold.
+
+Test scale-from-zero only when the user explicitly asks for a cold-path test. It adds roughly four to five minutes per run in observed tests. Wait until the requested count is zero and the logs show the previous instance received `SIGTERM`, then start a second Workflow and measure until the Worker startup/polling log appears.
 
 Confirm from two independent signals:
 
