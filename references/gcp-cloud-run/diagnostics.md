@@ -30,14 +30,14 @@ temporal --profile <PROFILE> worker deployment describe-version \
 
 The decisive registration signal is `taskQueuesInfos` containing the expected Task Queue with lowercase `workflow` and `activity` types. The field is absent until a Worker identifying as this deployment and build ID polls. If the Worker intentionally polls only one type, adjust the predicate to require only that type. Provider writes, requested capacity, and a Running WCI support the diagnosis but do not replace this check.
 
-First registration can take several minutes because Cloud Run must provision and start the pool's first instance before the Worker can poll. In a later five-SDK test, four bindings appeared after 224–278 seconds. Treat this as an observation, not a timeout or service guarantee.
+First registration can take several minutes because Cloud Run must provision and start the pool's first instance before the Worker can poll. In observed test runs, initial binding ranged from under a minute to about five minutes. Treat this as operational guidance, not a timeout or service guarantee.
 
 | Result | Interpretation | Next check |
 |---|---|---|
 | Expected Task Queue types are bound | Registration succeeded for this WDV. | Confirm the version is current, then diagnose Task execution. |
 | No binding; `lastModifier` is not the invoker | Temporal may not have written the pool. | Validate the compute fields, WCI Activity results, impersonation, and `run.workerPools.update`. |
-| No binding; pool is not Ready or is still provisioning; no container logs exist | Cloud Run has accepted the requested capacity but has not started the first instance yet. | Wait and watch the pool's Ready condition and worker-pool logs; do not diagnose the image before a container starts. |
-| No binding; invoker wrote a count of at least 1 | The provider accepted capacity, but the intended Worker did not poll. | Compare image digests and read the Worker's startup identity log for deployment, build ID, and Task Queue. |
+| No binding; requested count is at least 1; no container startup logs exist | Cloud Run has accepted the requested capacity but has not started the first instance yet. | Wait and watch the worker-pool logs; do not diagnose the image before a container starts. |
+| No binding; invoker wrote a count of at least 1; container logs exist | The provider started capacity, but the intended Worker did not poll. | Compare image digests and read the Worker's startup identity log for deployment, build ID, and Task Queue. |
 | Binding exists but Tasks do not progress | Startup and registration worked; the failure is downstream. | Check current-version routing, Workflow history, and Worker Task logs. |
 
 While the first instance is provisioning, watch both surfaces:
@@ -47,11 +47,11 @@ gcloud run worker-pools describe <POOL_NAME> \
   --region <REGION> --project <YOUR_GCP_PROJECT> \
   --format='yaml(status.conditions,status.latestReadyRevisionName)'
 
-gcloud logging read 'resource.type="cloud_run_worker_pool"' \
-  --project <YOUR_GCP_PROJECT> --freshness=15m --limit=50
+gcloud run worker-pools logs read <POOL_NAME> \
+  --region <REGION> --project <YOUR_GCP_PROJECT>
 ```
 
-Only move to image, identity, or Task Queue diagnosis after the pool is Ready or container startup logs exist.
+Only move to image, identity, or Task Queue diagnosis after container startup logs exist. If none appear after about five minutes, inspect the pool's current provisioning state and conditions before treating registration as failed.
 
 ## Read the pool's annotations
 
