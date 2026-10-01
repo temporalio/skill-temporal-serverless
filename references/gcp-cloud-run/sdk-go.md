@@ -197,21 +197,33 @@ For the optional Cloud Run OpenTelemetry path, add the released contrib module:
 go get go.temporal.io/sdk/contrib/gcp/cloudrun/otel@v0.1.0
 ```
 
-Create the plugin before dialing, append it to the client options, and flush it only after the Worker and client have stopped:
+Create the plugin before dialing and append it to the client options. When this optional path is enabled, remove the main example's `defer c.Close()` and make shutdown order explicit: `w.Run` stops the Worker before it returns, then close the client, then flush telemetry.
 
 ```go
+ctx := context.Background()
 otelPlugin, err := otel.NewPlugin(ctx, otel.PluginOptions{})
 if err != nil {
 	log.Fatalln("Unable to create OpenTelemetry plugin", err)
 }
 clientOptions := envconfig.MustLoadDefaultClientOptions()
 clientOptions.Plugins = append(clientOptions.Plugins, otelPlugin)
+c, err := client.Dial(clientOptions)
+if err != nil {
+	log.Fatalln("Unable to create client", err)
+}
 
-// After w.Stop() and c.Close():
+// After constructing and registering w as in the main example:
+runErr := w.Run(worker.InterruptCh())
+c.Close()
+
 flushCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-defer cancel()
-if err := otelPlugin.Shutdown(flushCtx); err != nil {
-	log.Println("Failed to flush OpenTelemetry", err)
+flushErr := otelPlugin.Shutdown(flushCtx)
+cancel()
+if flushErr != nil {
+	log.Println("Failed to flush OpenTelemetry", flushErr)
+}
+if runErr != nil {
+	log.Fatalln("Unable to run worker", runErr)
 }
 ```
 
