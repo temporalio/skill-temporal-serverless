@@ -149,6 +149,17 @@ gcloud artifacts docker images describe \
 
 Deploy the recorded digest rather than the mutable tag so a later tag update cannot change what the pool runs.
 
+Confirm the image targets the platform Cloud Run runs, `linux/amd64`, before deploying it. With Docker available, inspect the digest rather than the tag; on a multi-platform index the same format prints one entry per platform instead of a single value:
+
+```bash
+gcloud auth configure-docker <REGION>-docker.pkg.dev   # once, if Docker is not yet authorized for this registry
+docker buildx imagetools inspect \
+  <REGION>-docker.pkg.dev/<YOUR_GCP_PROJECT>/<REPOSITORY>/my-temporal-worker@sha256:<DIGEST> \
+  --format '{{.Image.OS}}/{{.Image.Architecture}}'
+```
+
+Expect exactly `linux/amd64`. `gcloud auth configure-docker` edits the user's Docker configuration, so mention it in the approval list if it has not been run before. A platform mismatch surfaces only when the instance starts, as a container that never logs.
+
 The happy path deliberately uses Cloud Build's global endpoint. Supplying `--region` can require additional regional build and staging-bucket setup, depending on the project's Cloud Build bucket policy. If regional builds are required for a private pool or data-residency policy, pre-create or select the regional source/log buckets, grant the build identity access, and then add `--region <REGION>`.
 
 ## Step 4: Create the Worker Pool
