@@ -87,7 +87,7 @@ The `output` block is required: a module's outputs are not visible from the root
 | `invoker_display_name` | No | Defaults to `Temporal Serverless Worker Pool Invoker`. |
 | `deploy_roles` | No | Project-level Cloud Run roles for the invoker. Defaults to `roles/run.developer`. A substitute must include `run.workerPools.get` and `run.workerPools.update`. |
 
-Keep the root module in its own directory, `<TF_DIR>`, and pass `-chdir` instead of changing directory. Plan first, check the plan against the approved resource list, then apply exactly that plan:
+Keep the root module in its own directory, `<TF_DIR>`, **outside the app directory**, so `gcloud builds submit` does not upload its state and provider binaries to Cloud Build. Pass `-chdir` instead of changing directory. Plan first, check the plan against the approved resource list, then apply exactly that plan:
 
 ```bash
 terraform -chdir=<TF_DIR> init
@@ -113,7 +113,7 @@ gcloud iam service-accounts get-iam-policy <EXISTING_INVOKER_EMAIL> \
   --format='value(bindings.members)'
 ```
 
-Strip the `serviceAccount:` prefix before using the values. Show the list to the user and get explicit confirmation that these are their account's identities. Never take them from an invoker that belongs to another Temporal Cloud account, and never hard-code them in reusable files.
+Strip the `serviceAccount:` prefix before using the values. Use only identities whose `serverless-<account>` part matches the Temporal Cloud account, which in practice is the suffix after the last `.` of its Namespace names; a project can also hold invokers for other accounts and for Temporal's test environment. Show the list to the user and get explicit confirmation that these are their account's identities. Never take them from an invoker that belongs to another Temporal Cloud account, and never hard-code them in reusable files.
 
 ### Check for an existing shared invoker
 
@@ -165,7 +165,7 @@ gcloud secrets describe <SECRET_NAME> --project <YOUR_GCP_PROJECT>
 terraform version
 ```
 
-Required services: `run.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, `iamcredentials.googleapis.com`, and `cloudresourcemanager.googleapis.com`. When the optional Collector path in `observability.md` is enabled, also enable `monitoring.googleapis.com` and `telemetry.googleapis.com`. A `describe` returning Not Found is acceptable for a clean project; record that the named resource will be created and include it in the approval list. A permission error is not the same as absence—stop and resolve access before creating anything.
+Required services: `run.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, `iamcredentials.googleapis.com`, and `cloudresourcemanager.googleapis.com`. When the optional Collector path in `observability.md` is enabled, also enable `monitoring.googleapis.com` and `telemetry.googleapis.com`. A `describe` returning Not Found is acceptable for a clean project; record that the named resource will be created and include it in the approval list. A permission error is not the same as absence—stop and resolve access before creating anything. One exception: a recently deleted service account can return a permission error from `describe`; check service accounts with `gcloud iam service-accounts list --filter='email:<EMAIL>'` instead.
 
 For a same-project build using Cloud Build's default service account, Artifact Registry access is normally provided automatically. If the build uses a user-specified service account, the repository is in another project, or an organization policy removed the default grant, inspect that account and grant `roles/artifactregistry.writer` on this repository before submitting the build.
 
