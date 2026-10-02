@@ -29,30 +29,7 @@ With Serverless Workers, Temporal starts the Worker. <!-- docs/encyclopedia/work
 
 ### Worker Controller Instance (WCI)
 
-The Worker Controller Instance (WCI) is a system Workflow that scales Serverless Workers based on Task Queue conditions. <!-- docs/encyclopedia/workers/serverless-workers.mdx:66 -->
-One WCI Workflow runs per Worker Deployment Version that has a compute provider configured. The WCI runs in the same Namespace as your Worker Deployment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:67-68 -->
-
-The WCI responds to two triggers: sync match failures and Task Queue backlog. When either trigger fires, the WCI produces a scaling action, such as invoking the configured compute provider (for example, calling AWS Lambda's `InvokeFunction` API) to start new Workers. <!-- docs/encyclopedia/workers/serverless-workers.mdx:70-72 -->
-
-You can list WCI Workflows in your Namespace: <!-- docs/encyclopedia/workers/serverless-workers.mdx:75 -->
-
-```bash
-temporal workflow list \
-  --namespace <NAMESPACE> \
-  --query 'TemporalNamespaceDivision = "TemporalWorkerControllerInstance"'
-```
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:77-81 -->
-
-WCI Workflow IDs follow the pattern `temporal-sys-worker-controller-instance:<deployment-name>:<build-id>`. <!-- docs/encyclopedia/workers/serverless-workers.mdx:83 -->
-
-You can inspect a WCI Workflow's history to see its recent Activity results: <!-- docs/encyclopedia/workers/serverless-workers.mdx:83-84 -->
-
-```bash
-temporal workflow show \
-  --namespace <NAMESPACE> \
-  --workflow-id 'temporal-sys-worker-controller-instance:<DEPLOYMENT_NAME>:<BUILD_ID>'
-```
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:86-90 -->
+Temporal coordinates serverless scaling through the WCI. See [Worker Controller Instance (WCI)](wci.md) for its lifecycle, Task Queue inputs, Workflow ID pattern, and inspection commands.
 
 ### Invocation flow
 
@@ -69,19 +46,7 @@ Each invocation is independent. The Worker creates a fresh client connection on 
 
 ## Autoscaling
 
-The WCI automatically scales Serverless Workers based on Task Queue signals. When Tasks arrive and no Worker is available, the WCI invokes new Workers. When the Tasks are done, Workers exit and scale to zero. <!-- docs/encyclopedia/workers/serverless-workers.mdx:117-118 -->
-
-The WCI uses two signals to decide when to invoke new Workers: <!-- docs/encyclopedia/workers/serverless-workers.mdx:120 -->
-
-### Sync match failure
-
-When a Task is submitted, the Matching Service attempts to route it directly to an available Worker. If no Worker is available, the sync match fails, and the Matching Service pushes a signal to the WCI. The WCI then invokes a new Worker. This is the primary scaling path. <!-- docs/encyclopedia/workers/serverless-workers.mdx:124-126 -->
-
-Because the Matching Service pushes match failures to the WCI as they happen rather than the WCI polling on a timer, latency stays low and scaling is responsive. <!-- docs/encyclopedia/workers/serverless-workers.mdx:126-128 -->
-
-### Task Queue backlog
-
-The WCI monitors Task Queue metadata to determine whether pending Tasks exist without enough Workers to process them. If there are Tasks on the queue and not enough Workers, the WCI invokes additional Workers. <!-- docs/encyclopedia/workers/serverless-workers.mdx:132-133 -->
+The shared [WCI inputs](wci.md#inputs) cause Lambda function invocations when Tasks need Workers. Each Worker exits when its invocation finishes, allowing the Lambda fleet to scale to zero. <!-- docs/encyclopedia/workers/serverless-workers.mdx:117-133 -->
 
 ## Scaling with long-lived Workers
 
