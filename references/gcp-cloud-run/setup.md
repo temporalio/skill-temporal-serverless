@@ -18,7 +18,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 
 The `temporal` CLI commands in Steps 6–8 authenticate through a named CLI profile that the user creates during the [API-key hand-off](#hand-off-the-temporal-api-key). An exported variable in the user's terminal does not reach the agent's shell, so do not rely on `TEMPORAL_API_KEY` there. Never append `--api-key <value>` or put the key in an inline assignment. On macOS the default profile file is `~/Library/Application Support/temporalio/temporal.toml`. The examples below pass `--profile <PROFILE>` explicitly; omit it only when using a different already-configured authentication mechanism, including self-hosted mTLS.
 
-**Use the endpoint Temporal Cloud shows for the Namespace.** Copy the gRPC endpoint from the Namespace page in the Cloud UI, or from the endpoint fields in `tcld namespace get --namespace <NAMESPACE>` output when `tcld` is signed in. Do not construct it from the Namespace name or region. Use the same value, written `<ENDPOINT>` below, for the CLI profile and for the pool's `TEMPORAL_ADDRESS`.
+**Use the endpoint Temporal Cloud shows for the Namespace.** Copy the gRPC endpoint from the Namespace page in the Cloud UI, or from `tcld namespace get --namespace <NAMESPACE>` when `tcld` is signed in: `.uri.grpc` is the Namespace endpoint and `.uri.regionalGrpc` the regional API endpoint. Both worked with API-key authentication in test runs; prefer `.uri.grpc` unless the user already uses the regional one. Do not construct it from the Namespace name or region. Use the same value, written `<ENDPOINT>` below, for the CLI profile and for the pool's `TEMPORAL_ADDRESS`.
 
 ## Prepare a clean GCP project
 
@@ -64,7 +64,7 @@ gcloud secrets create <SECRET_NAME> \
 
 ### Hand off the Temporal API key
 
-The user runs this once, after the resource list is approved and the secret exists, **in their own interactive terminal**. It reads the key once, then writes both the CLI profile and the secret version. Do not run it through the agent's shell or a `!`-prefixed command: `read -s` needs a terminal, and the key would pass through the agent's session. Work that needs no key, such as writing the Worker and building the image, can continue meanwhile.
+The user runs this once, after the resource list is approved and the secret exists, **in their own interactive terminal**. It reads the key once, then writes both the CLI profile and the secret version. Do not run it through the agent's shell or a `!`-prefixed command: `read -s` needs a terminal, and the key would pass through the agent's session. Steps 1–3 and Step 5's Terraform need no key and can continue meanwhile. **Step 4 must wait:** the pool deploy fails until the secret has an `ENABLED` version.
 
 ```bash
 (
@@ -100,6 +100,8 @@ gcloud secrets versions list <SECRET_NAME> --project <YOUR_GCP_PROJECT> \
 
 Never read back `api_key` with `temporal config get`, and never run `gcloud secrets versions access`. The `worker deployment list` call proves the profile authenticates to the Namespace. Expect exactly one `ENABLED` secret version. If the hand-off ran more than once, keep the newest version, confirm the pool uses `latest`, and disable the older ones with `gcloud secrets versions disable <VERSION> --secret <SECRET_NAME> --project <YOUR_GCP_PROJECT>`. Secret versions are immutable: replace a bad one by adding a correct version, never by editing it.
 
+**If the user already has a CLI profile and a secret**, for example from an earlier deployment, reuse them instead of running the hand-off. Confirm the profile with the read-back commands above, always passing `--namespace`: a profile's stored Namespace can differ from the target. Confirm the secret has an `ENABLED` version with `gcloud secrets versions list`, then ask the user to confirm that it holds the same key as the profile; you must not read either value. Record a reused secret as shared, so teardown keeps it.
+
 Grant only the runner access to that secret:
 
 ```bash
@@ -109,7 +111,7 @@ gcloud secrets add-iam-policy-binding <SECRET_NAME> \
   --project <YOUR_GCP_PROJECT>
 ```
 
-Before each create, use the corresponding `describe` command from `iam.md` to avoid colliding with shared resources. The invoker service account is created later by Temporal's Terraform module; do not substitute it for the runner.
+This grant is a secret-store write that the agent's environment may block; if it does, give the user the command to run in their own terminal. Before each create, use the corresponding `describe` command from `iam.md` to avoid colliding with shared resources. The invoker service account is created later by Temporal's Terraform module; do not substitute it for the runner.
 
 ## Step 1: Write Worker code
 
@@ -165,6 +167,14 @@ The happy path deliberately uses Cloud Build's global endpoint. Supplying `--reg
 ## Step 4: Create the Worker Pool
 
 **Create one pool per Worker Deployment Version, initially at zero instances.**
+
+**Deploy only after the secret has an `ENABLED` version:**
+
+```bash
+gcloud secrets versions list <SECRET_NAME> --project <YOUR_GCP_PROJECT> --filter='state:ENABLED'
+```
+
+Deploying earlier fails with `secret_key_ref… versions/latest was not found`, even at zero instances, and still creates the pool with a revision that never becomes Ready (`SecretsAccessCheckFailed`). If that happens, add the version and re-run the same deploy command; this is safe while no Worker Deployment Version points at the pool.
 
 ```bash
 gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
@@ -283,15 +293,26 @@ temporal --profile <PROFILE> worker deployment set-current-version \
   --namespace <NS> --deployment-name my-app --build-id build-1 --yes
 ```
 
-Without this, new traffic does not route to the version. The registration instance may already have started and bound the Task Queue, but that bootstrap does not make the version current. The command prompts for confirmation. **When run non-interactively without `--yes`, it exits having changed nothing**, which reads as success. Read the state back with `temporal worker deployment describe`.
+Without this, new traffic does not route to the version. The registration instance may already have started and bound the Task Queue, but that bootstrap does not make the version current. The command prompts for confirmation. **When run non-interactively without `--yes`, it exits having changed nothing**, which reads as success. Read the state back:
+
+```bash
+temporal --profile <PROFILE> worker deployment describe \
+  --namespace <NS> --name my-app -o json \
+  | jq -e '.routingConfig.currentVersionDeploymentName == "my-app"
+           and .routingConfig.currentVersionBuildID == "build-1"'
+```
+
+These field names were observed with CLI v1.8.2.
 
 ## Step 8: Verify
 
 ```bash
 temporal --profile <PROFILE> workflow start \
   --namespace <NS> --task-queue my-task-queue \
-  --type MyWorkflow --input '"Hello, serverless!"'
+  --type <WORKFLOW_TYPE> --input '"Hello, serverless!"'
 ```
+
+Use the Workflow type the selected SDK guide registers: `MyWorkflow` for Go and Python, `myWorkflow` for TypeScript, and `GreetingWorkflow` for Java and .NET.
 
 Tasks arriving with no active pollers cause the WCI to raise the instance count; Cloud Run starts an instance, the Worker connects and processes the Task.
 
@@ -306,7 +327,7 @@ Confirm from two independent signals:
 
 ## Teardown
 
-Record what you create as you go: project and region; the Artifact Registry repository, image tag and digest; the pool name; the runner and invoker service accounts, and whether this run created the invoker; the Terraform state directory; the secret and its versions; the deployment name, build ID, and Task Queue; the local CLI profile name; and who created the Temporal API key.
+Record what you create as you go: project and region; the Artifact Registry repository, image tag and digest; the pool name; the runner and invoker service accounts, and whether this run created the invoker; the Terraform state directory; the secret and its versions, and whether it is shared; the deployment name, build ID, and Task Queue; the local CLI profile name; and who created the Temporal API key.
 
 Scale the pool to zero before deleting the version so its pollers stop without destroying the pool prematurely.
 
@@ -319,10 +340,16 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    ```bash
    gcloud run worker-pools update <POOL_NAME> --instances 0 --region <REGION> --project <YOUR_GCP_PROJECT>
    ```
-3. Wait for drainage, then delete the version, then the deployment:
+3. Delete the version once it has no pollers and is not draining, then delete the deployment. Scaled-down instances keep polling briefly, and `delete-version` refuses a draining version; in test runs it returned `cannot be deleted since it is draining` for about three minutes. Retry rather than adding `--skip-drainage`:
    ```bash
-   temporal --profile <PROFILE> worker deployment describe-version --namespace <NS> --deployment-name my-app --build-id build-1
-   temporal --profile <PROFILE> worker deployment delete-version --namespace <NS> --deployment-name my-app --build-id build-1
+   temporal --profile <PROFILE> worker deployment describe-version \
+     --namespace <NS> --deployment-name my-app --build-id build-1 -o json \
+     | jq -r '.drainageInfo.drainageStatus // empty'
+   for i in $(seq 1 12); do
+     temporal --profile <PROFILE> worker deployment delete-version \
+       --namespace <NS> --deployment-name my-app --build-id build-1 && break
+     sleep 30
+   done
    temporal --profile <PROFILE> worker deployment delete --namespace <NS> --name my-app
    ```
 4. Delete the Worker Pool:
@@ -330,4 +357,15 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    gcloud run worker-pools delete <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
    ```
 5. `terraform destroy` the IAM module — **only if this deployment created it.** One invoker service account can serve several pools, so a shared one may still be in use. → `iam.md`.
-6. Delete the container image from Artifact Registry, and any Secret Manager secrets created for this deployment. Delete the Artifact Registry repository too if this run created it. Ask before revoking a Temporal Cloud API key: it is account-scoped, not deployment-scoped. Once nothing else uses the local CLI profile, remove it with `temporal config delete-profile --profile <PROFILE>`.
+6. Remove the runner's access to the secret, then delete the runner service account if this run created it:
+   ```bash
+   gcloud secrets remove-iam-policy-binding <SECRET_NAME> \
+     --member="serviceAccount:<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com" \
+     --role roles/secretmanager.secretAccessor --project <YOUR_GCP_PROJECT>
+   gcloud iam service-accounts delete \
+     <RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com \
+     --project <YOUR_GCP_PROJECT> --quiet
+   ```
+7. Delete the container image from Artifact Registry, and any Secret Manager secret this run created that no other deployment uses; keep a reused or shared secret. Delete the Artifact Registry repository too if this run created it. Ask before revoking a Temporal Cloud API key: it is account-scoped, not deployment-scoped. Once nothing else uses the local CLI profile, remove it with `temporal config delete-profile --profile <PROFILE>`.
+
+Confirm each deletion with a list command rather than `describe`: a recently deleted service account can return `PERMISSION_DENIED` from `describe` instead of `NOT_FOUND`. For example, `gcloud iam service-accounts list --project <YOUR_GCP_PROJECT> --filter='email:<EMAIL>' --format='value(email)'` prints nothing once the account is gone.

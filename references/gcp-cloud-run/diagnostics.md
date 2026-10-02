@@ -55,6 +55,8 @@ gcloud logging read \
   --project <YOUR_GCP_PROJECT> --freshness=15m --limit=50
 ```
 
+If the pool's latest revision is not Ready with reason `SecretsAccessCheckFailed`, the pool was deployed before the secret had an `ENABLED` version or before the runner could read it; fix that and re-run the deploy ([`setup.md`](setup.md#step-4-create-the-worker-pool) Step 4).
+
 Only move to image, identity, or Task Queue diagnosis after container startup logs exist. If the requested count returns to `0` before any container startup log appears, registration lost the race; see [Re-run a failed registration bootstrap](#re-run-a-failed-registration-bootstrap). If the count stays at `1` and nothing has started after about five minutes, inspect the pool's provisioning state and conditions.
 
 ## Read the pool's annotations
