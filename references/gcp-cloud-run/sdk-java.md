@@ -197,6 +197,9 @@ Save the following alongside the Dockerfile as `.gcloudignore` so Cloud Build do
 .idea
 target
 *.iml
+terraform/
+.terraform/
+*.tfstate*
 ```
 
 Cloud Run Worker Pools run this image as `linux/amd64`. The JVM reads the container memory limit but defaults the maximum heap to a quarter of it, leaving most of a small instance unused. A pool defaults to 512 MiB per instance, so raise `--memory` when creating it if the Worker needs more. → `setup.md` Step 2.

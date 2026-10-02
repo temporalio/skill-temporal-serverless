@@ -153,6 +153,9 @@ Save the following alongside the Dockerfile as `.gcloudignore`. The Dockerfile u
 bin
 obj
 TestResults
+terraform/
+.terraform/
+*.tfstate*
 ```
 
 The Debian-based runtime image above includes CA certificates. Verify that any alternative runtime image also provides a readable CA bundle. → `setup.md` Step 2.

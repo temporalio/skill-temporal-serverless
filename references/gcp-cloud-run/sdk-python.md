@@ -156,6 +156,9 @@ Use this `.gcloudignore`:
 __pycache__
 .pytest_cache
 *.pyc
+terraform/
+.terraform/
+*.tfstate*
 ```
 
 Change `worker` only if the module containing `main()` has a different name. Python shares the Rust core, so the runtime image needs `ca-certificates`. → `setup.md` Step 2.

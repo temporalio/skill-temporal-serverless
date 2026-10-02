@@ -143,6 +143,9 @@ Place this `.gcloudignore` beside the Dockerfile so build context does not inclu
 bin
 dist
 tmp
+terraform/
+.terraform/
+*.tfstate*
 ```
 
 The distroless image includes system CA roots. Adjust `./cmd/worker` only if the actual main package lives elsewhere. → `setup.md` Step 2.

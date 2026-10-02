@@ -136,6 +136,9 @@ CMD ["node", "dist/worker.js"]
 node_modules
 dist
 npm-debug.log
+terraform/
+.terraform/
+*.tfstate*
 ```
 
 Cloud Run Worker Pools run this image as `linux/amd64`.
