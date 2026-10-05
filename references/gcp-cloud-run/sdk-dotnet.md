@@ -2,7 +2,7 @@
 
 <!-- Source: docs/develop/dotnet/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for .NET-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
+Use this reference for .NET-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`. Scoping (Namespace, GCP project, region), the API-key hand-off, IAM, registration, and verification are the same for every SDK and are defined once in `SKILL.md` and `setup.md`; do not vary them per SDK. This guide's sample is one Workflow that takes a string and returns `Hello, <name>!`, which is what `setup.md` Step 8 verifies.
 
 ## Install and scaffold
 
@@ -25,7 +25,21 @@ unzip -p ~/.nuget/packages/temporalio/<version>/temporalio.<version>.nupkg \
   | grep -n -A12 -E 'T:Temporalio\.(Worker\.WorkerDeploymentOptions|Common\.WorkerDeploymentVersion)'
 ```
 
-Run `dotnet restore` first so the `.nupkg` and XML documentation exist locally. If inspection runs in a temporary SDK container, mount the NuGet cache and install `unzip`; `NUGET_XMLDOC_MODE=skip` removes the XML file this command needs.
+Run `dotnet restore` first so the `.nupkg` and XML documentation exist locally.
+
+**Without a local .NET SDK**, run the install-and-scaffold commands in the SDK image instead. The image sets `NUGET_XMLDOC_MODE=skip`, which drops the XML documentation this inspection reads, so override it, and mount the NuGet cache so the package stays on the host:
+
+```bash
+docker run --rm -e NUGET_XMLDOC_MODE=none \
+  -v <APP_DIR>:/src -v <NUGET_CACHE>:/root/.nuget/packages -w /src \
+  mcr.microsoft.com/dotnet/sdk:9.0 sh -c '
+    dotnet new console --framework net9.0 --name MyWorker &&
+    dotnet add MyWorker/MyWorker.csproj package Temporalio --version 1.20.0 &&
+    dotnet add MyWorker/MyWorker.csproj package Microsoft.Extensions.Logging.Console --version 9.0.0 &&
+    dotnet build MyWorker/MyWorker.csproj'
+```
+
+Then run the `unzip` inspection above on the host against `<NUGET_CACHE>/temporalio/1.20.0/temporalio.1.20.0.nupkg`. On Apple Silicon, add `--platform linux/arm64` to avoid running the image under emulation. Cloud Build still compiles the image you deploy.
 
 ## Versioned Worker
 
@@ -44,11 +58,18 @@ var buildId = Environment.GetEnvironmentVariable("TEMPORAL_BUILD_ID")
 var taskQueue = Environment.GetEnvironmentVariable("TEMPORAL_TASK_QUEUE")
     ?? throw new InvalidOperationException("TEMPORAL_TASK_QUEUE must be set");
 
+var address = Environment.GetEnvironmentVariable("TEMPORAL_ADDRESS")
+    ?? throw new InvalidOperationException("TEMPORAL_ADDRESS must be set");
+var temporalNamespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE")
+    ?? throw new InvalidOperationException("TEMPORAL_NAMESPACE must be set");
+var apiKey = Environment.GetEnvironmentVariable("TEMPORAL_API_KEY")
+    ?? throw new InvalidOperationException("TEMPORAL_API_KEY must be set");
+
 var client = await TemporalClient.ConnectAsync(
-    new(Environment.GetEnvironmentVariable("TEMPORAL_ADDRESS")!)
+    new(address)
     {
-        Namespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE")!,
-        ApiKey = Environment.GetEnvironmentVariable("TEMPORAL_API_KEY"),
+        Namespace = temporalNamespace,
+        ApiKey = apiKey,
         Tls = new(),
     });
 
@@ -168,46 +189,60 @@ Cloud Run sends `SIGTERM`, which is distinct from the `SIGINT` raised by Ctrl+C.
 
 ## Keep Activities safe across scale-in
 
-Apply the Heartbeat-resume invariant from `constraints.md` in .NET:
+Apply the Heartbeat-resume invariant from `constraints.md`. This is the sample's only Workflow: it takes one string and calls one Activity with Heartbeat and retry options.
 
 ```csharp
 using Temporalio.Common;
 using Temporalio.Workflows;
 
-var result = await Workflow.ExecuteActivityAsync(
-    () => GreetingActivities.ProcessAsync(items),
-    new ActivityOptions
-    {
-        StartToCloseTimeout = TimeSpan.FromMinutes(10),
-        HeartbeatTimeout = TimeSpan.FromSeconds(10),
-        RetryPolicy = new RetryPolicy
-        {
-            InitialInterval = TimeSpan.FromSeconds(1),
-            MaximumAttempts = 5,
-        },
-    });
-```
-
-The Activity records the next item to process:
-
-```csharp
-[Activity]
-public static async Task<string> ProcessAsync(IReadOnlyList<string> items)
+[Workflow]
+public class GreetingWorkflow
 {
-    var context = ActivityExecutionContext.Current;
-    var info = context.Info;
-    var startIndex = info.HeartbeatDetails.Count > 0
-        ? await info.HeartbeatDetailAtAsync<int>(0)
-        : 0;
-
-    for (var i = startIndex; i < items.Count; i++)
-    {
-        // ... process items[i]
-        context.Heartbeat(i + 1);
-    }
-    return "done";
+    [WorkflowRun]
+    public async Task<string> RunAsync(string name) =>
+        await Workflow.ExecuteActivityAsync(
+            () => GreetingActivities.ProcessAsync(name),
+            new ActivityOptions
+            {
+                StartToCloseTimeout = TimeSpan.FromMinutes(10),
+                HeartbeatTimeout = TimeSpan.FromSeconds(10),
+                RetryPolicy = new RetryPolicy
+                {
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumAttempts = 5,
+                },
+            });
 }
 ```
+
+The Activity records the next step to run, so a retry after scale-in resumes there instead of starting over. Each step must be safe to repeat:
+
+```csharp
+using Temporalio.Activities;
+
+public static class GreetingActivities
+{
+    [Activity]
+    public static async Task<string> ProcessAsync(string name)
+    {
+        string[] steps = ["validate", "compose", "record"];
+        var context = ActivityExecutionContext.Current;
+        var info = context.Info;
+        var startIndex = info.HeartbeatDetails.Count > 0
+            ? await info.HeartbeatDetailAtAsync<int>(0)
+            : 0;
+
+        for (var i = startIndex; i < steps.Length; i++)
+        {
+            // ... run steps[i] for name
+            context.Heartbeat(i + 1);
+        }
+        return $"Hello, {name}!";
+    }
+}
+```
+
+To log from an Activity, use `ActivityExecutionContext.Current.Logger.LogInformation(...)`. It needs `using Microsoft.Extensions.Logging;`, which a console project's implicit usings do not include.
 
 → `constraints.md` for what else follows from the pool model.
 

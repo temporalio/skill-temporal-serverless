@@ -2,7 +2,7 @@
 
 <!-- Source: docs/develop/typescript/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for TypeScript-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
+Use this reference for TypeScript-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`. Scoping (Namespace, GCP project, region), the API-key hand-off, IAM, registration, and verification are the same for every SDK and are defined once in `SKILL.md` and `setup.md`; do not vary them per SDK. This guide's sample is one Workflow that takes a string and returns `Hello, <name>!`, which is what `setup.md` Step 8 verifies.
 
 ## Install and scaffold
 
@@ -84,7 +84,7 @@ Every Workflow needs `'PINNED'` or `'AUTO_UPGRADE'`. `defaultVersioningBehavior`
 import { setWorkflowOptions } from '@temporalio/workflow';
 
 setWorkflowOptions({ versioningBehavior: 'PINNED' }, myWorkflow);
-export async function myWorkflow(): Promise<string> {
+export async function myWorkflow(name: string): Promise<string> {
   // ...
 }
 ```
@@ -149,7 +149,7 @@ The versioned Worker example uses `await worker.run()`. The TypeScript SDK Runti
 
 ## Keep Activities safe across scale-in
 
-Apply the Heartbeat-resume invariant from `constraints.md` in TypeScript:
+Apply the Heartbeat-resume invariant from `constraints.md`. This is the sample's only Workflow: it takes one string and calls one Activity with Heartbeat and retry options.
 
 ```ts
 import { proxyActivities } from '@temporalio/workflow';
@@ -164,24 +164,25 @@ const { myActivity } = proxyActivities<typeof activities>({
   },
 });
 
-export async function myWorkflow(items: string[]): Promise<string> {
-  return myActivity(items);
+export async function myWorkflow(name: string): Promise<string> {
+  return myActivity(name);
 }
 ```
 
-The Activity records the next item to process:
+The Activity records the next step to run, so a retry after scale-in resumes there instead of starting over. Each step must be safe to repeat:
 
 ```ts
 import { activityInfo, heartbeat } from '@temporalio/activity';
 
-export async function myActivity(items: string[]): Promise<string> {
+export async function myActivity(name: string): Promise<string> {
+  const steps = ['validate', 'compose', 'record'];
   const startIndex = (activityInfo().heartbeatDetails as number | undefined) ?? 0;
 
-  for (let i = startIndex; i < items.length; i++) {
-    // ... process items[i]
+  for (let i = startIndex; i < steps.length; i++) {
+    // ... run steps[i] for name
     heartbeat(i + 1);
   }
-  return 'done';
+  return `Hello, ${name}!`;
 }
 ```
 

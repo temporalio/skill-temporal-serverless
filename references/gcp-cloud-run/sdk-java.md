@@ -2,7 +2,7 @@
 
 <!-- Source: docs/develop/java/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for Java-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
+Use this reference for Java-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`. Scoping (Namespace, GCP project, region), the API-key hand-off, IAM, registration, and verification are the same for every SDK and are defined once in `SKILL.md` and `setup.md`; do not vary them per SDK. This guide's sample is one Workflow that takes a string and returns `Hello, <name>!`, which is what `setup.md` Step 8 verifies.
 
 ## Install and scaffold
 
@@ -57,12 +57,12 @@ public final class Main {
     String deploymentName = requireEnv("TEMPORAL_DEPLOYMENT_NAME");
     String buildId = requireEnv("TEMPORAL_BUILD_ID");
     String taskQueue = requireEnv("TEMPORAL_TASK_QUEUE");
-    String apiKey = System.getenv("TEMPORAL_API_KEY");
+    String apiKey = requireEnv("TEMPORAL_API_KEY");
 
     WorkflowServiceStubs service =
         WorkflowServiceStubs.newServiceStubs(
             WorkflowServiceStubsOptions.newBuilder()
-                .setTarget(System.getenv("TEMPORAL_ADDRESS"))
+                .setTarget(requireEnv("TEMPORAL_ADDRESS"))
                 .setEnableHttps(true)
                 .addApiKey(() -> apiKey)
                 .build());
@@ -71,7 +71,7 @@ public final class Main {
         WorkflowClient.newInstance(
             service,
             WorkflowClientOptions.newBuilder()
-                .setNamespace(System.getenv("TEMPORAL_NAMESPACE"))
+                .setNamespace(requireEnv("TEMPORAL_NAMESPACE"))
                 .build());
 
     WorkerFactory factory = WorkerFactory.newInstance(client);
@@ -210,42 +210,72 @@ Register the JVM shutdown hook before `factory.start()`, as in the versioned Wor
 
 ## Keep Activities safe across scale-in
 
-Apply the Heartbeat-resume invariant from `constraints.md` in Java:
+Apply the Heartbeat-resume invariant from `constraints.md`. This is the sample's only Workflow: it takes one string and calls one Activity with Heartbeat and retry options.
+
+Each type goes in its own file:
 
 ```java
+import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.workflow.Workflow;
+import io.temporal.workflow.WorkflowInterface;
+import io.temporal.workflow.WorkflowMethod;
 import java.time.Duration;
 
-private final GreetingActivities activities =
-    Workflow.newActivityStub(
-        GreetingActivities.class,
-        ActivityOptions.newBuilder()
-            .setStartToCloseTimeout(Duration.ofMinutes(10))
-            .setHeartbeatTimeout(Duration.ofSeconds(10))
-            .setRetryOptions(
-                RetryOptions.newBuilder()
-                    .setInitialInterval(Duration.ofSeconds(1))
-                    .setMaximumAttempts(5)
-                    .build())
-            .build());
+@WorkflowInterface
+public interface GreetingWorkflow {
+  @WorkflowMethod
+  String run(String name);
+}
+
+@ActivityInterface
+public interface GreetingActivities {
+  String process(String name);
+}
+
+public class GreetingWorkflowImpl implements GreetingWorkflow {
+  private final GreetingActivities activities =
+      Workflow.newActivityStub(
+          GreetingActivities.class,
+          ActivityOptions.newBuilder()
+              .setStartToCloseTimeout(Duration.ofMinutes(10))
+              .setHeartbeatTimeout(Duration.ofSeconds(10))
+              .setRetryOptions(
+                  RetryOptions.newBuilder()
+                      .setInitialInterval(Duration.ofSeconds(1))
+                      .setMaximumAttempts(5)
+                      .build())
+              .build());
+
+  @Override
+  public String run(String name) {
+    return activities.process(name);
+  }
+}
 ```
 
-The Activity records the next item to process:
+The Workflow type is the interface's simple name, `GreetingWorkflow`.
+
+The Activity records the next step to run, so a retry after scale-in resumes there instead of starting over. Each step must be safe to repeat:
 
 ```java
+import io.temporal.activity.Activity;
+import io.temporal.activity.ActivityExecutionContext;
+import java.util.List;
+
 public class GreetingActivitiesImpl implements GreetingActivities {
   @Override
-  public String process(List<String> items) {
+  public String process(String name) {
+    List<String> steps = List.of("validate", "compose", "record");
     ActivityExecutionContext context = Activity.getExecutionContext();
     int startIndex = context.getHeartbeatDetails(Integer.class).orElse(0);
 
-    for (int i = startIndex; i < items.size(); i++) {
-      // ... process items.get(i)
+    for (int i = startIndex; i < steps.size(); i++) {
+      // ... run steps.get(i) for name
       context.heartbeat(i + 1);
     }
-    return "done";
+    return "Hello, " + name + "!";
   }
 }
 ```

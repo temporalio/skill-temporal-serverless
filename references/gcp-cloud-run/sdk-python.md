@@ -2,7 +2,7 @@
 
 <!-- Source: docs/develop/python/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for Python-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
+Use this reference for Python-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`. Scoping (Namespace, GCP project, region), the API-key hand-off, IAM, registration, and verification are the same for every SDK and are defined once in `SKILL.md` and `setup.md`; do not vary them per SDK. This guide's sample is one Workflow that takes a string and returns `Hello, <name>!`, which is what `setup.md` Step 8 verifies.
 
 ## Install and scaffold
 
@@ -54,11 +54,18 @@ from my_activities import my_activity
 from my_workflows import MyWorkflow
 
 
+def require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise SystemExit(f"{name} must be set")
+    return value
+
+
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    deployment_name = os.environ["TEMPORAL_DEPLOYMENT_NAME"]
-    build_id = os.environ["TEMPORAL_BUILD_ID"]
-    task_queue = os.environ["TEMPORAL_TASK_QUEUE"]
+    deployment_name = require_env("TEMPORAL_DEPLOYMENT_NAME")
+    build_id = require_env("TEMPORAL_BUILD_ID")
+    task_queue = require_env("TEMPORAL_TASK_QUEUE")
     client = await Client.connect(**ClientConfig.load_client_connect_config())
 
     worker = Worker(
@@ -169,7 +176,7 @@ Cloud Run sends `SIGTERM` before stopping an instance. The example converts it i
 
 ## Keep Activities safe across scale-in
 
-Apply the Heartbeat-resume invariant from `constraints.md` in Python:
+Apply the Heartbeat-resume invariant from `constraints.md`. This is the sample's only Workflow: it takes one string and calls one Activity with Heartbeat and retry options.
 
 ```python
 from datetime import timedelta
@@ -177,16 +184,17 @@ from datetime import timedelta
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
-from my_activities import my_activity
+with workflow.unsafe.imports_passed_through():
+    from my_activities import my_activity
 
 
 @workflow.defn
 class MyWorkflow:
     @workflow.run
-    async def run(self, items: list[str]) -> str:
+    async def run(self, name: str) -> str:
         return await workflow.execute_activity(
             my_activity,
-            items,
+            name,
             start_to_close_timeout=timedelta(minutes=10),
             heartbeat_timeout=timedelta(seconds=10),
             retry_policy=RetryPolicy(
@@ -196,18 +204,24 @@ class MyWorkflow:
         )
 ```
 
-The Activity records the next item to process:
+Import Activities inside `workflow.unsafe.imports_passed_through()` in the Workflow module, so the Workflow sandbox does not re-import them on every run.
+
+The Activity records the next step to run, so a retry after scale-in resumes there instead of starting over. Each step must be safe to repeat:
 
 ```python
+from temporalio import activity
+
+
 @activity.defn
-async def my_activity(items: list[str]) -> str:
+async def my_activity(name: str) -> str:
+    steps = ["validate", "compose", "record"]
     details = activity.info().heartbeat_details
     start_index = details[0] if details else 0
 
-    for i in range(start_index, len(items)):
-        # ... process items[i]
+    for i in range(start_index, len(steps)):
+        # ... run steps[i] for name
         activity.heartbeat(i + 1)
-    return "done"
+    return f"Hello, {name}!"
 ```
 
 → `constraints.md` for what else follows from the pool model.
