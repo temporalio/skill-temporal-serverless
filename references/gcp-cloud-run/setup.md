@@ -210,6 +210,7 @@ gcloud run worker-pools deploy my-temporal-worker-pool-build-1 \
 | `--instances` | Set to `0`; the WCI takes ownership of the count when the Worker Deployment Version is registered. |
 | `--set-env-vars` | Non-secret configuration. |
 | `--set-secrets` | Maps a Secret Manager secret to an env var — use it for `TEMPORAL_API_KEY` or TLS material. |
+| `--memory` | Optional. Instance memory; pools default to 512 MiB. Raise it for Workers that need more, such as JVM Workers with large heaps. |
 
 **Put the API key in Secret Manager from the start.** Do not introduce a plaintext environment-variable deployment step.
 
