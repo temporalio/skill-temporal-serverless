@@ -2,7 +2,7 @@
 
 <!-- Source: docs/develop/go/workers/serverless-workers/cloud-run.mdx -->
 
-Use this reference for Go-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`.
+Use this reference for Go-specific Worker construction, versioning behavior, connection configuration, image packaging, and scale-in safety. For shared Cloud Run execution constraints, deployment lifecycle, permissions, versioning, observability, and diagnostics, see `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `observability.md`, and `diagnostics.md`. Scoping (Namespace, GCP project, region), the API-key hand-off, IAM, registration, and verification are the same for every SDK and are defined once in `SKILL.md` and `setup.md`; do not vary them per SDK. This guide's sample is one Workflow that takes a string and returns `Hello, <name>!`, which is what `setup.md` Step 8 verifies.
 
 ## Install and scaffold
 
@@ -156,7 +156,7 @@ The versioned Worker example uses `w.Run(worker.InterruptCh())` and gives receiv
 
 ## Keep Activities safe across scale-in
 
-Apply the Heartbeat-resume invariant from `constraints.md` in Go:
+Apply the Heartbeat-resume invariant from `constraints.md`. This is the sample's only Workflow: it takes one string and calls one Activity with Heartbeat and retry options.
 
 ```go
 import (
@@ -166,7 +166,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func MyWorkflow(ctx workflow.Context, input MyInput) (string, error) {
+func MyWorkflow(ctx workflow.Context, name string) (string, error) {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute,
 		HeartbeatTimeout:    10 * time.Second,
@@ -176,15 +176,23 @@ func MyWorkflow(ctx workflow.Context, input MyInput) (string, error) {
 		},
 	})
 	var result string
-	err := workflow.ExecuteActivity(ctx, MyActivity, input).Get(ctx, &result)
+	err := workflow.ExecuteActivity(ctx, MyActivity, name).Get(ctx, &result)
 	return result, err
 }
 ```
 
-The Activity records the next item to process:
+The Activity records the next step to run, so a retry after scale-in resumes there instead of starting over. Each step must be safe to repeat:
 
 ```go
-func MyActivity(ctx context.Context, input MyInput) (string, error) {
+import (
+	"context"
+	"fmt"
+
+	"go.temporal.io/sdk/activity"
+)
+
+func MyActivity(ctx context.Context, name string) (string, error) {
+	steps := []string{"validate", "compose", "record"}
 	startIndex := 0
 	if activity.HasHeartbeatDetails(ctx) {
 		if err := activity.GetHeartbeatDetails(ctx, &startIndex); err != nil {
@@ -192,11 +200,11 @@ func MyActivity(ctx context.Context, input MyInput) (string, error) {
 		}
 	}
 
-	for i := startIndex; i < len(input.Items); i++ {
-		// ... process input.Items[i]
+	for i := startIndex; i < len(steps); i++ {
+		// ... run steps[i] for name
 		activity.RecordHeartbeat(ctx, i+1)
 	}
-	return "done", nil
+	return fmt.Sprintf("Hello, %s!", name), nil
 }
 ```
 

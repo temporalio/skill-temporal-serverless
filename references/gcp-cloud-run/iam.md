@@ -97,7 +97,7 @@ terraform -chdir=<TF_DIR> apply tfplan
 terraform -chdir=<TF_DIR> output -raw invoker_email
 ```
 
-Applying a saved plan cannot create anything the reviewed plan did not show. If the agent's environment blocks the apply, have the user run `terraform -chdir=<TF_DIR> apply tfplan` in their own terminal; the plan file keeps it identical to what was reviewed.
+Applying a saved plan cannot create anything the reviewed plan did not show. **If the apply fails partway with `Error 400: Service account <invoker> does not exist`** on the invoker's `actAs` binding to the runner (`invoker_act_as_runner` in a test run), the new invoker had not propagated yet. Run `plan -out=tfplan` and `apply tfplan` again; do not destroy, because the resources already created are correct. If the agent's environment blocks the apply, have the user run `terraform -chdir=<TF_DIR> apply tfplan` in their own terminal; the plan file keeps it identical to what was reviewed.
 
 Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when registering the version, after allowing for IAM propagation (below).
 
