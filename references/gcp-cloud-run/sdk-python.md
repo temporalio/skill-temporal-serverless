@@ -116,7 +116,7 @@ class MyWorkflow:
         ...
 ```
 
-**A Version set with no behavior fails at runtime**, not at build time.
+**A Version set with no behavior fails at startup:** `Worker()` raises `ValueError: Workflow MyWorkflow must specify a versioning behavior …`, which on Cloud Run becomes a crash loop.
 
 ## Connection configuration
 
@@ -134,7 +134,7 @@ client = await Client.connect(**connect_config)
 
 ## Image packaging
 
-Cloud Run Worker Pools run this image as `linux/amd64`. Build wheels separately and install them into a slim runtime with CA certificates:
+Cloud Run Worker Pools run this image as `linux/amd64`. Build wheels separately and install them into a slim runtime:
 
 ```dockerfile
 FROM python:3.13-slim AS build
@@ -143,9 +143,6 @@ COPY requirements.txt ./
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 FROM python:3.13-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 WORKDIR /app
@@ -168,7 +165,7 @@ terraform/
 *.tfstate*
 ```
 
-Change `worker` only if the module containing `main()` has a different name. Python shares the Rust core, so the runtime image needs `ca-certificates`. → `setup.md` Step 2.
+Change `worker` only if the module containing `main()` has a different name. Python shares the Rust core, which reads TLS roots from the OS store. The official `python:*-slim` images already include `ca-certificates`; install it only when switching to a base image that lacks it. → `setup.md` Step 2.
 
 ## Graceful shutdown on scale-in
 
@@ -254,9 +251,12 @@ For the optional Cloud Run OpenTelemetry path, install the SDK extra validated b
 
 ```bash
 .venv/bin/python -m pip install 'temporalio[cloud-run-worker-otel]==1.34.0'
+.venv/bin/python -m pip freeze > requirements.txt
 ```
 
-Add the plugin to the same client used by the Worker and flush it after the Worker stops. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
+Re-freeze after installing the extra: the image installs only what `requirements.txt` lists, so a stale file fails at startup with `ModuleNotFoundError: No module named 'opentelemetry'`.
+
+Add the plugin to the same client used by the Worker and flush it after the Worker stops. The drain and the flush together must fit Cloud Run's roughly ten-second termination window; see `observability.md`. `shutdown(timeout)` bounds only the force-flush: the provider shutdown that follows waits on the OTLP exporter's own timeout, 10 seconds by default, so an unreachable Collector held an idle Worker about seven seconds past the one-second flush in testing. Set `OTEL_EXPORTER_OTLP_TIMEOUT=1` on the Worker container with `--set-env-vars`. The Python exporter reads this value in **seconds**, not the milliseconds the OpenTelemetry specification uses; `1000` let shutdown run for about 29 seconds in testing.
 
 ```python
 from datetime import timedelta
