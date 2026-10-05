@@ -5,7 +5,7 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 It also supports GCP Cloud Run Worker Pools through a separate pool-based path, without changing the Lambda workflow.
 
 > [!WARNING]
-> This skill is in Public Preview and will continue to evolve. Pin the Temporal SDK, serverless Worker package, and CLI versions for long-lived projects.
+> This skill is in Public Preview and will continue to evolve. Pin the Temporal SDK and CLI versions for long-lived projects, plus any provider-specific package you use, such as the AWS Lambda serverless Worker package or a Cloud Run OpenTelemetry helper.
 
 > [!NOTE]
 > Temporal Serverless Workers on AWS Lambda are in Public Preview and are available to all Temporal Cloud customers without an access request.
