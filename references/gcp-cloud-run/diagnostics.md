@@ -30,12 +30,12 @@ temporal --profile <PROFILE> worker deployment describe-version \
 
 The decisive registration signal is `taskQueuesInfos` containing the expected Task Queue with lowercase `workflow` and `activity` types. The field is absent until a Worker identifying as this deployment and build ID polls. If the Worker intentionally polls only one type, adjust the predicate to require only that type. Provider writes, requested capacity, and a Running WCI support the diagnosis but do not replace this check.
 
-First registration can take several minutes because Cloud Run must provision and start the pool's first instance before the Worker can poll. In observed test runs, initial binding ranged from under a minute to about five minutes. Treat this as operational guidance, not a timeout or service guarantee.
+First registration can take several minutes because Cloud Run must provision and start the pool's first instance before the Worker can poll. Treat this as operational guidance, not a timeout or service guarantee.
 
 | Result | Interpretation | Next check |
 |---|---|---|
 | `describe-version` reports the version not found | The create was rejected. During IAM propagation this can read `worker pool … not found` even when the pool name is right. | Read the WCI's `ValidateSpec` result (`../wci.md`). A 403 on `iam.serviceAccounts.getAccessToken` means impersonation had not propagated yet; see [Re-run a failed registration bootstrap](#re-run-a-failed-registration-bootstrap). |
-| Version not found, but a WCI Workflow for it is still Running | The WCI from the rejected create is still active. In one test it handled the next `create-version` and scaled the pool back to zero after 59 seconds. | Read its history before creating the version again; see [Re-run a failed registration bootstrap](#re-run-a-failed-registration-bootstrap). |
+| Version not found, but a WCI Workflow for it is still Running | The WCI from the rejected create is still active. It can take over the next `create-version` and scale the pool back to zero before the new version binds. | Read its history before creating the version again; see [Re-run a failed registration bootstrap](#re-run-a-failed-registration-bootstrap). |
 | Expected Task Queue types are bound | Registration succeeded for this WDV. | Confirm the version is current, then diagnose Task execution. |
 | No binding; `lastModifier` is not the invoker | Temporal may not have written the pool. | Validate the compute fields, WCI Activity results, impersonation, and `run.workerPools.update`. |
 | No binding; requested count is at least 1; no container startup logs exist | Cloud Run has accepted the requested capacity but has not started the first instance yet. | Wait and watch the worker-pool logs; do not diagnose the image before a container starts. |
@@ -57,7 +57,7 @@ gcloud logging read \
 
 If the pool's latest revision is not Ready with reason `SecretsAccessCheckFailed`, the pool was deployed before the secret had an `ENABLED` version or before the runner could read it; fix that and re-run the deploy ([`setup.md`](setup.md#step-4-create-the-worker-pool) Step 4).
 
-Only move to image, identity, or Task Queue diagnosis after container startup logs exist. If the requested count returns to `0` before any container startup log appears, registration lost the race; see [Re-run a failed registration bootstrap](#re-run-a-failed-registration-bootstrap). If the count stays at `1` and nothing has started after about five minutes, inspect the pool's provisioning state and conditions.
+Only move to image, identity, or Task Queue diagnosis after container startup logs exist. If the requested count returns to `0` before any container startup log appears, registration lost the race; see [Re-run a failed registration bootstrap](#re-run-a-failed-registration-bootstrap). If the count stays at `1` and nothing has started after several minutes, inspect the pool's provisioning state and conditions.
 
 ## Read the pool's annotations
 
@@ -125,13 +125,13 @@ Fix the image, configuration, credentials, or IAM cause first. A successful comp
 Two failures look alike from the pool and need different handling:
 
 - **Rejected create.** `create-version` failed `ValidateSpec`, usually with a 403 on `iam.serviceAccounts.getAccessToken` while the invoker's grants propagate. The version does not exist, but the WCI that the attempt started keeps running.
-- **Registration race.** The version exists and the WCI raised the pool to one instance, but Cloud Run did not start the instance before the WCI's registration window ended, so the WCI set the count back to zero. In test runs the window was about four minutes, and first-instance start-up in the same project took between about three and a half and four and a half minutes. Treat both figures as observations, not limits.
+- **Registration race.** The version exists and the WCI raised the pool to one instance, but Cloud Run did not start the instance before the WCI's registration window ended, so the WCI set the count back to zero.
 
-**A retry inherits the remaining time of the earlier WCI.** Re-running `create-version` for a version whose WCI is still running hands the new version to that WCI and to whatever is left of its timer. In tests, a retry after about 45 seconds got a full window, a retry after about 9 minutes saw the pool return to zero within about 60 seconds, and a retry after about 12 minutes bound normally. So a retry is neither always safe nor always unsafe; follow these steps in order:
+**A retry inherits the remaining time of the earlier WCI.** Re-running `create-version` for a version whose WCI is still running hands the new version to that WCI and to whatever is left of its timer. A retry is therefore neither always safe nor always unsafe; follow these steps in order:
 
 1. **Confirm the version exists** immediately after `create-version`, as in [Confirm the version was created](setup.md#confirm-the-version-was-created).
 2. **If the create was rejected with the 403**, wait for IAM propagation, then re-run the identical `create-version` once. Do this only when the pool is dedicated to this build ID. The retry creates the version, which step 4 needs if the race follows.
-3. **About four minutes after registration, check for the race:** the invoker wrote `1` and then `0`, and no container startup log ever appeared. Use the audit-log query in [Read the pool's annotations](#read-the-pools-annotations) and the [pool log query](#read-the-pool-logs). Do not keep waiting for a binding once the count is back at zero.
+3. **Watch for the race after registration.** Keep waiting while the requested count stays above zero and no container startup log has appeared. If the count returns to `0` before any startup log appears, the race happened: the invoker wrote `1` and then `0`. Use the audit-log query in [Read the pool's annotations](#read-the-pools-annotations) and the [pool log query](#read-the-pool-logs). Do not keep waiting for a binding once the count is back at zero.
 4. **If the race happened, delete and recreate the version**, so a fresh WCI gets a full window. Proceed only when **all** of these hold:
    - the version has never been Current or Ramping;
    - it has no Task Queue binding;
@@ -148,7 +148,7 @@ Two failures look alike from the pool and need different handling:
      --workflow-id 'temporal-sys-worker-controller-instance:<NAME>:<BUILD_ID>'
    ```
 
-   A test run saw the WCI close about 40 seconds after the delete; gate on its status, not on that duration. After recreating, repeat steps 1 and 3 and then the [binding check](#start-here-did-the-expected-worker-bind). Do not pass `--skip-drainage`: a version that needs it is not covered by these conditions.
+   Gate the recreate on the WCI's status, not on elapsed time. After recreating, repeat steps 1 and 3 and then the [binding check](#start-here-did-the-expected-worker-bind). Do not pass `--skip-drainage`: a version that needs it is not covered by these conditions.
 
 ### 3. Is the version current?
 
@@ -187,7 +187,7 @@ gcloud logging read \
   --project <YOUR_GCP_PROJECT> --freshness=1h --limit=50
 ```
 
-This returns the Worker's container output and the pool's resize audit entries (`UpdateWorkerPool`). `gcloud run worker-pools logs read` shows container output only and also filters on the pool's region; in one test it returned nothing while the Worker's startup line was present, so prefer the query above. Do not add a location filter unless you have confirmed the label's value.
+This returns the Worker's container output and the pool's resize audit entries (`UpdateWorkerPool`). `gcloud run worker-pools logs read` shows container output only and also filters on the pool's region; it can return nothing even when the Worker's startup line is present, so prefer the query above. Do not add a location filter unless you have confirmed the label's value.
 
 **A scaled-to-zero pool emits no new logs.** Use `gcloud run worker-pools logs tail` only while an instance is running. An empty result may simply mean the pool has never started.
 
