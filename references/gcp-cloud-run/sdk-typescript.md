@@ -16,6 +16,17 @@ npx tsc --init --rootDir src --outDir dist --module commonjs --target es2022 --e
 npm pkg set scripts.build='tsc' scripts.start='node dist/worker.js'
 ```
 
+The start script and the image's `CMD` run `dist/worker.js`, and the Worker loads `./workflows` and `./activities`, so use these file names:
+
+```text
+<APP_DIR>/
+  package.json  package-lock.json  tsconfig.json
+  Dockerfile  .gcloudignore
+  src/worker.ts       # versioned Worker
+  src/workflows.ts    # Workflows
+  src/activities.ts   # Activities
+```
+
 ## Inspect the versioning API before generating code
 
 ```bash
@@ -78,7 +89,7 @@ Cloud Run needs no `workflowBundle` — `workflowsPath` is sufficient because th
 
 ## Versioning behavior
 
-Every Workflow needs `'PINNED'` or `'AUTO_UPGRADE'`. `defaultVersioningBehavior` covers every Workflow; to set it per Workflow, use `setWorkflowOptions()` from `@temporalio/workflow`.
+Every Workflow needs `'PINNED'` or `'AUTO_UPGRADE'`. With `useWorkerVersioning: true`, `defaultVersioningBehavior` is required: `tsc` rejects the options without it, and untyped code fails `Worker.create()` with `Unknown versioning behavior: undefined`. To override the default for one Workflow, use `setWorkflowOptions()` from `@temporalio/workflow`.
 
 ```ts
 import { setWorkflowOptions } from '@temporalio/workflow';
@@ -88,8 +99,6 @@ export async function myWorkflow(name: string): Promise<string> {
   // ...
 }
 ```
-
-**A Version set with no behavior fails at runtime**, not at build time.
 
 ## Connection configuration
 
