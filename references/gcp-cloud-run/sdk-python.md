@@ -247,7 +247,7 @@ Do not enable DEBUG logging globally in production without first verifying that 
 
 ## Observability
 
-For the optional Cloud Run OpenTelemetry path, install the SDK extra validated by the combined sample:
+For the optional Cloud Run OpenTelemetry path, install the SDK extra:
 
 ```bash
 .venv/bin/python -m pip install 'temporalio[cloud-run-worker-otel]==1.34.0'
