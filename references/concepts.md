@@ -16,7 +16,7 @@ Public Preview is not General Availability. APIs are still evolving and may be s
 
 ### Compute providers
 
-A compute provider is the configuration that tells Temporal how to invoke a Serverless Worker. The compute provider is set on a Worker Deployment Version and specifies the provider type, the invocation target, and the credentials Temporal needs to trigger the invocation. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
+A compute provider is the configuration that tells Temporal how to start or scale compute for a Worker Deployment Version. It is set on the Worker Deployment Version and specifies the provider type, the compute target, and the identity Temporal uses to act on that target. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
 
 For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
 
