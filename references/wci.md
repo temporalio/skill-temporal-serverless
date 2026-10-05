@@ -43,7 +43,7 @@ temporal workflow show \
 
 The default table shows event types but hides the payloads needed for diagnosis. Use `--detailed` as above or `-o json`. During registration, look for `ValidateSpec` and the `InvokeWorkersToRegisterTaskQueues` bootstrap. A result such as `worker_count: 1` means the WCI requested bootstrap capacity; it does not mean that an instance started or that the expected Worker registered and polled. Provider-specific scaling later appears through the provider action described in its diagnostics guide.
 
-`SignalExternalWorkflowExecutionFailed` with `NOT_FOUND` appeared in healthy Cloud Run test runs, but do not classify it from the event name alone. Correlate it with the surrounding signal target and confirm that registration, polling, and the provider action succeeded before treating it as benign.
+`SignalExternalWorkflowExecutionFailed` with `NOT_FOUND` can appear in healthy Cloud Run deployments, but do not classify it from the event name alone. Correlate it with the surrounding signal target and confirm that registration, polling, and the provider action succeeded before treating it as benign.
 
 ## Interpret what you find
 
