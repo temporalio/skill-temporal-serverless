@@ -59,7 +59,11 @@ func main() {
 	buildID := mustEnv("TEMPORAL_BUILD_ID")
 	taskQueue := mustEnv("TEMPORAL_TASK_QUEUE")
 
-	c, err := client.Dial(envconfig.MustLoadDefaultClientOptions())
+	clientOptions, err := envconfig.LoadDefaultClientOptions()
+	if err != nil {
+		log.Fatalln("Unable to load client options", err)
+	}
+	c, err := client.Dial(clientOptions)
 	if err != nil {
 		log.Fatalln("Unable to create client", err)
 	}
@@ -102,23 +106,15 @@ func mustEnv(name string) string {
 
 Every Workflow needs `workflow.VersioningBehaviorPinned` or `VersioningBehaviorAutoUpgrade`. Set it per Workflow at registration as above, or set `DefaultVersioningBehavior` in `DeploymentOptions` to cover every Workflow. Registration **panics** with `workflow type does not have a versioning behavior` if a Version is set and neither is given.
 
-```go
-w.RegisterWorkflowWithOptions(myapp.MyWorkflow, workflow.RegisterOptions{
-	VersioningBehavior: workflow.VersioningBehaviorPinned,
-})
-```
-
-**A Version set with no behavior fails at runtime**, not at build time.
-
 ## Connection configuration
 
 `go.temporal.io/sdk/contrib/envconfig` loads client configuration from environment variables and an optional TOML file, so the Worker carries no Namespace or credentials. Set non-secret values with `--set-env-vars` on the pool and mount the API key or TLS material from Secret Manager with `--set-secrets`. → `setup.md` Step 4.
 
-`MustLoadDefaultClientOptions` **panics** on invalid configuration. Use `envconfig.LoadDefaultClientOptions` and check the error to fail with a readable message instead.
+The examples use `LoadDefaultClientOptions` and check its error rather than `MustLoadDefaultClientOptions`, which panics with a stack trace on invalid configuration such as an unknown profile.
 
 ## Image packaging
 
-Cloud Run Worker Pools run this image as `linux/amd64`. Use `CGO_ENABLED=0` with a distroless static runtime:
+Cloud Run Worker Pools run this image as `linux/amd64`. Use `CGO_ENABLED=0` with a distroless static runtime. The `golang:` builder tag must be at least the major.minor version on the `go` line of `go.mod`. `go mod init` writes the local toolchain's version there, and the official image builds with `GOTOOLCHAIN=local`, so a newer `go.mod` fails with `go.mod requires go >= X (running go Y; GOTOOLCHAIN=local)`. Raise the tag to match:
 
 ```dockerfile
 FROM golang:1.26-bookworm AS build
@@ -159,6 +155,8 @@ The versioned Worker example uses `w.Run(worker.InterruptCh())` and gives receiv
 Apply the Heartbeat-resume invariant from `constraints.md`. This is the sample's only Workflow: it takes one string and calls one Activity with Heartbeat and retry options.
 
 ```go
+package myapp
+
 import (
 	"time"
 
@@ -184,6 +182,8 @@ func MyWorkflow(ctx workflow.Context, name string) (string, error) {
 The Activity records the next step to run, so a retry after scale-in resumes there instead of starting over. Each step must be safe to repeat:
 
 ```go
+package myapp
+
 import (
 	"context"
 	"fmt"
@@ -226,7 +226,10 @@ otelPlugin, err := otel.NewPlugin(ctx, otel.PluginOptions{})
 if err != nil {
 	log.Fatalln("Unable to create OpenTelemetry plugin", err)
 }
-clientOptions := envconfig.MustLoadDefaultClientOptions()
+clientOptions, err := envconfig.LoadDefaultClientOptions()
+if err != nil {
+	log.Fatalln("Unable to load client options", err)
+}
 clientOptions.Plugins = append(clientOptions.Plugins, otelPlugin)
 c, err := client.Dial(clientOptions)
 if err != nil {
@@ -248,4 +251,4 @@ if runErr != nil {
 }
 ```
 
-Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete example under review is in [samples-go PR #554](https://github.com/temporalio/samples-go/pull/554).
+Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The [samples-go Cloud Run sample](https://github.com/temporalio/samples-go/tree/main/gcp/cloudrun) shows the plugin wiring and the Collector configuration; it runs an unversioned Worker, so take versioning and the shutdown budget from this guide.
