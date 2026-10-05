@@ -42,11 +42,17 @@ For Cloud Run, the Namespace must be hosted on GCP. The Namespace and Worker Poo
 
 ## Before you start
 
-Before starting, make sure you can sign in to:
+Before starting, make sure you can sign in to the accounts for the compute provider you plan to use.
+
+### AWS Lambda
 
 - An AWS account with permission to inspect and create the required Lambda, IAM, CloudFormation, and logging resources.
 - A Temporal Cloud Namespace hosted on AWS, or a compatible self-hosted Temporal Service.
-- For Cloud Run instead: a GCP project with permission to inspect and create Worker Pools, Artifact Registry images, IAM bindings, Secret Manager secrets, and logs, plus a GCP-hosted Namespace or compatible self-hosted Temporal Service.
+
+### GCP Cloud Run
+
+- A GCP project with permission to inspect and create Worker Pools, Artifact Registry images, IAM bindings, Secret Manager secrets, and logs.
+- A Temporal Cloud Namespace hosted on GCP, or a compatible self-hosted Temporal Service.
 
 You do not need to install or configure the AWS CLI, `gcloud`, `tcld`, or the Temporal CLI before you begin. The skill checks what is already available and can help set up the tools and supported login flows needed for the task. If you prefer not to install a CLI, or a login method is unavailable, it can guide you through the corresponding Temporal Cloud UI, AWS console, or Google Cloud console steps instead. It never asks you to paste credentials or secrets into the conversation.
 
@@ -157,7 +163,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | Path | Contents |
 |---|---|
 | [`SKILL.md`](SKILL.md) | Core workflow, safety gates, provider rules, and reference routing |
-| [`references/concepts.md`](references/concepts.md) | AWS Lambda architecture, invocation flow, autoscaling, lifecycle, constraints, and use cases |
+| [`references/concepts.md`](references/concepts.md) | Shared serverless concepts (release status, compute providers, Worker Versioning, WCI) and the AWS Lambda invocation model: invocation flow, autoscaling, lifecycle, constraints, and use cases |
 | [`references/wci.md`](references/wci.md) | Shared WCI lifecycle, inputs, Workflow ID pattern, inspection commands, and health interpretation |
 | [`references/aws-lambda/sdk-go.md`](references/aws-lambda/sdk-go.md) | Go package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
 | [`references/aws-lambda/sdk-python.md`](references/aws-lambda/sdk-python.md) | Python package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, and diagnostics |

@@ -2,17 +2,50 @@
 
 <!-- Sources: docs/encyclopedia/workers/serverless-workers.mdx, docs/evaluate/development-production-features/serverless-workers/index.mdx -->
 
-## Release status
+## Shared serverless concepts
+
+### Release status
 
 **AWS Lambda — Public Preview since July 30, 2026.** Open to all Temporal Cloud customers. There is no access request, no support ticket, and no manual toggle to enable: a customer selects "AWS Lambda (Public Preview)" as the compute provider in the UI and sets up their Worker Deployment directly. Never route a user to support to "get access" for Lambda.
 
 **GCP Cloud Run — Public Preview.** Open to all Temporal Cloud customers with a GCP-hosted Namespace. There is no access request, support ticket, or manual toggle to enable: select GCP Cloud Run as the compute provider and proceed. Never route a user to support to "get access" for Cloud Run either.
 
-These are the two compute providers this skill supports. Do not adapt either provider's material to another provider. **Do not carry facts between them:** this page describes the invocation-based Lambda model; Cloud Run's pool-based model, including what bounds an Activity and how scale-in works, is in `gcp-cloud-run/constraints.md`.
+These are the two compute providers this skill supports. Do not adapt either provider's material to another provider. The [AWS Lambda invocation model](#aws-lambda-invocation-model) section below applies only to Lambda; Cloud Run's pool-based model, including what bounds an Activity and how scale-in works, is in `gcp-cloud-run/constraints.md`.
 
 Public Preview is not General Availability. APIs are still evolving and may be subject to backwards-incompatible changes between versions — pin SDK and CLI versions for anything long-lived, and read the installed package's real API surface rather than writing from memory.
 
-## What is a Serverless Worker?
+### Compute providers
+
+A compute provider is the configuration that tells Temporal how to invoke a Serverless Worker. The compute provider is set on a Worker Deployment Version and specifies the provider type, the invocation target, and the credentials Temporal needs to trigger the invocation. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
+
+For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
+
+A GCP Cloud Run compute provider names the Worker Pool and the invoker service account that Temporal impersonates to resize it.
+
+Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server. <!-- docs/encyclopedia/workers/serverless-workers.mdx:317-318 -->
+
+#### Supported providers
+
+<!-- docs/encyclopedia/workers/serverless-workers.mdx:322-324 -->
+
+| Provider | Description |
+|---|---|
+| AWS Lambda | Temporal assumes an IAM role in your AWS account to invoke a Lambda function. |
+| GCP Cloud Run | Temporal impersonates an invoker service account in your GCP project to resize a Cloud Run Worker Pool. |
+
+### Worker Versioning
+
+Serverless Workers require Worker Versioning: each Worker Deployment Version must point its compute provider at a stable, immutable build. → `references/<provider>/versioning.md`.
+
+### Worker Controller Instance (WCI)
+
+Temporal coordinates serverless scaling through the WCI. See [Worker Controller Instance (WCI)](wci.md) for its lifecycle, Task Queue inputs, Workflow ID pattern, and inspection commands.
+
+## AWS Lambda invocation model
+
+The sections below describe how Serverless Workers behave on AWS Lambda, where Temporal invokes the Worker on demand. They do not apply to GCP Cloud Run.
+
+### What is a Serverless Worker?
 
 A Serverless Worker is a Temporal Worker that runs on serverless compute instead of a long-lived process. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43 -->
 There is no always-on infrastructure to provision or scale. Temporal invokes the Worker when Tasks arrive on a Task Queue, and the Worker shuts down when the work is done. <!-- docs/encyclopedia/workers/serverless-workers.mdx:43-45 -->
@@ -23,17 +56,13 @@ Serverless Workers require Worker Versioning. Each Serverless Worker must be ass
 
 Each Workflow must have an `AutoUpgrade` or `Pinned` versioning behavior, set per-Workflow or as a Worker-level default. <!-- docs/encyclopedia/workers/serverless-workers.mdx:245 -->
 
-## How Serverless invocation works
+### How Serverless invocation works
 
 With long-lived Workers, the Worker process starts, connects to Temporal, and polls a Task Queue for work. Temporal does not need to know anything about the Worker's infrastructure. <!-- docs/encyclopedia/workers/serverless-workers.mdx:59-60 -->
 
 With Serverless Workers, Temporal starts the Worker. <!-- docs/encyclopedia/workers/serverless-workers.mdx:62 -->
 
-### Worker Controller Instance (WCI)
-
-Temporal coordinates serverless scaling through the WCI. See [Worker Controller Instance (WCI)](wci.md) for its lifecycle, Task Queue inputs, Workflow ID pattern, and inspection commands.
-
-### Invocation flow
+#### Invocation flow
 
 The invocation flow works as follows: <!-- docs/encyclopedia/workers/serverless-workers.mdx:101 -->
 
@@ -46,33 +75,33 @@ The invocation flow works as follows: <!-- docs/encyclopedia/workers/serverless-
 
 Each invocation is independent. The Worker creates a fresh client connection on every invocation. There is no connection reuse or shared state across invocations. <!-- docs/encyclopedia/workers/serverless-workers.mdx:112-113 -->
 
-## Autoscaling
+### Autoscaling
 
 The shared [WCI inputs](wci.md#inputs) cause Lambda function invocations when Tasks need Workers. Each Worker exits when its invocation finishes, allowing the Lambda fleet to scale to zero. <!-- docs/encyclopedia/workers/serverless-workers.mdx:117-133 -->
 
-## Scaling with long-lived Workers
+### Scaling with long-lived Workers
 
 Serverless Workers can share a Task Queue with long-lived Workers. Because Serverless Workers are only invoked on sync match failure, Serverless Workers only pick up Tasks that no long-lived Worker was available to handle. In practice, the Serverless Workers act as spillover capacity for the long-lived fleet. <!-- docs/encyclopedia/workers/serverless-workers.mdx:137-139 -->
 
 **Warning:** If you configure Serverless and long-lived Workers on the same Task Queue, do not enable dynamic scaling on the long-lived Workers. The two groups cannot coordinate their scaling behavior. If both scale dynamically, the long-lived Workers may scale up to handle the same Tasks that Temporal is simultaneously invoking Serverless Workers for, leading to unnecessary invocations and unpredictable scaling. <!-- docs/encyclopedia/workers/serverless-workers.mdx:143-146 -->
 
-## Worker lifecycle
+### Worker lifecycle
 
 A single Serverless Worker invocation has three phases: init, work, and shutdown. <!-- docs/encyclopedia/workers/serverless-workers.mdx:152 -->
 
-### Init phase
+#### Init phase
 
 The Worker initializes and establishes a client connection to Temporal. <!-- docs/encyclopedia/workers/serverless-workers.mdx:161 -->
 
-### Work phase
+#### Work phase
 
 The Worker polls the Task Queue and processes Tasks. <!-- docs/encyclopedia/workers/serverless-workers.mdx:163 -->
 
-### Shutdown phase
+#### Shutdown phase
 
 The Worker stops polling, waits for in-flight Tasks to finish, and runs any shutdown hooks (for example, OpenTelemetry telemetry flushes). Shutdown begins before the invocation deadline so the Worker can exit cleanly before the compute provider forcibly terminates the execution environment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:165-167 -->
 
-### Tuning for long-running Activities
+#### Tuning for long-running Activities
 
 If your Worker handles long-running Activities, set these three values together: <!-- docs/encyclopedia/workers/serverless-workers.mdx:171 -->
 
@@ -90,11 +119,11 @@ Raising only the shutdown deadline buffer makes the Worker stop polling earlier,
 
 Raising only the Worker stop timeout does not make the Worker stop polling earlier, which means the compute provider might terminate the Worker before the full stop timeout completes. <!-- docs/encyclopedia/workers/serverless-workers.mdx:199-201 -->
 
-## Failure handling
+### Failure handling
 
 Serverless Workers rely on Temporal's standard retry and timeout semantics to recover from failures. <!-- docs/encyclopedia/workers/serverless-workers.mdx:205-206 -->
 
-### Worker crash
+#### Worker crash
 
 If a Worker invocation crashes (out of memory, unhandled exception, etc.): <!-- docs/encyclopedia/workers/serverless-workers.mdx:210-211 -->
 
@@ -102,7 +131,7 @@ If a Worker invocation crashes (out of memory, unhandled exception, etc.): <!-- 
 - Temporal retries the Activity on a different Worker invocation. <!-- docs/encyclopedia/workers/serverless-workers.mdx:214 -->
 - No manual intervention is required. <!-- docs/encyclopedia/workers/serverless-workers.mdx:215 -->
 
-### Provider concurrency limit
+#### Provider concurrency limit
 
 If the compute provider's concurrency limit is reached (for example, AWS Lambda account concurrency): <!-- docs/encyclopedia/workers/serverless-workers.mdx:219 -->
 
@@ -110,7 +139,7 @@ If the compute provider's concurrency limit is reached (for example, AWS Lambda 
 - Tasks remain in the Task Queue backlog. No data loss occurs. <!-- docs/encyclopedia/workers/serverless-workers.mdx:222 -->
 - Processing slows until concurrency frees up. <!-- docs/encyclopedia/workers/serverless-workers.mdx:223 -->
 
-### Resource exhaustion across Activity slots
+#### Resource exhaustion across Activity slots
 
 By default, a single Worker invocation may run multiple Activity slots. A crash or resource exhaustion in one Activity can affect other Activities running in the same invocation. <!-- docs/encyclopedia/workers/serverless-workers.mdx:227-229 -->
 
@@ -121,7 +150,7 @@ To isolate Activities from each other: <!-- docs/encyclopedia/workers/serverless
 
 With single-slot configuration, each Activity gets a dedicated execution environment. <!-- docs/encyclopedia/workers/serverless-workers.mdx:236 -->
 
-## Constraints
+### Constraints
 
 <!-- docs/encyclopedia/workers/serverless-workers.mdx:240-245 -->
 
@@ -132,7 +161,7 @@ With single-slot configuration, each Activity gets a dedicated execution environ
 | Worker code | Same Temporal SDK Worker code, using the serverless Worker package for your SDK. |
 | Versioning | Worker Versioning is required. Each Workflow must have an `AutoUpgrade` or `Pinned` behavior, set per-Workflow or as a Worker-level default. |
 
-## Worker Versioning with Serverless Workers
+### Worker Versioning with Serverless Workers
 
 Serverless Workers require Worker Versioning, and the compute provider must invoke a stable, immutable build for each Worker Deployment Version. With AWS Lambda, this means aligning two versioning systems: <!-- docs/encyclopedia/workers/serverless-workers.mdx:249-250 -->
 
@@ -155,23 +184,7 @@ The choice of Pinned or Auto-Upgrade controls how Workflows move between Worker 
 
 See `aws-lambda/versioning.md` for the step-by-step `aws lambda publish-version` workflow and `aws-lambda/setup.md` (Step 4) for how to configure the compute provider with a versioned ARN.
 
-## Compute providers
-
-A compute provider is the configuration that tells Temporal how to invoke a Serverless Worker. The compute provider is set on a Worker Deployment Version and specifies the provider type, the invocation target, and the credentials Temporal needs to trigger the invocation. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
-
-For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
-
-Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server. <!-- docs/encyclopedia/workers/serverless-workers.mdx:317-318 -->
-
-### Supported providers
-
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:322-324 -->
-
-| Provider | Description |
-|---|---|
-| AWS Lambda | Temporal assumes an IAM role in your AWS account to invoke a Lambda function. |
-
-## Why use Serverless Workers?
+### Why use Serverless Workers?
 
 <!-- docs/evaluate/development-production-features/serverless-workers/index.mdx:34-71 -->
 
@@ -180,7 +193,7 @@ Compute providers are only needed for Serverless Workers. Traditional long-lived
 - **Scale automatically.** The compute provider handles scaling natively. When traffic drops, instances scale down. When there is no work, there is no compute running.
 - **Pay only for what you use.** Workers run only when Tasks are available. For low or intermittent volume workloads, this pay-per-invocation model can significantly reduce compute costs.
 
-## When to use Serverless Workers
+### When to use Serverless Workers
 
 <!-- docs/evaluate/development-production-features/serverless-workers/index.mdx:75-86 -->
 
@@ -200,7 +213,7 @@ May not be ideal when:
 - Workloads require sustained high throughput. Long-lived Workers on dedicated compute may be more cost-effective and performant.
 - You need persistent connections. Some features require a persistent connection between the Worker and Temporal, which serverless invocations do not maintain.
 
-## How Serverless Workers compare to long-lived Workers
+### How Serverless Workers compare to long-lived Workers
 
 <!-- docs/evaluate/development-production-features/serverless-workers/index.mdx:99-105 -->
 
