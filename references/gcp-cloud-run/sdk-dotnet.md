@@ -6,12 +6,23 @@ Use this reference for .NET-specific Worker construction, versioning behavior, c
 
 ## Install and scaffold
 
-Create the project with the same target framework used by the runtime image, then pin the packages validated for this guide:
+Create the project directly in `<APP_DIR>` with the same target framework used by the runtime image, then pin the packages validated for this guide:
 
 ```bash
-dotnet new console --framework net9.0 --name MyWorker
-dotnet add MyWorker/MyWorker.csproj package Temporalio --version 1.20.0
-dotnet add MyWorker/MyWorker.csproj package Microsoft.Extensions.Logging.Console --version 9.0.0
+dotnet new console --framework net9.0 --name MyWorker --output <APP_DIR>
+dotnet add <APP_DIR>/MyWorker.csproj package Temporalio --version 1.20.0
+dotnet add <APP_DIR>/MyWorker.csproj package Microsoft.Extensions.Logging.Console --version 9.0.0
+```
+
+`--output` keeps the project file at the root of `<APP_DIR>`, which `setup.md` Step 2 submits as the build context; without it, `dotnet new` creates a `MyWorker/` subdirectory and the Dockerfile's `COPY MyWorker.csproj ./` fails with `"/MyWorker.csproj": not found`. The examples assume this layout:
+
+```text
+<APP_DIR>/
+  MyWorker.csproj
+  Program.cs              # versioned Worker (top-level statements)
+  GreetingWorkflow.cs
+  GreetingActivities.cs
+  Dockerfile  .gcloudignore
 ```
 
 Do not rely on the locally installed SDK's default framework. For example, a .NET 10 SDK creates `net10.0` unless `--framework net9.0` is explicit, and that output cannot run in the 9.0 runtime image below.
@@ -19,7 +30,7 @@ Do not rely on the locally installed SDK's default framework. For example, a .NE
 ## Inspect the versioning API before generating code
 
 ```bash
-dotnet list package
+dotnet list <APP_DIR>/MyWorker.csproj package
 unzip -p ~/.nuget/packages/temporalio/<version>/temporalio.<version>.nupkg \
   'lib/netstandard2.0/Temporalio.xml' \
   | grep -n -A12 -E 'T:Temporalio\.(Worker\.WorkerDeploymentOptions|Common\.WorkerDeploymentVersion)'
@@ -33,10 +44,10 @@ Run `dotnet restore` first so the `.nupkg` and XML documentation exist locally.
 docker run --rm -e NUGET_XMLDOC_MODE=none \
   -v <APP_DIR>:/src -v <NUGET_CACHE>:/root/.nuget/packages -w /src \
   mcr.microsoft.com/dotnet/sdk:9.0 sh -c '
-    dotnet new console --framework net9.0 --name MyWorker &&
-    dotnet add MyWorker/MyWorker.csproj package Temporalio --version 1.20.0 &&
-    dotnet add MyWorker/MyWorker.csproj package Microsoft.Extensions.Logging.Console --version 9.0.0 &&
-    dotnet build MyWorker/MyWorker.csproj'
+    dotnet new console --framework net9.0 --name MyWorker --output . &&
+    dotnet add MyWorker.csproj package Temporalio --version 1.20.0 &&
+    dotnet add MyWorker.csproj package Microsoft.Extensions.Logging.Console --version 9.0.0 &&
+    dotnet build MyWorker.csproj'
 ```
 
 Then run the `unzip` inspection above on the host against `<NUGET_CACHE>/temporalio/1.20.0/temporalio.1.20.0.nupkg`. On Apple Silicon, add `--platform linux/arm64` to avoid running the image under emulation. Cloud Build still compiles the image you deploy.
@@ -47,6 +58,7 @@ Set `DeploymentOptions` on `TemporalWorkerOptions`. The Worker reads its connect
 
 ```csharp
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Temporalio.Common;
 using Temporalio.Worker;
@@ -65,13 +77,21 @@ var temporalNamespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE")
 var apiKey = Environment.GetEnvironmentVariable("TEMPORAL_API_KEY")
     ?? throw new InvalidOperationException("TEMPORAL_API_KEY must be set");
 
-var client = await TemporalClient.ConnectAsync(
-    new(address)
-    {
-        Namespace = temporalNamespace,
-        ApiKey = apiKey,
-        Tls = new(),
-    });
+using var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddSimpleConsole(options => options.SingleLine = true);
+    builder.SetMinimumLevel(LogLevel.Information);
+    builder.AddFilter("Grpc", LogLevel.Warning);
+});
+
+var connectOptions = new TemporalClientConnectOptions(address)
+{
+    Namespace = temporalNamespace,
+    ApiKey = apiKey,
+    Tls = new(),
+    LoggerFactory = loggerFactory,
+};
+var client = await TemporalClient.ConnectAsync(connectOptions);
 
 var options = new TemporalWorkerOptions(
     taskQueue)
@@ -118,7 +138,7 @@ Use the ordinary publish for the image's platform; it includes the native Rust b
 
 ## Versioning behavior
 
-Every Workflow needs `VersioningBehavior.Pinned` or `AutoUpgrade`. `DefaultVersioningBehavior` covers every Workflow; to set it per Workflow, set it on the `[Workflow]` attribute. No package supplies a Worker-level default, so one of the two must be set explicitly.
+Every Workflow needs `VersioningBehavior.Pinned` or `AutoUpgrade`. `DefaultVersioningBehavior` covers every Workflow; to set it per Workflow, set it on the `[Workflow]` attribute. Neither is set implicitly, so one of the two must be set explicitly.
 
 ```csharp
 using Temporalio.Common;
@@ -132,7 +152,7 @@ public class GreetingWorkflow
 }
 ```
 
-**A Version set with no behavior fails at runtime**, not at build time.
+**A Version set with no behavior fails at startup:** `new TemporalWorker(...)` throws `ArgumentException: Workflow named GreetingWorkflow must specify a versioning behavior, since the worker has no default.`, which on Cloud Run becomes a crash loop.
 
 ## Connection configuration
 
@@ -248,27 +268,7 @@ To log from an Activity, use `ActivityExecutionContext.Current.Logger.LogInforma
 
 ## Logging and diagnostic signatures
 
-The .NET SDK defaults to `NullLoggerFactory`, so configure a console provider explicitly. Add `Microsoft.Extensions.Logging.Console`, create the factory before connecting, and assign it to the client options:
-
-```csharp
-using Microsoft.Extensions.Logging;
-
-using var loggerFactory = LoggerFactory.Create(builder =>
-{
-    builder.AddSimpleConsole(options => options.SingleLine = true);
-    builder.SetMinimumLevel(LogLevel.Information);
-    builder.AddFilter("Grpc", LogLevel.Warning);
-});
-
-var client = await TemporalClient.ConnectAsync(
-    new(Environment.GetEnvironmentVariable("TEMPORAL_ADDRESS")!)
-    {
-        Namespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE")!,
-        ApiKey = Environment.GetEnvironmentVariable("TEMPORAL_API_KEY"),
-        Tls = new(),
-        LoggerFactory = loggerFactory,
-    });
-```
+The .NET SDK defaults to `NullLoggerFactory`, which drops every SDK log. The versioned Worker example creates a console `LoggerFactory` before connecting and assigns it to the connect options; keep it when adapting the example.
 
 Do not enable DEBUG logging globally in production without first verifying that dependency logs cannot contain credentials or payloads.
 
@@ -283,21 +283,15 @@ Do not enable DEBUG logging globally in production without first verifying that 
 For the optional Cloud Run OpenTelemetry path, add the released extension matching the SDK version:
 
 ```bash
-dotnet add MyWorker/MyWorker.csproj package Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry --version 1.20.0
+dotnet add <APP_DIR>/MyWorker.csproj package Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry --version 1.20.0
 ```
 
-Apply its defaults to the same connect options used by the Worker, retain the returned handle, and flush after the Worker stops. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
+Apply its defaults to the versioned Worker example's `connectOptions` before connecting, retain the returned handle, and flush after the Worker stops. The one-second flush keeps the eight-second drain, client close, and flush inside Cloud Run's roughly ten-second termination window together; see `observability.md`.
 
 ```csharp
 using Temporalio.Extensions.Gcp.CloudRun.OpenTelemetry;
 
-var connectOptions = new TemporalClientConnectOptions(
-    Environment.GetEnvironmentVariable("TEMPORAL_ADDRESS")!)
-{
-    Namespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE")!,
-    ApiKey = Environment.GetEnvironmentVariable("TEMPORAL_API_KEY"),
-    Tls = new(),
-};
+// Between building connectOptions and connecting:
 using var telemetry = connectOptions.ApplyGoogleCloudRunOpenTelemetryDefaults();
 var client = await TemporalClient.ConnectAsync(connectOptions);
 
