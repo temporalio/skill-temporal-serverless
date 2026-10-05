@@ -211,7 +211,7 @@ terraform/
 *.tfstate*
 ```
 
-Cloud Run Worker Pools run this image as `linux/amd64`. The Dockerfile's `-XX:MaxRAMPercentage=75` lets the heap use 75% of the instance's memory instead of the JVM's default quarter. Pools default to 512 MiB, which ran this sample in test runs; raise `--memory` (`setup.md` Step 4) for heavier Workers.
+Cloud Run Worker Pools run this image as `linux/amd64`. The Dockerfile's `-XX:MaxRAMPercentage=75` lets the heap use 75% of the instance's memory instead of the JVM's default quarter. Pools default to 512 MiB, which is enough for this sample; raise `--memory` (`setup.md` Step 4) for heavier Workers.
 
 ## Graceful shutdown on scale-in
 
@@ -365,4 +365,4 @@ Runtime.getRuntime().addShutdownHook(new Thread(() -> {
 
 The drain and flush together must fit Cloud Run's termination window; see `observability.md`.
 
-Import `io.temporal.gcp.cloudrun.opentelemetry.CloudRunOpenTelemetryPlugin` and `java.time.Duration`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete example under review is in [samples-java PR #801](https://github.com/temporalio/samples-java/pull/801).
+Import `io.temporal.gcp.cloudrun.opentelemetry.CloudRunOpenTelemetryPlugin` and `java.time.Duration`. The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled.

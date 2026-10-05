@@ -18,7 +18,7 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 
 The `temporal` CLI commands in Steps 6–8 authenticate through a named CLI profile that the user creates during the [API-key hand-off](#hand-off-the-temporal-api-key). An exported variable in the user's terminal does not reach the agent's shell, so do not rely on `TEMPORAL_API_KEY` there. Never append `--api-key <value>` or put the key in an inline assignment. On macOS the default profile file is `~/Library/Application Support/temporalio/temporal.toml`. The examples below pass `--profile <PROFILE>` explicitly; omit it only when using a different already-configured authentication mechanism, including self-hosted mTLS.
 
-**Use the endpoint Temporal Cloud shows for the Namespace.** Copy the gRPC endpoint from the Namespace page in the Cloud UI, or from `tcld namespace get --namespace <NAMESPACE>` when `tcld` is signed in: `.uri.grpc` is the Namespace endpoint and `.uri.regionalGrpc` the regional API endpoint. Both worked with API-key authentication in test runs; prefer `.uri.grpc` unless the user already uses the regional one. Do not construct it from the Namespace name or region. Use the same value, written `<ENDPOINT>` below, for the CLI profile and for the pool's `TEMPORAL_ADDRESS`.
+**Use the endpoint Temporal Cloud shows for the Namespace.** Copy the gRPC endpoint from the Namespace page in the Cloud UI, or from `tcld namespace get --namespace <NAMESPACE>` when `tcld` is signed in: `.uri.grpc` is the Namespace endpoint and `.uri.regionalGrpc` the regional API endpoint. Both accept API-key authentication; prefer `.uri.grpc` unless the user already uses the regional one. Do not construct it from the Namespace name or region. Use the same value, written `<ENDPOINT>` below, for the CLI profile and for the pool's `TEMPORAL_ADDRESS`.
 
 ## Prepare a clean GCP project
 
@@ -234,7 +234,7 @@ Cloud Run has no invocation grant. Temporal **impersonates an invoker service ac
 
 Terraform's `invoker_email` output is what Step 6 needs.
 
-**Wait for IAM propagation before Step 6.** The module's `serviceAccountTokenCreator` grants take time to reach Temporal's impersonation path. In test runs, `create-version` issued 41–60 seconds after the apply was rejected with a 403 on `iam.serviceAccounts.getAccessToken`. Allow a few minutes after the apply, and rely on the read-back in Step 6 rather than on the clock. → `iam.md`.
+**Wait for IAM propagation before Step 6.** The module's `serviceAccountTokenCreator` grants take time to reach Temporal's impersonation path. A `create-version` issued before they propagate is rejected with a 403 on `iam.serviceAccounts.getAccessToken`. Rely on the read-back in Step 6 rather than on the clock, and on that rejection wait and retry once. → `iam.md`.
 
 ## Step 6: Register the Worker Deployment Version
 
@@ -319,7 +319,7 @@ temporal --profile <PROFILE> worker deployment describe \
            and .routingConfig.currentVersionBuildID == "build-1"'
 ```
 
-These field names were observed with CLI v1.8.2.
+CLI v1.8.2 reports the current version under these field names.
 
 ## Step 8: Verify
 
@@ -336,7 +336,7 @@ Tasks arriving with no active pollers cause the WCI to raise the instance count;
 
 The scaler minimum is `0`, and the pool normally returns to zero within a few minutes after registration or work completes. Do not wait for scale-to-zero during normal verification: the Workflow above verifies routing and execution, but registration scale-down can race it, so do not classify that run as reliably warm or cold.
 
-Test scale-from-zero only when the user explicitly asks for a cold-path test. It adds roughly four to five minutes per run in observed tests. Wait until the requested count is zero and the logs show the previous instance received `SIGTERM`, then start a second Workflow and measure until the Worker startup/polling log appears.
+Test scale-from-zero only when the user explicitly asks for a cold-path test. It adds several minutes per run. Wait until the requested count is zero and the logs show the previous instance received `SIGTERM`, then start a second Workflow and measure until the Worker startup/polling log appears.
 
 Confirm from two independent signals:
 
@@ -358,7 +358,7 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    ```bash
    gcloud run worker-pools update <POOL_NAME> --instances 0 --region <REGION> --project <YOUR_GCP_PROJECT>
    ```
-3. Delete the version once it has no pollers and is not draining, then delete the deployment. Scaled-down instances keep polling briefly, and `delete-version` refuses a draining version; in test runs it returned `cannot be deleted since it is draining` for about three minutes. Retry rather than adding `--skip-drainage`:
+3. Delete the version once it has no pollers and is not draining, then delete the deployment. Scaled-down instances keep polling briefly, and `delete-version` refuses a draining version; while it drains, the command returns `cannot be deleted since it is draining`. Retry rather than adding `--skip-drainage`:
    ```bash
    temporal --profile <PROFILE> worker deployment describe-version \
      --namespace <NS> --deployment-name my-app --build-id build-1 -o json \

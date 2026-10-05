@@ -256,7 +256,7 @@ For the optional Cloud Run OpenTelemetry path, install the SDK extra validated b
 
 Re-freeze after installing the extra: the image installs only what `requirements.txt` lists, so a stale file fails at startup with `ModuleNotFoundError: No module named 'opentelemetry'`.
 
-Add the plugin to the same client used by the Worker and flush it after the Worker stops. The drain and the flush together must fit Cloud Run's roughly ten-second termination window; see `observability.md`. `shutdown(timeout)` bounds only the force-flush: the provider shutdown that follows waits on the OTLP exporter's own timeout, 10 seconds by default, so an unreachable Collector held an idle Worker about seven seconds past the one-second flush in testing. Set `OTEL_EXPORTER_OTLP_TIMEOUT=1` on the Worker container with `--set-env-vars`. The Python exporter reads this value in **seconds**, not the milliseconds the OpenTelemetry specification uses; `1000` let shutdown run for about 29 seconds in testing.
+Add the plugin to the same client used by the Worker and flush it after the Worker stops. The drain and the flush together must fit Cloud Run's roughly ten-second termination window; see `observability.md`. `shutdown(timeout)` bounds only the force-flush; the provider shutdown that follows waits on the OTLP exporter's own timeout, which defaults to 10 seconds. Set `OTEL_EXPORTER_OTLP_TIMEOUT=1` on the Worker container with `--set-env-vars`. This exporter reads the value in **seconds**, not the milliseconds the OpenTelemetry specification uses.
 
 ```python
 from datetime import timedelta
@@ -275,4 +275,4 @@ traces_flushed = await asyncio.to_thread(
 )
 ```
 
-The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The complete example under review is in [samples-python PR #376](https://github.com/temporalio/samples-python/pull/376).
+The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled.
