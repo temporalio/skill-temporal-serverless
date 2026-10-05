@@ -88,6 +88,14 @@ The user runs this once, after the resource list is approved and the secret exis
 
 The parentheses run the script in a subshell, so the key does not stay in the user's shell afterwards. The key is piped with `printf %s` because `gcloud` stores standard input byte for byte: pasting it, pressing Enter, and sending EOF would store a trailing newline and corrupt the credential. `temporal config set` has no standard-input option, so the key is briefly visible in the process list while that command runs; on a shared machine, say so before the user runs it.
 
+**Make the hand-off impossible to miss; it is the same for every SDK.** Write the script above to a file outside the app directory, with every placeholder filled in, such as `<WORK_DIR>/<PREFIX>-handoff.sh`. It contains no key. Then end your turn with the user's action first:
+
+1. One line saying the run is waiting on them.
+2. The file's absolute path as plain text, and the one command to run it in their own terminal: `bash <ABSOLUTE_PATH>`.
+3. What to reply when it finishes.
+
+Put status, checklists, and notes after that. Never point back to "the script above": whenever the run is still blocked on the hand-off, repeat these steps in full. When the user replies, verify with the commands below rather than trusting the reply.
+
 Then verify without reading the key back. The agent may run these:
 
 ```bash
@@ -99,6 +107,14 @@ gcloud secrets versions list <SECRET_NAME> --project <YOUR_GCP_PROJECT> \
 ```
 
 Never read back `api_key` with `temporal config get`, and never run `gcloud secrets versions access`. The `worker deployment list` call proves the profile authenticates to the Namespace. Expect exactly one `ENABLED` secret version. If the hand-off ran more than once, keep the newest version, confirm the pool uses `latest`, and disable the older ones with `gcloud secrets versions disable <VERSION> --secret <SECRET_NAME> --project <YOUR_GCP_PROJECT>`. Secret versions are immutable: replace a bad one by adding a correct version, never by editing it.
+
+**Check the Temporal-side names now.** The CLI profile did not exist at approval time, so this is the first point at which the deployment name can be checked:
+
+```bash
+temporal --profile <PROFILE> worker deployment describe --namespace <NAMESPACE> --name <DEPLOYMENT_NAME>
+```
+
+It should report that the deployment does not exist. If it exists, stop and agree a new name with the user before Step 6.
 
 **If the user already has a CLI profile and a secret**, for example from an earlier deployment, reuse them instead of running the hand-off. Confirm the profile with the read-back commands above, always passing `--namespace`: a profile's stored Namespace can differ from the target. Confirm the secret has an `ENABLED` version with `gcloud secrets versions list`, then ask the user to confirm that it holds the same key as the profile; you must not read either value. Record a reused secret as shared, so teardown keeps it.
 
@@ -307,12 +323,13 @@ These field names were observed with CLI v1.8.2.
 ## Step 8: Verify
 
 ```bash
-temporal --profile <PROFILE> workflow start \
+temporal --profile <PROFILE> workflow execute \
   --namespace <NS> --task-queue my-task-queue \
-  --type <WORKFLOW_TYPE> --input '"Hello, serverless!"'
+  --workflow-id my-app-verify-1 \
+  --type <WORKFLOW_TYPE> --input '"Temporal"'
 ```
 
-Use the Workflow type the selected SDK guide registers: `MyWorkflow` for Go and Python, `myWorkflow` for TypeScript, and `GreetingWorkflow` for Java and .NET.
+Use the Workflow type the selected SDK guide registers: `MyWorkflow` for Go and Python, `myWorkflow` for TypeScript, and `GreetingWorkflow` for Java and .NET. Every SDK guide's sample Workflow takes one string and returns `Hello, <name>!`, so expect `"Hello, Temporal!"`. `workflow execute` waits for the result; if it has not returned within a few minutes, stop it and follow `diagnostics.md` rather than waiting longer.
 
 Tasks arriving with no active pollers cause the WCI to raise the instance count; Cloud Run starts an instance, the Worker connects and processes the Task.
 
