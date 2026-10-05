@@ -38,7 +38,7 @@ It sizes to a **target utilization of 80% by default** rather than loading every
 
 The scaler defaults are **minimum `0`, maximum `30`, initial count `0`, target utilization `0.8`, and scale-down stabilization duration `90s`**. Configure them in the version's Scaling and Lifecycle settings or with the Temporal CLI. The CLI couples these flags, so follow the canonical [compatibility and complete-group guidance](setup.md#step-6-register-the-worker-deployment-version). <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:130-138; temporal worker deployment create-version --help -->
 
-The `90s` duration begins after the most recent sync-match failure and is only one gate in scale-in; it is not a promise that the pool reaches zero 90 seconds after registration or Workflow completion. In the five-SDK test, registration capacity returned to zero in about five minutes, while post-Workflow scale-down took roughly 70 seconds to 2.5 minutes. Treat those as observations from one run per SDK, not guarantees.
+The `90s` duration begins after the most recent sync-match failure and is only one gate in scale-in; it is not a promise that the pool reaches zero 90 seconds after registration or Workflow completion. To confirm scale-in, read the pool's requested instance count and the Worker's shutdown logs rather than waiting a fixed time.
 
 An initial count and minimum of zero do not suppress registration. The rate-based algorithm temporarily requests at least one instance when the version is registered so its Task Queues can bind, then normal scaling can return the pool to zero. A pool that later stops growing under backlog is either at its configured maximum or at a regional Cloud Run quota.
 
