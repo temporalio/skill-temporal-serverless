@@ -4,7 +4,7 @@
   docs/production-deployment/worker-deployments/serverless-workers/aws-lambda.mdx
 -->
 
-For the conceptual model — Temporal Worker Deployment Versions vs. Lambda function versions, and Pinned vs. Auto-Upgrade behavior — see `../concepts.md` ("Worker Versioning with Serverless Workers").
+For the provider-specific model — Temporal Worker Deployment Versions vs. Lambda function versions, and Pinned vs. Auto-Upgrade behavior — see `constraints.md` ("Worker Versioning with Serverless Workers").
 
 ## The full redeploy sequence
 

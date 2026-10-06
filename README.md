@@ -163,8 +163,9 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | Path | Contents |
 |---|---|
 | [`SKILL.md`](SKILL.md) | Core workflow, safety gates, provider rules, and reference routing |
-| [`references/concepts.md`](references/concepts.md) | Shared serverless concepts (release status, compute providers, Worker Versioning, WCI) and the AWS Lambda invocation model: invocation flow, autoscaling, lifecycle, constraints, and use cases |
+| [`references/concepts.md`](references/concepts.md) | Concepts shared across compute providers: release status, Serverless Workers, compute providers, Worker Versioning, and WCI |
 | [`references/wci.md`](references/wci.md) | Shared WCI lifecycle, inputs, Workflow ID pattern, inspection commands, and health interpretation |
+| [`references/aws-lambda/constraints.md`](references/aws-lambda/constraints.md) | Lambda invocation flow, autoscaling, lifecycle, limits, versioning implications, and use cases |
 | [`references/aws-lambda/sdk-go.md`](references/aws-lambda/sdk-go.md) | Go package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |
 | [`references/aws-lambda/sdk-python.md`](references/aws-lambda/sdk-python.md) | Python package, API, handler, build, packaging, Lambda deployment values, tuned defaults, connection configuration, OpenTelemetry integration, and diagnostics |
 | [`references/aws-lambda/sdk-typescript.md`](references/aws-lambda/sdk-typescript.md) | TypeScript package, API, handler, Workflow pre-bundling, build, packaging, Lambda deployment values, tuned defaults, connection configuration, and OpenTelemetry integration |

@@ -19,9 +19,9 @@ This skill helps users deploy and operate Temporal Workers on serverless compute
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is settled in step 1, derived from the Namespace or asked, and stated to the user, not silently defaulted.
 
-**Select the provider before loading lifecycle guidance.** For AWS Lambda, read `references/concepts.md` (shared concepts and the AWS Lambda invocation model) plus the selected AWS SDK reference. For GCP Cloud Run, read `references/gcp-cloud-run/constraints.md` plus the selected Cloud Run SDK reference.
+**Select the provider before loading lifecycle guidance.** Read `references/concepts.md` for concepts shared by every provider, then read the selected provider's `references/<provider>/constraints.md` plus its SDK reference for provider-specific execution and lifecycle rules.
 
-Every supported provider's directory carries the same shared layout — `setup.md`, `iam.md`, `versioning.md`, `diagnostics.md`, `observability.md`, `self-hosted.md` — plus one `sdk-<language>.md` file for each supported SDK. Paths below are written `references/<provider>/…`; substitute the directory from the table. Provider-specific commands, templates, permissions, SDK APIs, and defaults live there — this file stays at the workflow level. When a step needs concrete commands or SDK details, go to the reference file named at the end of that step.
+Every supported provider's directory carries the same shared layout — `constraints.md`, `setup.md`, `iam.md`, `versioning.md`, `diagnostics.md`, `observability.md`, `self-hosted.md` — plus one `sdk-<language>.md` file for each supported SDK. Paths below are written `references/<provider>/…`; substitute the directory from the table. Provider-specific commands, templates, permissions, SDK APIs, and defaults live there — this file stays at the workflow level. When a step needs concrete commands or SDK details, go to the reference file named at the end of that step.
 
 | SDK language | AWS Lambda reference |
 |---|---|
@@ -101,7 +101,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 **A step is complete when its verification passed — not when its command exited zero.** Several commands in this workflow exit clean having done nothing: the traffic-shifting and key-revocation commands no-op when their confirmation prompt goes unanswered, and providers return from create and update calls while the resource is still settling. Check an item off against state you read back, not against an exit code. When a step's verification fails, say which step you are on and what it is blocked on rather than moving down the list.
 
-1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available. For Lambda, it must also be authenticated to the target at this point. For Cloud Run, check only that the `temporal` CLI is installed: its authenticated profile is created during the API-key hand-off after approval (`references/gcp-cloud-run/setup.md`). Each changes the specifics. For Lambda, read `references/concepts.md`; for Cloud Run, read `references/gcp-cloud-run/constraints.md`. Use `references/<provider>/setup.md` for compatibility and client-setup details.
+1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available. For Lambda, it must also be authenticated to the target at this point. For Cloud Run, check only that the `temporal` CLI is installed: its authenticated profile is created during the API-key hand-off after approval (`references/gcp-cloud-run/setup.md`). Each changes the specifics. Read `references/concepts.md` for shared concepts, `references/<provider>/constraints.md` for the selected provider's lifecycle rules, and `references/<provider>/setup.md` for compatibility and client-setup details.
 
    **Derive the compute provider from the Namespace's cloud provider.** An AWS-hosted Namespace uses AWS Lambda; a GCP-hosted Namespace uses GCP Cloud Run. State the derived provider with the Namespace choice, and if the request names a provider, check that it matches. When `tcld` cannot be used, the Namespace's region settles it: `aws-us-east-1` is AWS, `gcp-us-central1` is GCP. Ask the provider as a structured question only for a self-hosted Temporal Service, where either is possible; carry each option's status from the support table in its description, and note that Activity duration can decide it, because Lambda caps an invocation at 15 minutes and Cloud Run does not.
 
@@ -245,9 +245,9 @@ Surface these early — they apply regardless of compute provider:
 
 - **A Lambda identity mismatch causes an invocation loop.** Temporal invokes, the Worker polls with the wrong version, the Task remains unprocessed, and Temporal invokes again. The signature is rapid repeated invocations with no Workflow progress.
 - **Set the invocation deadline high enough.** Providers often default to a very short timeout. If the first invocation times out before the Worker registers the Task Queue, the binding is never created and the Worker is never invoked again. → `references/<provider>/setup.md` for the exact default.
-- **Tune the timeout triple together for long-running Activities:** (1) worker stop timeout > longest Activity runtime, (2) shutdown deadline buffer > worker stop timeout + shutdown hook time, (3) invocation deadline > longest Activity runtime + shutdown deadline buffer. Raising one alone does not help. If the longest Activity exceeds half the maximum invocation deadline, recommend Activity Heartbeats. → `references/concepts.md`, `references/<provider>/sdk-<language>.md`.
+- **Tune the timeout triple together for long-running Activities:** (1) worker stop timeout > longest Activity runtime, (2) shutdown deadline buffer > worker stop timeout + shutdown hook time, (3) invocation deadline > longest Activity runtime + shutdown deadline buffer. Raising one alone does not help. If the longest Activity exceeds half the maximum invocation deadline, recommend Activity Heartbeats. → `references/aws-lambda/constraints.md`, `references/aws-lambda/sdk-<language>.md`.
 - **Eager Activities are always disabled** — serverless invocations don't maintain persistent connections. Don't suggest them as an optimization.
-- **Activities are bounded by the invocation limit** (minus the shutdown deadline buffer); Workflow duration is unbounded and can span many invocations. Flag Activities that approach the provider's limit early. → `references/concepts.md`.
+- **Activities are bounded by the invocation limit** (minus the shutdown deadline buffer); Workflow duration is unbounded and can span many invocations. Flag Activities that approach the provider's limit early. → `references/aws-lambda/constraints.md`.
 - **Mixed serverless + long-lived Workers on one Task Queue:** do not enable dynamic scaling on the long-lived Workers — the two groups can't coordinate scaling and will cause unnecessary invocations.
 
 ### GCP Cloud Run
@@ -258,7 +258,7 @@ Cloud Run Workers use ordinary long-lived Worker APIs and have no invocation dea
 
 ### AWS Lambda
 
-Start by determining whether the Worker is being invoked at all. Then, in priority order: (1) **Validate Connection** in the Temporal UI (Workers > Deployments > select > Actions > Validate Connection) — checks credentials, role assumption, and reachability in one step; (2) check whether the version's **Task Queue is bound** — if it is, invocation and Worker startup provably work and the fault is downstream, which rules out most of the surface in one command; (3) confirm the version is **current** (CLI-created versions are not automatic, and a confirmation-prompted command may have silently done nothing); (4) check the compute provider's logs for connection, auth, or TLS errors; (5) if rapid repeated invocations show no progress, check the deployment name/build ID match. Distinguish a Temporal-side failure (reproduces no matter what you change on the provider side) from a genuine user-permission problem before editing anything. → `references/<provider>/diagnostics.md`, `references/concepts.md`.
+Start by determining whether the Worker is being invoked at all. Then, in priority order: (1) **Validate Connection** in the Temporal UI (Workers > Deployments > select > Actions > Validate Connection) — checks credentials, role assumption, and reachability in one step; (2) check whether the version's **Task Queue is bound** — if it is, invocation and Worker startup provably work and the fault is downstream, which rules out most of the surface in one command; (3) confirm the version is **current** (CLI-created versions are not automatic, and a confirmation-prompted command may have silently done nothing); (4) check the compute provider's logs for connection, auth, or TLS errors; (5) if rapid repeated invocations show no progress, check the deployment name/build ID match. Distinguish a Temporal-side failure (reproduces no matter what you change on the provider side) from a genuine user-permission problem before editing anything. → `references/aws-lambda/diagnostics.md`, `references/aws-lambda/constraints.md`.
 
 ### GCP Cloud Run
 
@@ -292,15 +292,20 @@ High-impact mistakes — warn the user proactively. Each is a symptom → cause 
 
 Most questions need 2–3 reference files.
 
+### Shared
+
+| User intent | Reference file(s) |
+|---|---|
+| What is a Serverless Worker? Which compute providers are supported? How do Worker Versioning and the WCI fit in? | `references/concepts.md` + `references/wci.md` |
+
 ### AWS Lambda
 
 | User intent | Reference file(s) |
 |---|---|
-| What is a Serverless Worker? How do invocation and autoscaling work? What are the constraints? Serverless vs long-lived Workers? | `references/concepts.md` |
-| What is the WCI? Inspect its Workflow, ID, or Activity results. | `references/wci.md` |
-| Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/<provider>/setup.md` + the selected `references/<provider>/sdk-<language>.md` (+ `references/concepts.md`) |
+| Invocation, autoscaling, lifecycle, constraints, mixed fleets, or comparison with long-lived Workers. | `references/aws-lambda/constraints.md` + the selected SDK reference |
+| Deploy a Serverless Worker (happy path): write code, package, deploy, register + set-current version, verify, tear down. | `references/aws-lambda/setup.md` + the selected SDK reference |
 | Operator permissions and preflight; execution role vs Temporal invocation role; CloudFormation (Cloud + self-hosted). | `references/<provider>/iam.md` |
-| Update or redeploy; version the build, use a qualified ARN, roll back. | `references/<provider>/versioning.md` (+ `references/concepts.md`) |
+| Update or redeploy; version the build, use a qualified ARN, roll back. | `references/aws-lambda/versioning.md` + `references/aws-lambda/constraints.md` |
 | Self-hosted server enablement (dynamic config, WCI, server AWS credentials). | `references/<provider>/self-hosted.md` (+ `references/<provider>/iam.md`) |
 | Go SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration. | `references/<provider>/sdk-go.md` |
 | Python SDK-specific options and tuned defaults, package and import, API inspection, handler, build and packaging, runtime and deployment values, versioning-behavior configuration, connection config, OpenTelemetry integration, diagnostic signatures. | `references/<provider>/sdk-python.md` |
@@ -309,7 +314,7 @@ Most questions need 2–3 reference files.
 | .NET SDK-specific options and tuned defaults, package and imports, API inspection, handler, RID-specific publish and packaging, runtime and deployment values, versioning-behavior configuration, connection config and `SSL_CERT_FILE`, OpenTelemetry integration, logging and diagnostic signatures. | `references/<provider>/sdk-dotnet.md` |
 | Add OpenTelemetry observability, Collector config, X-Ray, and IAM. | `references/<provider>/observability.md` + the selected `references/<provider>/sdk-<language>.md` |
 | Worker not invoked, Workflows not progressing, inspect the WCI. | `references/wci.md` + `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` |
-| Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/concepts.md` (+ the selected `references/<provider>/sdk-<language>.md`) |
+| Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/aws-lambda/constraints.md` + the selected SDK reference |
 
 ### GCP Cloud Run
 
