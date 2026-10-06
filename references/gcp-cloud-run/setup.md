@@ -330,7 +330,7 @@ temporal --profile <PROFILE> workflow execute \
   --type <WORKFLOW_TYPE> --input '"Temporal"'
 ```
 
-Use the Workflow type the selected SDK guide registers: `MyWorkflow` for Go and Python, `myWorkflow` for TypeScript, and `GreetingWorkflow` for Java and .NET. Every SDK guide's sample Workflow takes one string and returns `Hello, <name>!`, so expect `"Hello, Temporal!"`. `workflow execute` waits for the result; if it has not returned within a few minutes, stop it and follow `diagnostics.md` rather than waiting longer.
+Start the Workflow type the deployed Worker registers, with an input it accepts. The SDK guides' samples register `MyWorkflow` (Go, Python), `myWorkflow` (TypeScript), or `GreetingWorkflow` (Java, .NET); each takes one string and returns `Hello, <name>!`, so expect `"Hello, Temporal!"`. If the user deploys their own Worker or another sample, read its Worker source or registration for the type, input shape, and expected result, and set `--type` and `--input` to match. `workflow execute` waits for the result; if it has not returned within a few minutes, stop waiting (the Workflow keeps running; inspect its history) and follow `diagnostics.md`.
 
 Tasks arriving with no active pollers cause the WCI to raise the instance count; Cloud Run starts an instance, the Worker connects and processes the Task.
 

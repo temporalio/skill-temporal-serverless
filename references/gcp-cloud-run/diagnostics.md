@@ -51,7 +51,7 @@ gcloud run worker-pools describe <POOL_NAME> \
   --format='yaml(status.conditions,status.latestReadyRevisionName)'
 
 gcloud logging read \
-  'resource.type="cloud_run_worker_pool" AND resource.labels.worker_pool_name="<POOL_NAME>"' \
+  'resource.type="cloud_run_worker_pool" AND resource.labels.worker_pool_name="<POOL_NAME>" AND resource.labels.location="<REGION>"' \
   --project <YOUR_GCP_PROJECT> --freshness=15m --limit=50
 ```
 
@@ -85,7 +85,7 @@ For historical writes, query Cloud Audit Logs instead of treating `lastModifier`
 
 ```bash
 gcloud logging read \
-  'protoPayload.methodName="google.cloud.run.v2.WorkerPools.UpdateWorkerPool" AND protoPayload.authenticationInfo.principalEmail="<INVOKER_SERVICE_ACCOUNT>"' \
+  'protoPayload.methodName="google.cloud.run.v2.WorkerPools.UpdateWorkerPool" AND protoPayload.authenticationInfo.principalEmail="<INVOKER_SERVICE_ACCOUNT>" AND resource.labels.worker_pool_name="<POOL_NAME>" AND resource.labels.location="<REGION>"' \
   --project <YOUR_GCP_PROJECT> --limit 20 \
   --format='table(timestamp,protoPayload.authenticationInfo.principalEmail,resource.labels.worker_pool_name)'
 ```
@@ -183,11 +183,11 @@ temporal --profile <PROFILE> worker deployment update-version-compute-config \
 
 ```bash
 gcloud logging read \
-  'resource.type="cloud_run_worker_pool" AND resource.labels.worker_pool_name="<POOL_NAME>"' \
+  'resource.type="cloud_run_worker_pool" AND resource.labels.worker_pool_name="<POOL_NAME>" AND resource.labels.location="<REGION>"' \
   --project <YOUR_GCP_PROJECT> --freshness=1h --limit=50
 ```
 
-This returns the Worker's container output and the pool's resize audit entries (`UpdateWorkerPool`). `gcloud run worker-pools logs read` shows container output only and also filters on the pool's region; it can return nothing even when the Worker's startup line is present, so prefer the query above. Do not add a location filter unless you have confirmed the label's value.
+This returns the Worker's container output and the pool's resize audit entries (`UpdateWorkerPool`). `gcloud run worker-pools logs read` shows container output only and also filters on the pool's region; it can return nothing even when the Worker's startup line is present, so prefer the query above.
 
 **A scaled-to-zero pool emits no new logs.** Use `gcloud run worker-pools logs tail` only while an instance is running. An empty result may simply mean the pool has never started.
 
