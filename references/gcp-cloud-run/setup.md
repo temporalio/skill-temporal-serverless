@@ -234,7 +234,7 @@ Cloud Run has no invocation grant. Temporal **impersonates an invoker service ac
 
 Terraform's `invoker_email` output is what Step 6 needs.
 
-**Wait for IAM propagation before Step 6.** The module's `serviceAccountTokenCreator` grants take time to reach Temporal's impersonation path. A `create-version` issued before they propagate is rejected with a 403 on `iam.serviceAccounts.getAccessToken`. Rely on the read-back in Step 6 rather than on the clock, and on that rejection wait and retry once. → `iam.md`.
+**Wait for IAM propagation before Step 6.** The module's `serviceAccountTokenCreator` grants take time to reach Temporal's impersonation path. A `create-version` issued before they propagate is rejected with a 403 on `iam.serviceAccounts.getAccessToken`. Rely on the read-back in Step 6 rather than on the clock; on that rejection, wait a few minutes, then retry once. → `iam.md`.
 
 ## Step 6: Register the Worker Deployment Version
 

@@ -256,7 +256,7 @@ For the optional Cloud Run OpenTelemetry path, install the SDK extra:
 
 Re-freeze after installing the extra: the image installs only what `requirements.txt` lists, so a stale file fails at startup with `ModuleNotFoundError: No module named 'opentelemetry'`.
 
-Add the plugin to the same client used by the Worker and flush it after the Worker stops. The drain and the flush together must fit Cloud Run's roughly ten-second termination window; see `observability.md`. `shutdown(timeout)` bounds only the force-flush; the provider shutdown that follows waits on the OTLP exporter's own timeout, which defaults to 10 seconds. Set `OTEL_EXPORTER_OTLP_TIMEOUT=1` on the Worker container with `--set-env-vars`. This exporter reads the value in **seconds**, not the milliseconds the OpenTelemetry specification uses.
+Add the plugin to the same client used by the Worker and flush it after the Worker stops. The drain and the flush together must fit Cloud Run's roughly ten-second termination window; see `observability.md`. `shutdown(timeout)` bounds only the force-flush; the provider shutdown that follows waits on the OTLP exporter's own timeout, which defaults to 10 seconds. Set `OTEL_EXPORTER_OTLP_TIMEOUT=1` in the Worker container's `env` in the multi-container Worker Pool manifest (`observability.md`). This exporter reads the value in **seconds**, not the milliseconds the OpenTelemetry specification uses.
 
 ```python
 from datetime import timedelta
