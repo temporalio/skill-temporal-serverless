@@ -322,7 +322,7 @@ The SDK logs through SLF4J. The `pom.xml` above pins `logback-classic` 1.5.38 as
 | Log signature | Meaning / action |
 |---|---|
 | No log lines at all, not even the `Worker started` line | The container never started the Worker; check the pool's revision status and startup errors. |
-| Only the `Worker started` line at startup | Normal at INFO: the SDK logs little until Tasks run. Missing SDK lines once Activities run mean no SLF4J provider is bound, or `logback.xml` was not packaged in the jar. |
+| Only the `Worker started` line, even after Tasks run | Normal at INFO: a healthy Java Worker can complete Workflows and Activities without per-task SDK log lines. Confirm Task execution from the Workflow's event history. The startup line is printed to stdout, so it shows the container is running, not that SLF4J is bound; an unbound SLF4J prints `SLF4J(W): No SLF4J providers were found` at startup. |
 | `StatusRuntimeException: UNAVAILABLE` in `main` at startup, then exit | `factory.start()` connects eagerly and could not reach Temporal, so Cloud Run keeps restarting the instance. Check `TEMPORAL_ADDRESS`, including `:7233`, and the pool's outbound network access. A second `UNAVAILABLE` from the shutdown hook follows from the first. |
 | `NettyClientHandler ... OUTBOUND HEADERS`, or an `authorization` or `Bearer` value in Cloud Logging | Unsafe transport DEBUG logging is enabled. Raise `io.grpc` and `io.netty` to WARN, and rotate the exposed Temporal API key. |
 | `UNAUTHENTICATED` | Check the Secret Manager mount and the key's Namespace permissions. |
