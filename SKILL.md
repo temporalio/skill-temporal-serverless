@@ -265,7 +265,7 @@ How to move through the workflow above.
 
 Temporal creates and manages the WCI automatically once a Worker Deployment Version has a compute provider. Never create, start, or manage it yourself. Read `references/wci.md` for its lifecycle, inputs, inspection commands, and health interpretation.
 
-Then use the selected provider's diagnostics: `references/aws-lambda/diagnostics.md` for Lambda invocation failures, or `references/gcp-cloud-run/diagnostics.md` for Cloud Run pool-resizing failures.
+Then use the selected provider's diagnostics: `references/aws-lambda/diagnostics.md` for Lambda invocation failures, `references/aws-agentcore/diagnostics.md` for AgentCore invocation and registration failures, or `references/gcp-cloud-run/diagnostics.md` for Cloud Run pool-resizing failures.
 
 ## Provider-neutral principles
 
@@ -290,6 +290,10 @@ Surface these early — they apply regardless of compute provider:
 - **Activities are bounded by the invocation limit** (minus the shutdown deadline buffer); Workflow duration is unbounded and can span many invocations. Flag Activities that approach the provider's limit early. → `references/aws-lambda/constraints.md`.
 - **Mixed serverless + long-lived Workers on one Task Queue:** do not enable dynamic scaling on the long-lived Workers — the two groups can't coordinate scaling and will cause unnecessary invocations.
 
+### AgentCore
+
+AgentCore Workers are standard long-lived Workers inside a Runtime handler, with no fixed invocation deadline. Two independent controls stop them — the handler's Worker idle and drain policy, and AgentCore's lifecycle settings (`idleRuntimeSessionTimeout`, `maxLifetime`) — and both must be set deliberately. Configuring AgentCore as the compute provider does not set up AgentCore Identity, Gateway, Policy, Memory, or Observability. → `references/aws-agentcore/constraints.md`.
+
 ### GCP Cloud Run
 
 Cloud Run Workers use ordinary long-lived Worker APIs and have no invocation deadline. Handle scale-in with graceful shutdown and Heartbeats, and give the pool a Task Queue separate from independently managed Workers. → `references/gcp-cloud-run/constraints.md`.
@@ -299,6 +303,10 @@ Cloud Run Workers use ordinary long-lived Worker APIs and have no invocation dea
 ### AWS Lambda
 
 Start by determining whether the Worker is being invoked at all. Then, in priority order: (1) **Validate Connection** in the Temporal UI (Workers > Deployments > select > Actions > Validate Connection) — checks credentials, role assumption, and reachability in one step; (2) check whether the version's **Task Queue is bound** — if it is, invocation and Worker startup provably work and the fault is downstream, which rules out most of the surface in one command; (3) confirm the version is **current** (CLI-created versions are not automatic, and a confirmation-prompted command may have silently done nothing); (4) check the compute provider's logs for connection, auth, or TLS errors; (5) if rapid repeated invocations show no progress, check the deployment name/build ID match. Distinguish a Temporal-side failure (reproduces no matter what you change on the provider side) from a genuine user-permission problem before editing anything. → `references/aws-lambda/diagnostics.md`, `references/aws-lambda/constraints.md`.
+
+### AgentCore
+
+Start by checking whether the expected Task Queue is bound to the version. If it is not, use the WCI history to separate a Runtime that is not invoked from one that is invoked but whose Worker never registers. The most common causes are the Runtime ARN passed where the endpoint ARN belongs, and an invocation role scoped without the trailing `*`. → `references/aws-agentcore/diagnostics.md`.
 
 ### GCP Cloud Run
 
@@ -355,6 +363,18 @@ Most questions need 2–3 reference files.
 | Add OpenTelemetry observability, Collector config, X-Ray, and IAM. | `references/<provider>/observability.md` + the selected `references/<provider>/sdk-<language>.md` |
 | Worker not invoked, Workflows not progressing, inspect the WCI. | `references/wci.md` + `references/<provider>/diagnostics.md` + the selected `references/<provider>/sdk-<language>.md` |
 | Long-running Activities and timeout relationships. Isolate Activities from resource exhaustion. | `references/aws-lambda/constraints.md` + the selected SDK reference |
+
+### AgentCore
+
+| User intent | Reference file(s) |
+|---|---|
+| Choose AgentCore or Lambda; execution model, session lifetime, stop controls, Activity bounds, autoscaling, or Pre-release status. | `references/aws-agentcore/constraints.md` + the selected SDK reference |
+| Deploy, register, verify, or inventory an AgentCore Runtime Worker with the AgentCore CLI (CodeZip). | `references/aws-agentcore/setup.md` + the selected SDK reference |
+| Operator permissions, Runtime execution role vs invocation role, or CloudFormation (Cloud + self-hosted). | `references/aws-agentcore/iam.md` |
+| Update, publish a new Runtime version, named endpoints, lifecycle settings, or roll back. | `references/aws-agentcore/versioning.md` + `references/aws-agentcore/constraints.md` |
+| Runtime not invoked, Worker not registering, or Workflows not progressing. | `references/wci.md` + `references/aws-agentcore/diagnostics.md` + the selected SDK reference |
+| Logs, metrics, tracing, or provider-specific signals. | `references/aws-agentcore/observability.md` + the selected SDK reference |
+| Self-hosted Temporal Service prerequisites. | `references/aws-agentcore/self-hosted.md` + `references/aws-agentcore/iam.md` |
 
 ### GCP Cloud Run
 
