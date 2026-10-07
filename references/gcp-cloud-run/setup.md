@@ -118,7 +118,15 @@ It should report that the deployment does not exist. If it exists, stop and agre
 
 **If the user already has a CLI profile and a secret**, for example from an earlier deployment, reuse them instead of running the hand-off. Confirm the profile with the read-back commands above, always passing `--namespace`: a profile's stored Namespace can differ from the target. Confirm the secret has an `ENABLED` version with `gcloud secrets versions list`, then ask the user to confirm that it holds the same key as the profile; you must not read either value. Record a reused secret as shared, so teardown keeps it.
 
-Grant only the runner access to that secret:
+Grant only the runner access to that secret. First check whether it already has access, and record the answer in the inventory: teardown removes only a binding this deployment added. This prints the member and exits `0` when the binding already exists:
+
+```bash
+gcloud secrets get-iam-policy <SECRET_NAME> --project <YOUR_GCP_PROJECT> --format=json \
+  | jq -e '.bindings[]? | select(.role == "roles/secretmanager.secretAccessor")
+           | .members[] | select(. == "serviceAccount:<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com")'
+```
+
+Then grant it; the grant is idempotent, so it is safe either way:
 
 ```bash
 gcloud secrets add-iam-policy-binding <SECRET_NAME> \
@@ -345,7 +353,7 @@ Confirm from two independent signals:
 
 ## Teardown
 
-Record what you create as you go: project and region; the Artifact Registry repository, image tag and digest; the pool name; the runner and invoker service accounts, and whether this run created the invoker; the Terraform state directory; the secret and its versions, and whether it is shared; the deployment name, build ID, and Task Queue; the local CLI profile name; and who created the Temporal API key.
+Record what you create as you go: project and region; the Artifact Registry repository, image tag and digest; the pool name; the runner and invoker service accounts, and whether this run created each; whether this run added the runner's secret-access binding; the Terraform state directory; the secret and its versions, and whether it is shared; the deployment name, build ID, and Task Queue; the local CLI profile name; and who created the Temporal API key.
 
 Scale the pool to zero before deleting the version so its pollers stop without destroying the pool prematurely.
 
@@ -375,15 +383,28 @@ Scale the pool to zero before deleting the version so its pollers stop without d
    gcloud run worker-pools delete <POOL_NAME> --region <REGION> --project <YOUR_GCP_PROJECT>
    ```
 5. `terraform destroy` the IAM module — **only if this deployment created it.** One invoker service account can serve several pools, so a shared one may still be in use. → `iam.md`.
-6. Remove the runner's access to the secret, then delete the runner service account if this run created it:
+6. Decide the runner and its secret access from the inventory, after step 4 has deleted this deployment's pool. First list the Worker Pools that still run as the runner, repeating for each region the project deploys pools in:
    ```bash
-   gcloud secrets remove-iam-policy-binding <SECRET_NAME> \
-     --member="serviceAccount:<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com" \
-     --role roles/secretmanager.secretAccessor --project <YOUR_GCP_PROJECT>
-   gcloud iam service-accounts delete \
-     <RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com \
-     --project <YOUR_GCP_PROJECT> --quiet
+   gcloud run worker-pools list --region <REGION> --project <YOUR_GCP_PROJECT> --format=json \
+     | jq -r '.[] | select((.spec.template.spec.serviceAccountName // .template.serviceAccount) == "<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com")
+              | .metadata.name // .name'
    ```
+   Then act only on the branch that matches:
+   - **Any pool is listed:** keep both the runner's secret binding and the runner, and skip the rest of this step.
+   - **No pool is listed and the inventory records that this run added the binding:** remove it.
+     ```bash
+     gcloud secrets remove-iam-policy-binding <SECRET_NAME> \
+       --member="serviceAccount:<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com" \
+       --role roles/secretmanager.secretAccessor --project <YOUR_GCP_PROJECT>
+     ```
+   - **No pool is listed and the inventory records that this run created the runner:** delete it, after removing its binding above.
+     ```bash
+     gcloud iam service-accounts delete \
+       <RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com \
+       --project <YOUR_GCP_PROJECT> --quiet
+     ```
+
+   Keep any binding or runner the inventory does not attribute to this run.
 7. Delete the container image from Artifact Registry, and any Secret Manager secret this run created that no other deployment uses; keep a reused or shared secret. Delete the Artifact Registry repository too if this run created it. Ask before revoking a Temporal Cloud API key: it is account-scoped, not deployment-scoped. Once nothing else uses the local CLI profile, remove it with `temporal config delete-profile --profile <PROFILE>`.
 
 Confirm each deletion with a list command rather than `describe`: a recently deleted service account can return `PERMISSION_DENIED` from `describe` instead of `NOT_FOUND`. For example, `gcloud iam service-accounts list --project <YOUR_GCP_PROJECT> --filter='email:<EMAIL>' --format='value(email)'` prints nothing once the account is gone.
