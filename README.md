@@ -4,12 +4,15 @@ Deploy and operate [Temporal](https://temporal.io/) Workers on serverless comput
 
 It also supports GCP Cloud Run Worker Pools through a separate pool-based path, without changing the Lambda workflow.
 
+It also supports Amazon Bedrock AgentCore Runtime (Pre-release) for Python and TypeScript Workers. For an AWS-hosted Namespace, the skill asks whether to use AgentCore or Lambda, based on [Choose AgentCore or Lambda](https://docs.temporal.io/serverless-workers/agentcore#choose-agentcore-or-lambda).
+
 > [!WARNING]
 > This skill is in Public Preview and will continue to evolve. Pin the Temporal SDK and CLI versions for long-lived projects, plus any provider-specific package you use, such as the AWS Lambda serverless Worker package or a Cloud Run OpenTelemetry helper.
 
 > [!NOTE]
 > Temporal Serverless Workers on AWS Lambda are in Public Preview and are available to all Temporal Cloud customers without an access request.
 > GCP Cloud Run is also in Public Preview and available without an access request.
+> Amazon Bedrock AgentCore Runtime support is in Pre-release, and its APIs may change in backwards-incompatible ways. A Temporal Cloud Namespace needs Pre-release access: create a [support ticket](https://docs.temporal.io/evaluate/cloud/support#support-ticket) or contact your account team, or use a self-hosted Temporal Service v1.32.0 or later.
 
 ## What the skill can do
 
@@ -32,11 +35,15 @@ It also supports GCP Cloud Run Worker Pools through a separate pool-based path, 
 | Area | Supported |
 |---|---|
 | Compute | AWS Lambda and GCP Cloud Run — Public Preview |
+| Compute (AgentCore) | Amazon Bedrock AgentCore Runtime — Supported — Pre-release |
 | Temporal | Temporal Cloud and self-hosted Temporal Service |
 | SDKs | Go, Python, TypeScript, Java, .NET |
+| AgentCore SDKs | Python, TypeScript |
 | Other compute providers | Not currently supported by this skill |
 
 For Temporal Cloud, the Namespace must be hosted on AWS. The Namespace and Lambda function may be in different AWS regions.
+
+For AgentCore, the Temporal Cloud Namespace must be hosted on AWS and have AgentCore Pre-release access.
 
 For Cloud Run, the Namespace must be hosted on GCP. The Namespace and Worker Pool may be in different GCP regions.
 
@@ -48,6 +55,11 @@ Before starting, make sure you can sign in to the accounts for the compute provi
 
 - An AWS account with permission to inspect and create the required Lambda, IAM, CloudFormation, and logging resources.
 - A Temporal Cloud Namespace hosted on AWS, or a compatible self-hosted Temporal Service.
+
+### AgentCore
+
+- An AWS account in an AgentCore-supported Region, with permission to deploy AgentCore Runtimes and create the IAM and CloudFormation resources they need.
+- A Temporal Cloud Namespace hosted on AWS with AgentCore Pre-release access, or a self-hosted Temporal Service v1.32.0 or later.
 
 ### GCP Cloud Run
 
@@ -118,6 +130,10 @@ Deploy this .NET Worker to Lambda with a runtime-specific publish.
 Deploy a Go Temporal Worker to a GCP Cloud Run Worker Pool.
 ```
 
+```text
+Deploy a Python Temporal Worker to Amazon Bedrock AgentCore Runtime.
+```
+
 For a new deployment, the skill follows five stages.
 
 ### AWS Lambda
@@ -127,6 +143,14 @@ For a new deployment, the skill follows five stages.
 3. **Build** — install the serverless Worker package, inspect its current API, author the Worker, and deploy it.
 4. **Connect** — configure Temporal's invocation role, register the Worker Deployment Version, validate the Task Queue binding, and set the version current.
 5. **Verify and hand back** — run a Workflow, confirm two independent health signals, inventory every created resource, and offer teardown.
+
+### AgentCore
+
+1. **Scope** — confirm the SDK, the AgentCore-or-Lambda choice, the AWS-hosted Namespace and its Pre-release access, the Region, and the resource-naming prefix.
+2. **Access** — verify AWS and Temporal identities and permissions, then present the exact billable resources for approval.
+3. **Build** — author a standard Worker inside a Runtime handler, then deploy it with the AgentCore CLI and the CodeZip build, with no Docker.
+4. **Connect** — configure Temporal's invocation role, register the Worker Deployment Version against a named Runtime endpoint, verify the Task Queue binding, and set the version current.
+5. **Verify and hand back** — run a Workflow, confirm its history and the AgentCore logs, and inventory every created resource.
 
 ### GCP Cloud Run
 
@@ -149,6 +173,13 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 - Activities must finish within the Lambda invocation limit and configured shutdown buffer; Workflow duration remains unbounded.
 - Secrets belong in a secret store for shared or production deployments, not plaintext environment variables.
 - Temporal creates and manages the Worker Controller Instance (WCI); this skill never creates or manages it directly.
+
+### AgentCore
+
+- AgentCore support is Pre-release, not generally available.
+- AgentCore Workers are standard long-lived Workers inside a Runtime handler; a Runtime session runs up to 8 hours.
+- The Worker's idle and drain policy and AgentCore's lifecycle settings are independent stop controls; configure both.
+- Each Worker Deployment Version points at its own named Runtime endpoint, never the `DEFAULT` endpoint.
 
 ### GCP Cloud Run
 
@@ -177,6 +208,15 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 | [`references/aws-lambda/versioning.md`](references/aws-lambda/versioning.md) | Immutable releases, updates, and rollback |
 | [`references/aws-lambda/observability.md`](references/aws-lambda/observability.md) | Shared ADOT Collector configuration, X-Ray enablement, and IAM permissions |
 | [`references/aws-lambda/self-hosted.md`](references/aws-lambda/self-hosted.md) | Self-hosted Temporal prerequisites and configuration |
+| [`references/aws-agentcore/constraints.md`](references/aws-agentcore/constraints.md) | AgentCore execution model, session lifetime, stop controls, Activity bounds, autoscaling, and Pre-release status |
+| [`references/aws-agentcore/sdk-python.md`](references/aws-agentcore/sdk-python.md) | Python Runtime handler, versioned Worker, drain policy, connection configuration, packaging, and observability |
+| [`references/aws-agentcore/sdk-typescript.md`](references/aws-agentcore/sdk-typescript.md) | TypeScript Runtime handler, versioned Worker, drain policy, connection configuration, packaging, and observability |
+| [`references/aws-agentcore/setup.md`](references/aws-agentcore/setup.md) | AgentCore CLI (CodeZip) deployment, registration, verification, and resource inventory |
+| [`references/aws-agentcore/iam.md`](references/aws-agentcore/iam.md) | Operator permissions, Runtime execution role, and Temporal invocation role |
+| [`references/aws-agentcore/diagnostics.md`](references/aws-agentcore/diagnostics.md) | AgentCore invocation and Worker-registration diagnostics |
+| [`references/aws-agentcore/versioning.md`](references/aws-agentcore/versioning.md) | Runtime versions, named endpoints, lifecycle settings, and rollback |
+| [`references/aws-agentcore/observability.md`](references/aws-agentcore/observability.md) | AgentCore logs and provider-specific signals |
+| [`references/aws-agentcore/self-hosted.md`](references/aws-agentcore/self-hosted.md) | Self-hosted Temporal Service setup for AgentCore |
 | [`references/gcp-cloud-run/sdk-go.md`](references/gcp-cloud-run/sdk-go.md) | Go Worker construction, versioning behavior, connection configuration, image packaging, scale-in safety, and observability |
 | [`references/gcp-cloud-run/sdk-python.md`](references/gcp-cloud-run/sdk-python.md) | Python Worker construction, versioning behavior, connection configuration, image packaging, scale-in safety, and observability |
 | [`references/gcp-cloud-run/sdk-typescript.md`](references/gcp-cloud-run/sdk-typescript.md) | TypeScript Worker construction, versioning behavior, connection configuration, image packaging, scale-in safety, and observability |
