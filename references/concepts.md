@@ -10,7 +10,7 @@
 
 **GCP Cloud Run — Public Preview.** Open to all Temporal Cloud customers with a GCP-hosted Namespace. There is no access request, support ticket, or manual toggle to enable: select GCP Cloud Run as the compute provider and proceed. Never route a user to support to "get access" for Cloud Run either.
 
-These are the two compute providers this skill supports. Do not adapt either provider's material to another provider. For provider-specific execution models, scaling behavior, lifecycle, and limits, read [AWS Lambda constraints](aws-lambda/constraints.md) or [GCP Cloud Run constraints](gcp-cloud-run/constraints.md).
+Do not adapt one provider's material to another provider. For provider-specific release status, execution models, scaling behavior, lifecycle, and limits, read [AWS Lambda constraints](aws-lambda/constraints.md), [GCP Cloud Run constraints](gcp-cloud-run/constraints.md), or [AgentCore constraints](aws-agentcore/constraints.md).
 
 Public Preview is not General Availability. APIs are still evolving and may be subject to backwards-incompatible changes between versions — pin SDK and CLI versions for anything long-lived, and read the installed package's real API surface rather than writing from memory.
 
