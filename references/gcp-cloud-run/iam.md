@@ -42,7 +42,7 @@ The invoker also needs **`roles/iam.serviceAccountUser` on the runner service ac
 
 Temporal publishes [`serverless-workers/gcp/cloud-run`](https://github.com/temporalio/terraform-modules/tree/main/modules/serverless-workers/gcp/cloud-run), which creates the invoker service account and applies the grants.
 
-Start from the template under **Workers → Create Worker Deployment → Access** because Temporal Cloud fills in the account-specific `impersonator_service_account_emails`. For a standalone root module, declare the Google provider constraint expected by the module and configure the project explicitly; reconcile any existing root constraint before running `terraform init`: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:723-744 -->
+Apply the module block below. Temporal Cloud's UI template is the source of the account-specific `impersonator_service_account_emails` only; see [Where `impersonator_service_account_emails` comes from](#where-impersonator_service_account_emails-comes-from). For a standalone root module, declare the Google provider constraint expected by the module and configure the project explicitly; reconcile any existing root constraint before running `terraform init`: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:723-744 -->
 
 ```hcl
 terraform {
@@ -65,7 +65,7 @@ module "serverless-worker-cloud-run" {
   invoker_account_id = "<PREFIX>-invoker"
 
   impersonator_service_account_emails = [
-    "<provided by Temporal Cloud>",
+    "<every email from the Temporal Cloud Access template>",
   ]
 
   runner_service_account_email = "<RUNNER_SERVICE_ACCOUNT_ID>@<YOUR_GCP_PROJECT>.iam.gserviceaccount.com"
@@ -103,7 +103,11 @@ Use the **`invoker_email`** output as `--gcp-cloud-run-service-account` when reg
 
 ### Where `impersonator_service_account_emails` comes from
 
-The values are Temporal Cloud's identities for **your Temporal Cloud account**, of the form `serverless-<account>@…`. The authoritative source is the UI template above. When the agent cannot see the UI and an invoker created for the same Temporal Cloud account already exists in the project, read the identities from its policy:
+The values are Temporal Cloud's identities for **your Temporal Cloud account**, of the form `serverless-<account>@…`. The authoritative source is the UI template.
+
+**From the UI:** ask the user to open **Workers → Create Worker Deployment**, select **GCP Cloud Run**, open **Access**, and paste the whole Terraform block shown there into the conversation. It holds identities, not credentials. From the pasted block, take only the `impersonator_service_account_emails = [ … ]` list and put it in place of the placeholder in the module above, check that each entry has the `serverless-<account>@…` form for this Temporal Cloud account, and show the list back to the user to confirm. Do not apply the template itself: its other values, such as the invoker name, are replaced by this file's module block, which uses the agreed prefix and the runner from `setup.md`.
+
+When the agent cannot see the UI and an invoker created for the same Temporal Cloud account already exists in the project, read the identities from its policy:
 
 ```bash
 gcloud iam service-accounts get-iam-policy <EXISTING_INVOKER_EMAIL> \
