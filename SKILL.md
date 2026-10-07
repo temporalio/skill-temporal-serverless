@@ -1,6 +1,6 @@
 ---
 name: temporal-serverless
-description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "deploy Temporal worker on Cloud Run".'
+description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, Amazon Bedrock AgentCore Runtime, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "deploy Temporal worker on Cloud Run", "AgentCore", "Bedrock AgentCore", "AgentCore Runtime worker", "deploy Temporal worker on AgentCore".'
 disable-model-invocation: true
 ---
 
@@ -8,13 +8,14 @@ disable-model-invocation: true
 
 ## Overview
 
-This skill helps users deploy and operate Temporal Workers on serverless compute. On AWS Lambda, Temporal invokes the Worker on demand through the Worker Controller Instance (WCI); the Worker processes available Tasks and shuts down, scaling to zero when idle. On GCP Cloud Run, the WCI instead resizes a Worker Pool whose instances run ordinary long-lived Workers. The skill produces Worker code, deployment configuration, connection configs, and packaging steps for the chosen SDK, and walks users through troubleshooting when serverless Workers aren't picking up Tasks.
+This skill helps users deploy and operate Temporal Workers on serverless compute. On AWS Lambda, Temporal invokes the Worker on demand through the Worker Controller Instance (WCI); the Worker processes available Tasks and shuts down, scaling to zero when idle. On Amazon Bedrock AgentCore Runtime, the WCI invokes a named Runtime endpoint, and each Runtime session runs a standard long-lived Worker until it drains or AgentCore ends its compute. On GCP Cloud Run, the WCI instead resizes a Worker Pool whose instances run ordinary long-lived Workers. The skill produces Worker code, deployment configuration, connection configs, and packaging steps for the chosen SDK, and walks users through troubleshooting when serverless Workers aren't picking up Tasks.
 
 ## Supported compute providers
 
 | Cloud provider | Compute service | Support | Reference directory |
 |---|---|---|---|
 | AWS | Lambda | Supported — Public Preview, open to all Temporal Cloud customers | `references/aws-lambda/` |
+| AWS | Bedrock AgentCore Runtime | Supported — Pre-release | `references/aws-agentcore/` |
 | GCP | Cloud Run | Supported — Public Preview, open to all Temporal Cloud customers | `references/gcp-cloud-run/` |
 
 Only a provider marked Supported is covered. If a request names another, say it is not supported and stop; do not adapt a supported provider's material to it. **Never let the provider be an unstated assumption:** when the request does not name one, it is settled in step 1, derived from the Namespace or asked, and stated to the user, not silently defaulted.
@@ -31,6 +32,13 @@ Every supported provider's directory carries the same shared layout — `constra
 | Java | `references/aws-lambda/sdk-java.md` |
 | .NET | `references/aws-lambda/sdk-dotnet.md` |
 
+| SDK language | AgentCore reference |
+|---|---|
+| Python | [`references/aws-agentcore/sdk-python.md`](references/aws-agentcore/sdk-python.md) |
+| TypeScript | [`references/aws-agentcore/sdk-typescript.md`](references/aws-agentcore/sdk-typescript.md) |
+
+AgentCore covers only Python and TypeScript. If the user wants another SDK on AgentCore, say this skill does not cover it, and offer Lambda or a supported SDK instead.
+
 | SDK language | GCP Cloud Run reference |
 |---|---|
 | Go | `references/gcp-cloud-run/sdk-go.md` |
@@ -40,6 +48,8 @@ Every supported provider's directory carries the same shared layout — `constra
 | .NET | `references/gcp-cloud-run/sdk-dotnet.md` |
 
 **Public Preview is not GA.** The APIs are still evolving and may change: pin SDK and CLI versions for anything long-lived, and read the installed package's actual API surface rather than writing from memory.
+
+**AgentCore is Pre-release.** Its APIs may change in backwards-incompatible ways, and a Temporal Cloud Namespace needs Pre-release access before it can use AgentCore (confirmed in step 1). → `references/aws-agentcore/constraints.md`.
 
 ## Deployment workflow
 
