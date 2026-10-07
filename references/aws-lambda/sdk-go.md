@@ -2,7 +2,7 @@
 
 <!-- Source: docs/develop/go/workers/serverless-workers/aws-lambda.mdx -->
 
-Use this reference for Go SDK-specific package, entry-point, Worker configuration, tuned defaults, and observability details. For shared AWS Lambda deployment and observability infrastructure, see `setup.md` and `observability.md`.
+Use this reference for Go SDK-specific package, entry-point, Worker configuration, tuned defaults, and observability details. For shared AWS Lambda execution constraints, deployment, and observability infrastructure, see `constraints.md`, `setup.md`, and `observability.md`.
 
 ## Package
 

@@ -6,7 +6,7 @@
   docs/develop/environment-configuration.mdx
 -->
 
-This is the end-to-end golden path: connect, write the Worker, package and deploy, register a Worker Deployment Version, set it current, and verify. For the operator permissions and preflight, execution/invocation roles, and CloudFormation, see `iam.md`. For production build versioning (`publish-version`, qualified ARNs, rollback), see `versioning.md`. For self-hosted server enablement, see `self-hosted.md`. If it doesn't work, see `diagnostics.md`.
+This is the end-to-end golden path: connect, write the Worker, package and deploy, register a Worker Deployment Version, set it current, and verify. For the Lambda execution model and limits, see `constraints.md`. For the operator permissions and preflight, execution/invocation roles, and CloudFormation, see `iam.md`. For production build versioning (`publish-version`, qualified ARNs, rollback), see `versioning.md`. For self-hosted server enablement, see `self-hosted.md`. If it doesn't work, see `diagnostics.md`.
 
 ## Prerequisites
 

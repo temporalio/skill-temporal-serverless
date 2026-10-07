@@ -2,7 +2,7 @@
 
 <!-- Sources: io.temporal:temporal-aws-lambda:1.38.0 sources jar and samples-java@main -->
 
-Use this reference for Java SDK-specific package, entry-point, Worker configuration, tuned defaults, observability, and diagnostic details. For shared AWS Lambda deployment, observability infrastructure, and diagnostic flow, see `setup.md`, `observability.md`, and `diagnostics.md`.
+Use this reference for Java SDK-specific package, entry-point, Worker configuration, tuned defaults, observability, and diagnostic details. For shared AWS Lambda execution constraints, deployment, observability infrastructure, and diagnostic flow, see `constraints.md`, `setup.md`, `observability.md`, and `diagnostics.md`.
 
 ## Package
 
