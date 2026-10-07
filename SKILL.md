@@ -111,9 +111,16 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 **A step is complete when its verification passed — not when its command exited zero.** Several commands in this workflow exit clean having done nothing: the traffic-shifting and key-revocation commands no-op when their confirmation prompt goes unanswered, and providers return from create and update calls while the resource is still settling. Check an item off against state you read back, not against an exit code. When a step's verification fails, say which step you are on and what it is blocked on rather than moving down the list.
 
-1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available. For Lambda, it must also be authenticated to the target at this point. For Cloud Run, check only that the `temporal` CLI is installed: its authenticated profile is created during the API-key hand-off after approval (`references/gcp-cloud-run/setup.md`). Each changes the specifics. Read `references/concepts.md` for shared concepts, `references/<provider>/constraints.md` for the selected provider's lifecycle rules, and `references/<provider>/setup.md` for compatibility and client-setup details.
+1. **Scope the task.** Identify the SDK language (Go, Python, TypeScript, Java, or .NET), the deployment target (Temporal Cloud or self-hosted — self-hosted has its own server prerequisites), the compute provider, and whether this is a new setup, a configuration change, or troubleshooting. Confirm the deployment target is compatible with the chosen provider — see "A Namespace on the target cloud provider is required" under Provider-neutral principles. Ensure a Temporal client/CLI is available. For Lambda, it must also be authenticated to the target at this point. For AgentCore, it must be Temporal CLI v1.8.3 or later and authenticated to the target (`references/aws-agentcore/setup.md`). For Cloud Run, check only that the `temporal` CLI is installed: its authenticated profile is created during the API-key hand-off after approval (`references/gcp-cloud-run/setup.md`). Each changes the specifics. Read `references/concepts.md` for shared concepts, `references/<provider>/constraints.md` for the selected provider's lifecycle rules, and `references/<provider>/setup.md` for compatibility and client-setup details.
 
-   **Derive the compute provider from the Namespace's cloud provider.** An AWS-hosted Namespace uses AWS Lambda; a GCP-hosted Namespace uses GCP Cloud Run. State the derived provider with the Namespace choice, and if the request names a provider, check that it matches. When `tcld` cannot be used, the Namespace's region settles it: `aws-us-east-1` is AWS, `gcp-us-central1` is GCP. Ask the provider as a structured question only for a self-hosted Temporal Service, where either is possible; carry each option's status from the support table in its description, and note that Activity duration can decide it, because Lambda caps an invocation at 15 minutes and Cloud Run does not.
+   **Derive the compute provider from the Namespace's cloud provider.** A GCP-hosted Namespace uses GCP Cloud Run. An AWS-hosted Namespace uses AWS Lambda or AgentCore Runtime, settled by the AgentCore-or-Lambda question below. State the provider with the Namespace choice, and if the request names a provider, check that it matches. When `tcld` cannot be used, the Namespace's region settles the cloud: `aws-us-east-1` is AWS, `gcp-us-central1` is GCP. For a self-hosted Temporal Service, where any supported provider is possible, ask the provider as a structured question; carry each option's status from the support table in its description, and note that Activity duration can decide it, because Lambda caps an invocation at 15 minutes, an AgentCore session runs up to 8 hours, and Cloud Run has no invocation deadline. If the user picks AWS without choosing between Lambda and AgentCore, ask the AgentCore-or-Lambda question next.
+
+   **For an AWS Namespace, ask AgentCore or Lambda as a structured question unless the request already names one.** Do not default AWS to Lambda. Base the options on [Choose AgentCore or Lambda](https://docs.temporal.io/serverless-workers/agentcore#choose-agentcore-or-lambda), and carry each option's status from the support table:
+
+   - **AgentCore Runtime (Supported — Pre-release)** — choose it if the application uses AgentCore services (identity, tool access, policy, memory, observability), or if an Activity attempt might need longer than Lambda's 15-minute limit. A session runs up to 8 hours and can reuse initialization work, in-memory caches, and temporary files. Python and TypeScript only.
+   - **AWS Lambda (Supported — Public Preview)** — choose it for general-purpose AWS compute that does not use the AgentCore platform, or when Activity attempts finish within the Lambda invocation window.
+
+   If the user's SDK is not Python or TypeScript, say so in the AgentCore option's description rather than omitting the option.
 
    **Any `tcld` call can start a browser sign-in when its session has expired**, including a read-only one. Tell the user before the first `tcld` call, so a login is never a silent side effect of discovery. If you do not know whether the session is valid, ask the user to run `tcld login` in their own terminal first. If a `tcld` call stalls without output, stop it and ask the user to log in rather than waiting.
 
@@ -122,6 +129,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
    - List names with `tcld namespace list`, following `nextPageToken` with `--page-token` when it is set.
    - Run `tcld namespace get -n <namespace>` for each candidate. Read its provider from `.spec.regionId.provider` (for example `CloudProviderGcp`), its region from `.spec.regionId.name`, and its authentication method from `.spec.authMethod`.
    - For Cloud Run, which authenticates with an API key, offer only Namespaces whose authentication method accepts API keys. The provider decides eligibility; the region does not.
+   - For AgentCore, offer every AWS-hosted Namespace, then confirm Pre-release access with the user after the choice, as below.
 
    If the user names a Namespace that is not in the list, confirm it with `tcld namespace get` before continuing: `NotFound` means it does not exist in this account.
 
@@ -133,6 +141,8 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
    - **If all eligible Namespaces fit in a structured question, offer all of them as options. Otherwise, print the complete labelled list, numbered, and ask the user to reply with the number (or name) of the one to use.** Never offer only a subset as options.
 
    **Degrade gracefully if `tcld` is not authenticated.** Ask the user for the Namespace name rather than stopping to fix the login — they can copy it from the Cloud UI, where it appears on the Namespace page and in the URL. Ask for its region in the same batch of questions: the name alone does not tell you the provider, and a mismatch missed here surfaces at connection time instead.
+
+   **For AgentCore on Temporal Cloud, ask the user to confirm the chosen Namespace has AgentCore (Pre-release) access before going further.** If it does not, or the user does not know, stop the AgentCore path: point them to a [support ticket](https://docs.temporal.io/evaluate/cloud/support#support-ticket) or their account team to request access, and mention self-hosting (Temporal Service v1.32.0 or later, `references/aws-agentcore/self-hosted.md`) as the alternative, which needs no access request. Offer Lambda only if its criteria above fit the workload. A self-hosted Temporal Service skips this check.
 
    **Never source a Namespace, account, or resource identifier from shell history.** History is stale by construction — it is full of last quarter's accounts — and reading it to guess a deployment target produces confident, wrong answers. Take identifiers from the user or from an authenticated API call, and nowhere else.
 
@@ -172,6 +182,10 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
    Name the target account and region, then every resource: compute unit, execution role, infrastructure stack, log group, deployment name, and Task Queue.
 
+   #### AgentCore
+
+   Name the target account and Region, then every resource: the AgentCore project directory and target, the Runtime and its execution role, the named endpoint, the invocation-role CloudFormation stack (Temporal Cloud only), the deployment name, build ID, and Task Queue. Say that the External ID is chosen by the user.
+
    #### GCP Cloud Run
 
    List the project and region; any APIs that still need enabling, and the Cloud Build submission; the Artifact Registry repository, if new, and the image; the Worker Pool; the runner service account and the dedicated invoker, with its Terraform state directory; the secret; the local CLI profile; the deployment name, build ID, and Task Queue; and logs. Say that the user creates the Temporal API key and enters it during the hand-off, and that they may also need to run `terraform apply` or the secret IAM grant in their own terminal if the agent's environment blocks them. Note that the Temporal deployment name is checked right after the hand-off, because the CLI profile does not exist before approval.
@@ -191,6 +205,22 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 8. **Hand back the inventory first; offer teardown as the closing note.** The order is inventory → offer, never the reverse. Close with what now exists — compute unit and published build identifiers, roles, infrastructure stacks, region, deployment name and build ID — and what the run actually did, including anything you worked around or deviated from. Say plainly that it is live and billable. These names are only knowable from the run that created them, and reconstructing them later means scanning the user's account.
 
    **Do not write a teardown script before the user asks for one.** Generating it unprompted buries the inventory under a file they did not request, and the inventory is what they need in order to decide. End with a single line — *"Let me know if you want a teardown script to remove these resources"* — and stop there. Write the script, or run the teardown, when they take you up on it. → `references/<provider>/setup.md` (Teardown).
+
+### AgentCore: steps 3–8
+
+AgentCore uses the AgentCore CLI and the CodeZip build only: no Docker, no container image, no ECR repository. To design the agent itself, link the user to [Build a durable agent on Amazon Bedrock AgentCore](https://docs.temporal.io/guides/durable-agent-on-agentcore); do not reproduce it.
+
+3. **Author the Worker.** Write a standard long-lived Worker started from a Runtime handler that serves `/invocations` and `/ping`; there is no AgentCore serverless Worker package. Implement the Worker's idle and drain policy in the handler, set the required Worker Versioning behavior, and make the deployment name and build ID match the version to be registered. → the selected `references/aws-agentcore/sdk-<language>.md`, `references/aws-agentcore/constraints.md`.
+
+4. **Package and deploy the Runtime.** Configure the Runtime in `agentcore/agentcore.json`, run `agentcore validate` and `agentcore deploy`, and record both the Runtime ARN and the named endpoint ARN. Do not continue until the endpoint reports `READY`. Never point a version at the `DEFAULT` endpoint. → `references/aws-agentcore/setup.md`, `references/aws-agentcore/versioning.md`.
+
+5. **Grant Temporal permission to invoke the Runtime.** Keep the Runtime execution role separate from the invocation role Temporal assumes. For Temporal Cloud, deploy the Cloud invocation-role template scoped to the Runtime ARN plus `*`; for a self-hosted Service, use the role from `references/aws-agentcore/self-hosted.md`. → `references/aws-agentcore/iam.md`.
+
+6. **Register the Worker Deployment Version, verify registration, then set it current.** Point the version at the endpoint ARN, never the Runtime ARN, and confirm the expected Task Queue is bound before setting the version current. → `references/aws-agentcore/setup.md`, `references/aws-agentcore/diagnostics.md`.
+
+7. **Verify.** Start a Workflow, confirm its history progresses, and confirm the AgentCore logs show the Worker starting, processing Tasks, and draining. If it does not progress, → `references/aws-agentcore/diagnostics.md`.
+
+8. **Hand back the inventory first; offer teardown as the closing note.** Include the items in `references/aws-agentcore/setup.md` under "Resource inventory". The skill's sources do not cover AgentCore teardown commands, so ask the user how they want AgentCore resources removed before deleting any.
 
 ### GCP Cloud Run: steps 3–8
 
