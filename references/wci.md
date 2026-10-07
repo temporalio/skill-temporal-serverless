@@ -16,6 +16,8 @@ The WCI responds to sync match failures and Task Queue backlog or rate informati
 
 ## Inspect the WCI
 
+Run these with the CLI connection the version was registered with: on Cloud Run, add `--profile <PROFILE>` (the profile the API-key hand-off writes); on AWS Lambda, use the connection configured in `aws-lambda/setup.md`.
+
 List WCI Workflows in the Namespace: <!-- docs/encyclopedia/workers/serverless-workers.mdx:75 -->
 
 ```bash
