@@ -101,6 +101,7 @@ The sample's handler, with the application-specific names replaced: <!-- docs/de
 import asyncio
 import os
 
+import boto3
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from temporalio.client import Client
 from temporalio.common import VersioningBehavior
@@ -121,9 +122,18 @@ TASK_QUEUE = os.environ["TEMPORAL_TASK_QUEUE"]
 # ActivityTracker, DEBOUNCE and DRAIN: see "Stop and drain the Worker".
 
 
+def load_api_key() -> str | None:
+    """Read the Temporal API key from Secrets Manager; never log it."""
+    secret_arn = os.environ.get("TEMPORAL_API_KEY_SECRET_ARN")
+    if not secret_arn:
+        return None
+    secrets = boto3.client("secretsmanager")
+    return secrets.get_secret_value(SecretId=secret_arn)["SecretString"]
+
+
 async def run_worker() -> None:
     """Poll until idle, then drain."""
-    api_key = os.environ.get("TEMPORAL_API_KEY") or None
+    api_key = await asyncio.to_thread(load_api_key)
     client = await Client.connect(
         os.environ["TEMPORAL_ADDRESS"],
         namespace=os.environ["TEMPORAL_NAMESPACE"],
@@ -231,7 +241,7 @@ Memory pressure can be an additional retirement condition: the handler can monit
 
 ## Connection configuration
 
-Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). The handler above passes `TEMPORAL_API_KEY` to `Client.connect` and turns TLS on only when a key is set, which covers Temporal Cloud with an API key and a self-hosted Service without TLS. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:82-91 -->
+Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). For Temporal Cloud, also set `TEMPORAL_API_KEY_SECRET_ARN`. The handler above reads the key from that secret each time it starts a Worker, passes it to `Client.connect`, and turns TLS on only when a key is set. That covers Temporal Cloud with an API key and a self-hosted Service without TLS. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:82-91 --> `boto3` is already installed as a dependency of `bedrock-agentcore`, and it authenticates as the Runtime execution role. <!-- samples-python/bedrock_agentcore/strands_agent/uv.lock:244-245 -->
 
 To use the shared environment-configuration format and profiles instead (including mTLS settings), load the connection with `temporalio.envconfig`. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:153-161 -->
 
@@ -241,7 +251,7 @@ from temporalio.envconfig import ClientConfig
 client = await Client.connect(**ClientConfig.load_client_connect_config())
 ```
 
-Store the API key or TLS material in a secret store, not in `agentcore.json`. In production, read it from AWS Secrets Manager in the entry point before `Client.connect`, and grant the Runtime execution role access to that secret. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:156-158; docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
+The API key and any TLS material live in AWS Secrets Manager, never in `agentcore.json` or a Runtime env var. The user stores the key from their own terminal, and the execution role gets `secretsmanager:GetSecretValue` on that one secret ARN. → `setup.md`, [Store the Temporal API key](setup.md#store-the-temporal-api-key). Rotation needs no redeploy, because each new Worker reads the current version. → `iam.md`, [Temporal API key lifecycle](iam.md#temporal-api-key-lifecycle). Never log the value. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:156-158; docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
 
 ## Package and deploy
 

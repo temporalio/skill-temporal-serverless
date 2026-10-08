@@ -27,7 +27,8 @@ agentcore add agent --name <AGENT_NAME> --type create --build CodeZip \
 The generated starter is a Strands agent. Replace `main.ts` with the Worker entry point below, and remove starter files (`model/`, `mcp_client/`) that the application does not import. Then add the Temporal and AgentCore packages in `app/<AGENT_NAME>/`:
 
 ```bash
-npm install bedrock-agentcore @temporalio/worker @temporalio/workflow @temporalio/activity
+npm install bedrock-agentcore @temporalio/worker @temporalio/workflow @temporalio/activity \
+  @aws-sdk/client-secrets-manager
 ```
 
 - `bedrock-agentcore` requires Node.js 20 or later and is ESM-only (`"type": "module"`, `import` exports only). Keep `"type": "module"` in the app's `package.json`; AWS lists its absence as a TypeScript build failure cause. <!-- npm:bedrock-agentcore@0.4.5 package.json; aws:runtime-get-started-cli-typescript.html#ts-common-issues -->
@@ -105,6 +106,7 @@ The `/invocations` payload is not Workflow input. Temporal invokes the endpoint 
 import { fileURLToPath } from 'node:url';
 import { BedrockAgentCoreApp } from 'bedrock-agentcore/runtime';
 import { NativeConnection, Worker } from '@temporalio/worker';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import * as activities from './activities.js';
 
 function requiredEnv(name: string): string {
@@ -119,8 +121,17 @@ const TASK_QUEUE = requiredEnv('TEMPORAL_TASK_QUEUE');
 
 // ActivityTracker, DEBOUNCE_MS and DRAIN: see "Stop and drain the Worker".
 
+// Read the Temporal API key from Secrets Manager; never log it.
+async function loadApiKey(): Promise<string | undefined> {
+  const secretArn = process.env.TEMPORAL_API_KEY_SECRET_ARN;
+  if (!secretArn) return undefined;
+  const secrets = new SecretsManagerClient({});
+  const { SecretString } = await secrets.send(new GetSecretValueCommand({ SecretId: secretArn }));
+  return SecretString;
+}
+
 async function runWorker(): Promise<void> {
-  const apiKey = process.env.TEMPORAL_API_KEY || undefined;
+  const apiKey = await loadApiKey();
   const connection = await NativeConnection.connect({
     address: requiredEnv('TEMPORAL_ADDRESS'),
     apiKey,
@@ -217,11 +228,11 @@ The TypeScript SDK's default Runtime also shuts the Worker down on `SIGTERM`, so
 
 ## Connection configuration
 
-Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). The handler above turns TLS on only when `TEMPORAL_API_KEY` is set, which covers Temporal Cloud with an API key and a self-hosted Service without TLS.
+Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). For Temporal Cloud, also set `TEMPORAL_API_KEY_SECRET_ARN`. The handler above reads the key from that secret each time it starts a Worker, and turns TLS on only when a key is set. That covers Temporal Cloud with an API key and a self-hosted Service without TLS. The AWS SDK client authenticates as the Runtime execution role. **Not covered by the docs:** the Secrets Manager call in TypeScript is a translation of the Python handler, so verify it in the end-to-end run.
 
 To use the shared environment-configuration format and profiles instead (including mTLS settings), call `loadClientConnectConfig()` from `@temporalio/envconfig` and pass its `connectionOptions` and `namespace` to `NativeConnection.connect()` and `Worker.create()`. <!-- docs/develop/typescript/workers/serverless-workers/cloud-run.mdx:88 -->
 
-Store the API key or TLS material in a secret store, not in `agentcore.json`. In production, read it from AWS Secrets Manager in the entry point before connecting, and grant the Runtime execution role access to that secret. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
+The API key and any TLS material live in AWS Secrets Manager, never in `agentcore.json` or a Runtime env var. The user stores the key from their own terminal, and the execution role gets `secretsmanager:GetSecretValue` on that one secret ARN. → `setup.md`, [Store the Temporal API key](setup.md#store-the-temporal-api-key). Rotation needs no redeploy, because each new Worker reads the current version. → `iam.md`, [Temporal API key lifecycle](iam.md#temporal-api-key-lifecycle). Never log the value. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
 
 ## Package and deploy
 
