@@ -141,6 +141,7 @@ async def run_worker() -> None:
         tls=bool(api_key),
     )
     tracker = ActivityTracker()
+    log.info("polling %s as %s/%s", TASK_QUEUE, DEPLOYMENT_NAME, BUILD_ID)
     worker = Worker(...)  # the versioned Worker above
     async with worker:
         await tracker.wait_until_idle(DEBOUNCE)
@@ -163,6 +164,7 @@ async def invoke(payload: dict) -> dict:
     """Start the Worker and acknowledge. The payload is unused."""
     global _worker
     if _worker is not None and not _worker.done():
+        log.info("worker already polling %s", TASK_QUEUE)
         return {"message": "worker already polling", "task_queue": TASK_QUEUE}
     task_id = app.add_async_task("temporal-worker")
     _worker = asyncio.create_task(_run_until_idle(task_id))

@@ -139,6 +139,7 @@ async function runWorker(): Promise<void> {
   });
   try {
     const tracker = new ActivityTracker();
+    console.info(`polling ${TASK_QUEUE} as ${DEPLOYMENT_NAME}/${BUILD_ID}`);
     const worker = await Worker.create({ /* the versioned Worker above */ });
     const running = worker.run();
     try {
@@ -159,7 +160,10 @@ const app: BedrockAgentCoreApp = new BedrockAgentCoreApp({
   invocationHandler: {
     // Start the Worker and acknowledge. The payload is unused.
     process: async () => {
-      if (current) return { message: 'worker already polling', task_queue: TASK_QUEUE };
+      if (current) {
+        console.info(`worker already polling ${TASK_QUEUE}`);
+        return { message: 'worker already polling', task_queue: TASK_QUEUE };
+      }
       const taskId = app.addAsyncTask('temporal-worker');
       current = runWorker()
         // Nothing awaits this promise, so an error would otherwise be lost.
