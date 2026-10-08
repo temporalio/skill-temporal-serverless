@@ -184,7 +184,7 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
    #### AgentCore
 
-   Name the target account and Region, then every resource: the AgentCore project directory and target, the Runtime and its execution role, the named endpoint, the invocation-role CloudFormation stack (Temporal Cloud only), the deployment name, build ID, and Task Queue. Say that the External ID is chosen by the user.
+   Name the target account and Region, then every resource: the AgentCore project directory and target, the Runtime and its execution role, the named endpoint, the invocation-role CloudFormation stack (Temporal Cloud only), the Secrets Manager secret and its policy file (Temporal Cloud with an API key), the deployment name, build ID, and Task Queue, and for each, whether it already exists and will be reused. Say that the External ID is chosen by the user, and that the user creates the Temporal API key and stores it in the secret during the hand-off.
 
    #### GCP Cloud Run
 
@@ -210,9 +210,11 @@ Where the harness has a todo list, use it *in addition to* the printed checklist
 
 AgentCore uses the AgentCore CLI and the CodeZip build only: no Docker, no container image, no ECR repository. To design the agent itself, link the user to [Build a durable agent on Amazon Bedrock AgentCore](https://docs.temporal.io/guides/durable-agent-on-agentcore); do not reproduce it.
 
+For Temporal Cloud, the user stores the Temporal API key in Secrets Manager from their own terminal; the agent never handles it. Steps 3–5 need no key and continue meanwhile. Step 6 waits for the hand-off. Deliver the hand-off as `references/aws-agentcore/setup.md` (Store the Temporal API key) describes: end the turn with the user's action first, and repeat it in full while the run is blocked on it.
+
 3. **Author the Worker.** Write a standard long-lived Worker started from a Runtime handler that serves `/invocations` and `/ping`; there is no AgentCore serverless Worker package. Implement the Worker's idle and drain policy in the handler, set the required Worker Versioning behavior, and make the deployment name and build ID match the version to be registered. → the selected `references/aws-agentcore/sdk-<language>.md`, `references/aws-agentcore/constraints.md`.
 
-4. **Package and deploy the Runtime.** Configure the Runtime in `agentcore/agentcore.json`, run `agentcore validate` and `agentcore deploy`, and record both the Runtime ARN and the named endpoint ARN. Do not continue until the endpoint reports `READY`. Never point a version at the `DEFAULT` endpoint. → `references/aws-agentcore/setup.md`, `references/aws-agentcore/versioning.md`.
+4. **Package and deploy the Runtime.** Configure the Runtime in `agentcore/agentcore.json`. For Temporal Cloud, first create the API-key secret and the execution role's policy file for it, then set only the secret's ARN in the Runtime. Run `agentcore validate` and `agentcore deploy`, and record both the Runtime ARN and the named endpoint ARN. Do not continue until the endpoint reports `READY`. Never point a version at the `DEFAULT` endpoint. → `references/aws-agentcore/setup.md`, `references/aws-agentcore/versioning.md`.
 
 5. **Grant Temporal permission to invoke the Runtime.** Keep the Runtime execution role separate from the invocation role Temporal assumes. For Temporal Cloud, deploy the Cloud invocation-role template scoped to the Runtime ARN plus `*`; for a self-hosted Service, use the role from `references/aws-agentcore/self-hosted.md`. → `references/aws-agentcore/iam.md`.
 
