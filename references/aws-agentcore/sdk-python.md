@@ -101,6 +101,7 @@ The sample's handler, with the application-specific names replaced: <!-- docs/de
 import asyncio
 import os
 
+import boto3
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from temporalio.client import Client
 from temporalio.common import VersioningBehavior
@@ -121,9 +122,18 @@ TASK_QUEUE = os.environ["TEMPORAL_TASK_QUEUE"]
 # ActivityTracker, DEBOUNCE and DRAIN: see "Stop and drain the Worker".
 
 
+def load_api_key() -> str | None:
+    """Read the Temporal API key from Secrets Manager; never log it."""
+    secret_arn = os.environ.get("TEMPORAL_API_KEY_SECRET_ARN")
+    if not secret_arn:
+        return None
+    secrets = boto3.client("secretsmanager")
+    return secrets.get_secret_value(SecretId=secret_arn)["SecretString"]
+
+
 async def run_worker() -> None:
     """Poll until idle, then drain."""
-    api_key = os.environ.get("TEMPORAL_API_KEY") or None
+    api_key = await asyncio.to_thread(load_api_key)
     client = await Client.connect(
         os.environ["TEMPORAL_ADDRESS"],
         namespace=os.environ["TEMPORAL_NAMESPACE"],
@@ -131,6 +141,7 @@ async def run_worker() -> None:
         tls=bool(api_key),
     )
     tracker = ActivityTracker()
+    log.info("polling %s as %s/%s", TASK_QUEUE, DEPLOYMENT_NAME, BUILD_ID)
     worker = Worker(...)  # the versioned Worker above
     async with worker:
         await tracker.wait_until_idle(DEBOUNCE)
@@ -153,6 +164,7 @@ async def invoke(payload: dict) -> dict:
     """Start the Worker and acknowledge. The payload is unused."""
     global _worker
     if _worker is not None and not _worker.done():
+        log.info("worker already polling %s", TASK_QUEUE)
         return {"message": "worker already polling", "task_queue": TASK_QUEUE}
     task_id = app.add_async_task("temporal-worker")
     _worker = asyncio.create_task(_run_until_idle(task_id))
@@ -231,7 +243,7 @@ Memory pressure can be an additional retirement condition: the handler can monit
 
 ## Connection configuration
 
-Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). The handler above passes `TEMPORAL_API_KEY` to `Client.connect` and turns TLS on only when a key is set, which covers Temporal Cloud with an API key and a self-hosted Service without TLS. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:82-91 -->
+Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). For Temporal Cloud, also set `TEMPORAL_API_KEY_SECRET_ARN`. The handler above reads the key from that secret each time it starts a Worker, passes it to `Client.connect`, and turns TLS on only when a key is set. That covers Temporal Cloud with an API key and a self-hosted Service without TLS. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:82-91 --> `boto3` is already installed as a dependency of `bedrock-agentcore`, and it authenticates as the Runtime execution role. <!-- samples-python/bedrock_agentcore/strands_agent/uv.lock:244-245 -->
 
 To use the shared environment-configuration format and profiles instead (including mTLS settings), load the connection with `temporalio.envconfig`. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:153-161 -->
 
@@ -241,7 +253,7 @@ from temporalio.envconfig import ClientConfig
 client = await Client.connect(**ClientConfig.load_client_connect_config())
 ```
 
-Store the API key or TLS material in a secret store, not in `agentcore.json`. In production, read it from AWS Secrets Manager in the entry point before `Client.connect`, and grant the Runtime execution role access to that secret. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:156-158; docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
+The API key and any TLS material live in AWS Secrets Manager, never in `agentcore.json` or a Runtime env var. The user stores the key from their own terminal, and the execution role gets `secretsmanager:GetSecretValue` on that one secret ARN. → `setup.md`, [Store the Temporal API key](setup.md#store-the-temporal-api-key). Rotation needs no redeploy, because each new Worker reads the current version. → `iam.md`, [Temporal API key lifecycle](iam.md#temporal-api-key-lifecycle). Never log the value. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:156-158; docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
 
 ## Package and deploy
 
@@ -271,6 +283,21 @@ async def my_activity(items: list[str]) -> str:
 ```
 
 → `constraints.md`.
+
+## Logging and diagnostic signatures
+
+Write Worker lifecycle logs with `app.logger`, as the handler above does, and read them with `agentcore logs --runtime <RUNTIME_NAME>`. The handler logs the four points `observability.md` requires, with the same messages as the sample. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore_worker.py:118,139,148,160 --> Never log the API key or the secret value.
+
+| Log signature | Meaning / action |
+|---|---|
+| `polling <TASK_QUEUE> as <DEPLOYMENT_NAME>/<BUILD_ID>` | A Worker started in this session. If the deployment name or Build ID differs from the Worker Deployment Version, the Runtime's env vars are wrong. → `diagnostics.md`, [Invoked, but no Worker registers](diagnostics.md#invoked-but-no-worker-registers). |
+| `worker already polling <TASK_QUEUE>` | Another invocation reached a session whose Worker is still running. No second Worker started. Expected. |
+| `worker idle for <N>s; drained` | The idle policy fired and the Worker drained. The session emits no further Worker logs; this is not a failure. → `observability.md`. |
+| `worker failed in async task`, followed by a traceback | `run_worker` raised, and the async task was released. Diagnose from the exception in the traceback. |
+| `KeyError` naming a `TEMPORAL_*` variable at startup | A required variable is missing from the Runtime's `envVars`. Set it (`setup.md` Step 1) and redeploy. |
+| `uv install failed ... with exit code null` from `agentcore deploy` | `uv` is missing on the operator's machine. → `setup.md` Prerequisites. <!-- samples-python/bedrock_agentcore/strands_agent/bin/create-runtime.sh:16-18 --> |
+
+Temporal documents no other AgentCore-specific Python log signatures. For anything else, follow `diagnostics.md`.
 
 ## Observability
 

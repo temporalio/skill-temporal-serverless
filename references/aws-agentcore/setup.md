@@ -25,7 +25,7 @@ This skill deploys and operates the Worker. To design the agent itself (Workflow
 
 ### Select the Namespace
 
-For Temporal Cloud, list the user's Namespaces, for example with `tcld namespace list`. Then show **every** Namespace that is hosted on AWS, not just the first match, and let the user choose. Then ask the user to confirm that the chosen Namespace has AgentCore Pre-release access. If it does not, stop and point them to a [support ticket](https://docs.temporal.io/evaluate/cloud/support#support-ticket) or their account team. Mention self-hosting (`self-hosted.md`) as the alternative. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:19-24 -->
+Select the Namespace and, for Temporal Cloud, confirm its AgentCore Pre-release access in SKILL.md Step 1.
 
 Use the gRPC endpoint that Temporal Cloud shows for the Namespace as `TEMPORAL_ADDRESS`. Do not construct it from the Namespace name.
 
@@ -69,14 +69,81 @@ Add the Temporal settings to the Runtime's `envVars`:
 |---|---|
 | `TEMPORAL_ADDRESS` | Namespace gRPC endpoint (Cloud) or the frontend address (self-hosted) |
 | `TEMPORAL_NAMESPACE` | Namespace |
-| `TEMPORAL_API_KEY` | Temporal Cloud API key. See the secret rule below. |
+| `TEMPORAL_API_KEY_SECRET_ARN` | ARN of the Secrets Manager secret that holds the Temporal Cloud API key (Temporal Cloud with an API key only). This is the ARN, never the key. |
 | `TEMPORAL_TASK_QUEUE` | Task Queue the application uses |
 | `TEMPORAL_DEPLOYMENT_NAME` | Worker Deployment name. It must match Step 5. |
 | `TEMPORAL_BUILD_ID` | Build ID. It must match Step 5. |
 
 <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:91-127 -->
 
-**Do not commit a populated API key.** In production, store it in AWS Secrets Manager, grant the Runtime **execution** role permission to read it, and load it in the entry point. The key is the user's to handle: never print it or echo it through the agent's shell. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:129-131 -->
+**The API key never goes in `agentcore.json`, an env var, or any command the agent runs.** It lives only in AWS Secrets Manager. The Runtime **execution** role reads it, and the entry point loads it before it connects. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:129-131 --> Set up the secret, the grant and the user's hand-off as described in [Store the Temporal API key](#store-the-temporal-api-key) before Step 3. A self-hosted Service without API-key auth needs no secret, so leave `TEMPORAL_API_KEY_SECRET_ARN` unset.
+
+### Store the Temporal API key
+
+Skip this for a self-hosted Service that does not use API keys. The full key lifecycle (source, rotation, revocation) is in [`iam.md`](iam.md#temporal-api-key-lifecycle).
+
+1. **Create the secret, with no value.** First check whether it exists: `aws secretsmanager describe-secret --secret-id <SECRET_NAME> --region <AWS_REGION> --query ARN --output text`. If it returns `ResourceNotFoundException`, create it and record it in the inventory as *created*. If it exists, reuse it only when the user confirms it is theirs to use for this Worker, and record it as *reused*. A secret can exist without a version; the hand-off adds the first one. <!-- aws-cli 2.35.15: secretsmanager describe-secret, create-secret, put-secret-value help -->
+
+   ```bash
+   aws secretsmanager create-secret --name <SECRET_NAME> \
+     --description "Temporal API key for <DEPLOYMENT_NAME>" \
+     --region <AWS_REGION> --query ARN --output text
+   ```
+
+   Put the printed ARN in `TEMPORAL_API_KEY_SECRET_ARN`.
+
+2. **Grant the execution role read access to this one secret.** Add a policy file next to `agentcore/`, as the sample does for Code Interpreter, and list it in the Runtime's `additionalPolicies`. `agentcore deploy` attaches it to the execution role. Never grant it to the invocation role, and never use `"Resource": "*"`. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore/agentcore.json:64-66; samples-python/bedrock_agentcore/strands_agent/README.md:110-116 -->
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "ReadTemporalApiKey",
+         "Effect": "Allow",
+         "Action": "secretsmanager:GetSecretValue",
+         "Resource": "<SECRET_ARN>"
+       }
+     ]
+   }
+   ```
+
+   ```json
+   "additionalPolicies": ["temporal-api-key-secret-policy.json"]
+   ```
+
+3. **Hand off the key.** The user runs this once, **in their own interactive terminal**, after the secret exists. It reads the key once and writes it as the secret's first version. Do not run it through the agent's shell: `read -s` needs a terminal, and the key would pass through the agent's session. Steps 2–4 need no key and can continue meanwhile. **Step 5 must wait:** creating the version makes Temporal start the Worker, which fails to connect until the secret has an `AWSCURRENT` version.
+
+   ```bash
+   (
+     if [ ! -t 0 ]; then
+       printf 'Run this in an interactive terminal; nothing was changed\n' >&2; exit 1
+     fi
+     printf 'Temporal API key: ' >&2
+     IFS= read -r -s key
+     printf '\nlen=%s\n' "${#key}" >&2
+     dots=${key//[^.]/}
+     if [ "${#dots}" -ne 2 ]; then
+       printf 'Expected a JWT-shaped key with two dots; nothing was changed\n' >&2; exit 1
+     fi
+     printf %s "$key" | aws secretsmanager put-secret-value \
+       --secret-id <SECRET_ARN> --secret-string file:///dev/stdin \
+       --region <AWS_REGION> --query VersionId --output text
+   )
+   ```
+
+   The parentheses run the script in a subshell, so the key does not stay in the user's shell. `printf %s` pipes the key without a trailing newline; pasting it into a file or a here-doc would store one and corrupt the credential. The key never appears on a command line, so it is not visible in the process list.
+
+   Write the script to a file outside the code directory, with every placeholder filled in, such as `<WORK_DIR>/<RUNTIME_NAME>-handoff.sh`. It contains no key. Then end your turn with the user's action first: one line saying the run is waiting on them; the file's absolute path and the command `bash <ABSOLUTE_PATH>` to run in their own terminal; and what to reply when it finishes. Put status and notes after that. While the run is blocked on the hand-off, repeat these steps in full rather than pointing back to them.
+
+4. **Verify without reading the key back.** When the user replies, check the secret's versions rather than trusting the reply:
+
+   ```bash
+   aws secretsmanager describe-secret --secret-id <SECRET_ARN> \
+     --region <AWS_REGION> --query VersionIdsToStages
+   ```
+
+   Expect exactly one version labelled `AWSCURRENT`. Never run `aws secretsmanager get-secret-value`, and never print, log or pass the key in a command. The Worker registering in Step 5 is the proof that the key authenticates. <!-- aws-cli 2.35.15: secretsmanager describe-secret help -->
 
 If the Runtime uses a VPC instead of `PUBLIC`, configure outbound access from the VPC to the Temporal Service. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:287-288 -->
 
@@ -94,6 +161,8 @@ The entry point must: <!-- docs/production-deployment/worker-deployments/serverl
 The language-specific code is in the selected `sdk-<language>.md`.
 
 ## Step 3: Deploy the Runtime
+
+First check that no Runtime with this name is already deployed: `agentcore status --runtime <RUNTIME_NAME> --json`. If one is, it belongs to an earlier run or another user. Ask before you redeploy it, and record it as *reused*. <!-- agentcore 0.28.1: status --help -->
 
 From the project directory, run the following, using the `name` of the target in `aws-targets.json`:
 
@@ -114,11 +183,13 @@ agentcore status --type runtime-endpoint --json
 - **Runtime ARN** ends in `/runtime/<runtime-id>`. It is used only for IAM, with a trailing `*`.
 - **Endpoint ARN** ends in `/runtime/<runtime-id>/runtime-endpoint/<endpoint-name>`. It is used only for `--aws-agentcore-endpoint-arn`. **Never pass the Runtime ARN there.**
 
+Also record the execution role that `agentcore deploy` created, for the inventory and teardown: `aws bedrock-agentcore-control get-agent-runtime --agent-runtime-id <RUNTIME_ID> --region <AWS_REGION> --query roleArn --output text`. <!-- aws-cli 2.35.15: bedrock-agentcore-control get-agent-runtime help -->
+
 Do not continue until both ARNs are printed and the endpoint state is `READY`. <!-- docs/guides/durable-agent-on-agentcore.mdx:256; aws:agent-runtime-versioning.html#endpoint-lifecycle -->
 
 ## Step 4: Grant Temporal permission to invoke the Runtime
 
-For Temporal Cloud, deploy the Cloud invocation-role template with the Runtime ARN plus `*` and an External ID the user chooses, then read the stack's `RoleARN` output. → `iam.md`. For a self-hosted Service, use the role from `self-hosted.md` step 4 and skip this step. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:290-348 -->
+For Temporal Cloud, deploy the Cloud invocation-role template with the Runtime ARN plus `*` and an External ID the user chooses, then read the stack's `RoleARN` output. Before you create a stack, check whether the user already has one (`aws cloudformation describe-stacks --stack-name <STACK_NAME>`). If they do, add this Runtime to it as `iam.md` describes, and record it as *reused*. → `iam.md`. For a self-hosted Service, use the role from `self-hosted.md` step 4 and skip this step. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:290-348 -->
 
 ## Step 5: Create the Worker Deployment Version
 
@@ -170,4 +241,82 @@ The Workflow's Event History shows what ran, and the AgentCore logs show which W
 
 ## Resource inventory
 
-Record each resource as you create it: the AgentCore project directory and target, the Runtime name and ARN, the endpoint name and ARN, the CloudFormation stack and role ARN, the External ID, the Region, and the deployment name and Build ID. Hand the inventory to the user at the end. AgentCore teardown commands are not covered by this skill's sources, so before you delete any AgentCore resource, ask the user how they want to remove it. Never unset or delete a Temporal version while Pinned Workflows still need it (see `versioning.md`).
+Record each resource as you go, and mark each one **created** (this run made it) or **reused** (it existed before this run). Each step above checks for an existing resource before it creates or grants one. Teardown removes only what is marked *created*.
+
+| Resource | Record |
+|---|---|
+| AgentCore project | Directory, target name, account, Region |
+| Runtime | Name, Runtime ID, Runtime ARN |
+| Named endpoint | Name, endpoint ARN, Runtime version it points to |
+| Runtime execution role | Role ARN (created by `agentcore deploy` with the Runtime) |
+| Invocation role | Cloud: CloudFormation stack name and `RoleARN`, and if reused, the Runtime ARN this run added to `AgentRuntimeARNs`. Self-hosted: the role from `self-hosted.md`. External ID. |
+| Secret | Secret ARN, and the policy file in `additionalPolicies` |
+| Temporal | Worker Deployment name, Build ID, Task Queue, and whether this run created the Worker Deployment |
+| Temporal API key | Who created it. The user owns it; it is never in the inventory. |
+
+Hand the inventory to the user at the end.
+
+## Teardown
+
+Remove resources in this order: Temporal first, so that nothing invokes the Runtime, then the Runtime and endpoint, then shared resources. Remove a shared resource (invocation role, stack, secret) only if this run created it **and** nothing else uses it. Ask before changing or deleting anything marked *reused*. Never unset or delete a version while Pinned Workflows still need it (see `versioning.md`).
+
+1. **Unset the current version.** A current version cannot be deleted. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:405-417; temporal 1.8.3: worker deployment set-current-version --help -->
+
+   ```bash
+   temporal worker deployment set-current-version \
+     --namespace <TEMPORAL_NAMESPACE> --deployment-name <DEPLOYMENT_NAME> \
+     --unversioned --yes
+   ```
+
+2. **Delete the version once it has no pollers and is not draining, then the deployment.** Running Workers stop on their idle policy (see the selected `sdk-<language>.md`). `delete-version` refuses a draining version, so read the drainage status and retry rather than adding `--skip-drainage`. Delete the deployment only if this run created it and it has no other versions. <!-- temporal 1.8.3: worker deployment describe-version, delete-version, delete --help -->
+
+   ```bash
+   temporal worker deployment describe-version \
+     --namespace <TEMPORAL_NAMESPACE> --deployment-name <DEPLOYMENT_NAME> \
+     --build-id <BUILD_ID> -o json | jq -r '.drainageInfo.drainageStatus // empty'
+   temporal worker deployment delete-version \
+     --namespace <TEMPORAL_NAMESPACE> --deployment-name <DEPLOYMENT_NAME> --build-id <BUILD_ID>
+   temporal worker deployment delete --namespace <TEMPORAL_NAMESPACE> --name <DEPLOYMENT_NAME>
+   ```
+
+3. **Remove the Runtime and its endpoint.** The AgentCore CLI removes resources from `agentcore.json`, and the next deploy deletes them from AWS. To remove one endpoint of an earlier build and keep the Runtime, use `agentcore remove runtime-endpoint --name <ENDPOINT_NAME> -y` instead. Never remove an endpoint that a live version still points to. <!-- agentcore 0.28.1: remove agent --help, remove runtime-endpoint --help, deploy --help -->
+
+   ```bash
+   agentcore remove agent --name <RUNTIME_NAME> -y
+   agentcore deploy --target <TARGET> -y
+   ```
+
+   Verify by reading state back. `agentcore status --runtime <RUNTIME_NAME> --json` must no longer list the Runtime as deployed. `aws bedrock-agentcore-control get-agent-runtime --agent-runtime-id <RUNTIME_ID> --region <AWS_REGION>` must return `ResourceNotFoundException`. Then check the execution role with `aws iam get-role --role-name <EXECUTION_ROLE_NAME>`. If it still exists, report it to the user instead of deleting it, because the CLI's stack owns it. <!-- agentcore 0.28.1: status --help; aws-cli 2.35.15: bedrock-agentcore-control get-agent-runtime, iam get-role help -->
+
+4. **Invocation role (Temporal Cloud).** Delete the stack only if this run created it. First read its Runtime list:
+
+   ```bash
+   aws cloudformation describe-stacks --stack-name <STACK_NAME> --region <AWS_REGION> \
+     --query 'Stacks[0].Parameters[?ParameterKey==`AgentRuntimeARNs`].ParameterValue' --output text
+   ```
+
+   - It lists only this Runtime's ARN with `*`: delete the stack and wait on its state. `describe-stacks` then reports that the stack does not exist.
+
+     ```bash
+     aws cloudformation delete-stack --stack-name <STACK_NAME> --region <AWS_REGION>
+     aws cloudformation wait stack-delete-complete --stack-name <STACK_NAME> --region <AWS_REGION>
+     ```
+
+   - It lists other Runtime ARNs, or the stack was *reused*: keep it. With the user's approval, update it to drop only this Runtime's ARN, keeping every other parameter value.
+
+   <!-- aws-cli 2.35.15: cloudformation describe-stacks, delete-stack, wait stack-delete-complete help -->
+
+   For a self-hosted Service, apply the same rule to the stack from `self-hosted.md` Step 4. Leave the server-side `sts:AssumeRole` grant to the user, because other Runtimes may rely on it.
+
+5. **Secret.** If this run created the secret and no other Runtime lists it in `additionalPolicies`, schedule its deletion. Keep the recovery window so that a mistake can be undone, and do not add `--force-delete-without-recovery` unless the user asks. Keep a *reused* secret. Delete the policy file from the project. <!-- aws-cli 2.35.15: secretsmanager delete-secret help -->
+
+   ```bash
+   aws secretsmanager delete-secret --secret-id <SECRET_ARN> \
+     --recovery-window-in-days 7 --region <AWS_REGION>
+   ```
+
+   Verify with `aws secretsmanager describe-secret --secret-id <SECRET_ARN> --query DeletedDate`, which must print a date.
+
+6. **Temporal API key.** Ask before you suggest revoking it, because a Temporal Cloud API key is account-scoped, not deployment-scoped. The user revokes it, as described in [`iam.md`](iam.md#temporal-api-key-lifecycle).
+
+Leave the local AgentCore project directory to the user.

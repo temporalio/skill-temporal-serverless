@@ -20,7 +20,7 @@ Use AgentCore telemetry for the Runtime, model and tool behavior. Use Event Hist
 
 ## Logs
 
-`agentcore logs --runtime <RUNTIME_NAME>` shows the Worker starting and processing Tasks. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:428 --> Log at least these points in the entry point, because they are what `diagnostics.md` correlates: Worker start (with deployment name, Build ID and Task Queue), duplicate-invocation skips, idle drain, and worker failure. The Python sample logs each of these. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:172-238 -->
+`agentcore logs --runtime <RUNTIME_NAME>` shows the Worker starting and processing Tasks. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:428 --> Log at least these points in the entry point, because they are what `diagnostics.md` correlates: Worker start (with deployment name, Build ID and Task Queue), duplicate-invocation skips, idle drain, and worker failure. The Python sample logs each of these, and the handlers in both SDK guides log them with the same messages; the exact lines are in the selected `sdk-<language>.md`, under "Logging and diagnostic signatures". <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:172-238; samples-python/bedrock_agentcore/strands_agent/agentcore_worker.py:118,139,148,160 -->
 
 When the Worker has drained, a session that is no longer running emits no new Worker logs. An empty recent window after a drain is expected. It does not mean the deployment failed.
 

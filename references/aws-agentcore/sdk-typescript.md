@@ -27,7 +27,8 @@ agentcore add agent --name <AGENT_NAME> --type create --build CodeZip \
 The generated starter is a Strands agent. Replace `main.ts` with the Worker entry point below, and remove starter files (`model/`, `mcp_client/`) that the application does not import. Then add the Temporal and AgentCore packages in `app/<AGENT_NAME>/`:
 
 ```bash
-npm install bedrock-agentcore @temporalio/worker @temporalio/workflow @temporalio/activity
+npm install bedrock-agentcore @temporalio/worker @temporalio/workflow @temporalio/activity \
+  @aws-sdk/client-secrets-manager
 ```
 
 - `bedrock-agentcore` requires Node.js 20 or later and is ESM-only (`"type": "module"`, `import` exports only). Keep `"type": "module"` in the app's `package.json`; AWS lists its absence as a TypeScript build failure cause. <!-- npm:bedrock-agentcore@0.4.5 package.json; aws:runtime-get-started-cli-typescript.html#ts-common-issues -->
@@ -105,6 +106,7 @@ The `/invocations` payload is not Workflow input. Temporal invokes the endpoint 
 import { fileURLToPath } from 'node:url';
 import { BedrockAgentCoreApp } from 'bedrock-agentcore/runtime';
 import { NativeConnection, Worker } from '@temporalio/worker';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import * as activities from './activities.js';
 
 function requiredEnv(name: string): string {
@@ -119,8 +121,17 @@ const TASK_QUEUE = requiredEnv('TEMPORAL_TASK_QUEUE');
 
 // ActivityTracker, DEBOUNCE_MS and DRAIN: see "Stop and drain the Worker".
 
+// Read the Temporal API key from Secrets Manager; never log it.
+async function loadApiKey(): Promise<string | undefined> {
+  const secretArn = process.env.TEMPORAL_API_KEY_SECRET_ARN;
+  if (!secretArn) return undefined;
+  const secrets = new SecretsManagerClient({});
+  const { SecretString } = await secrets.send(new GetSecretValueCommand({ SecretId: secretArn }));
+  return SecretString;
+}
+
 async function runWorker(): Promise<void> {
-  const apiKey = process.env.TEMPORAL_API_KEY || undefined;
+  const apiKey = await loadApiKey();
   const connection = await NativeConnection.connect({
     address: requiredEnv('TEMPORAL_ADDRESS'),
     apiKey,
@@ -128,6 +139,7 @@ async function runWorker(): Promise<void> {
   });
   try {
     const tracker = new ActivityTracker();
+    console.info(`polling ${TASK_QUEUE} as ${DEPLOYMENT_NAME}/${BUILD_ID}`);
     const worker = await Worker.create({ /* the versioned Worker above */ });
     const running = worker.run();
     try {
@@ -148,7 +160,10 @@ const app: BedrockAgentCoreApp = new BedrockAgentCoreApp({
   invocationHandler: {
     // Start the Worker and acknowledge. The payload is unused.
     process: async () => {
-      if (current) return { message: 'worker already polling', task_queue: TASK_QUEUE };
+      if (current) {
+        console.info(`worker already polling ${TASK_QUEUE}`);
+        return { message: 'worker already polling', task_queue: TASK_QUEUE };
+      }
       const taskId = app.addAsyncTask('temporal-worker');
       current = runWorker()
         // Nothing awaits this promise, so an error would otherwise be lost.
@@ -217,11 +232,11 @@ The TypeScript SDK's default Runtime also shuts the Worker down on `SIGTERM`, so
 
 ## Connection configuration
 
-Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). The handler above turns TLS on only when `TEMPORAL_API_KEY` is set, which covers Temporal Cloud with an API key and a self-hosted Service without TLS.
+Set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, `TEMPORAL_DEPLOYMENT_NAME` and `TEMPORAL_BUILD_ID` in the Runtime's `envVars` (`setup.md` Step 1). For Temporal Cloud, also set `TEMPORAL_API_KEY_SECRET_ARN`. The handler above reads the key from that secret each time it starts a Worker, and turns TLS on only when a key is set. That covers Temporal Cloud with an API key and a self-hosted Service without TLS. The AWS SDK client authenticates as the Runtime execution role. **Not covered by the docs:** the Secrets Manager call in TypeScript is a translation of the Python handler, so verify it in the end-to-end run.
 
 To use the shared environment-configuration format and profiles instead (including mTLS settings), call `loadClientConnectConfig()` from `@temporalio/envconfig` and pass its `connectionOptions` and `namespace` to `NativeConnection.connect()` and `Worker.create()`. <!-- docs/develop/typescript/workers/serverless-workers/cloud-run.mdx:88 -->
 
-Store the API key or TLS material in a secret store, not in `agentcore.json`. In production, read it from AWS Secrets Manager in the entry point before connecting, and grant the Runtime execution role access to that secret. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
+The API key and any TLS material live in AWS Secrets Manager, never in `agentcore.json` or a Runtime env var. The user stores the key from their own terminal, and the execution role gets `secretsmanager:GetSecretValue` on that one secret ARN. → `setup.md`, [Store the Temporal API key](setup.md#store-the-temporal-api-key). Rotation needs no redeploy, because each new Worker reads the current version. → `iam.md`, [Temporal API key lifecycle](iam.md#temporal-api-key-lifecycle). Never log the value. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:128-131 -->
 
 ## Package and deploy
 
@@ -254,6 +269,20 @@ export async function myActivity(items: string[]): Promise<string> {
 ```
 
 → `constraints.md`.
+
+## Logging and diagnostic signatures
+
+Write Worker lifecycle logs to stdout and stderr with `console`, as the handler above does, and read them with `agentcore logs --runtime <RUNTIME_NAME>`. The handler logs the four points `observability.md` requires, with the same messages as the Python sample, so the signatures match across SDKs. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore_worker.py:118,139,148,160 --> Never log the API key or the secret value.
+
+| Log signature | Meaning / action |
+|---|---|
+| `polling <TASK_QUEUE> as <DEPLOYMENT_NAME>/<BUILD_ID>` | A Worker started in this session. If the deployment name or Build ID differs from the Worker Deployment Version, the Runtime's env vars are wrong. → `diagnostics.md`, [Invoked, but no Worker registers](diagnostics.md#invoked-but-no-worker-registers). |
+| `worker already polling <TASK_QUEUE>` | Another invocation reached a session whose Worker is still running. No second Worker started. Expected. |
+| `worker idle for <N>s; drained` | The idle policy fired and the Worker drained. The session emits no further Worker logs; this is not a failure. → `observability.md`. |
+| `worker failed in async task`, followed by an error | `runWorker` rejected, and the async task was released. Diagnose from the error that follows. |
+| `<NAME> must be set` at startup | A required variable is missing from the Runtime's `envVars`. Set it (`setup.md` Step 1) and redeploy. |
+
+These are the messages this guide's handler writes; like the handler, they are **not covered by the docs**. Temporal documents no AgentCore-specific TypeScript log signatures. For anything else, follow `diagnostics.md`.
 
 ## Observability
 

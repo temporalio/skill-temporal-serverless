@@ -20,12 +20,12 @@ The Cloud Namespace must be **hosted on AWS**. <!-- docs/production-deployment/w
 
 ## Worker code is a standard Worker inside a Runtime handler
 
-AgentCore Workers are standard long-lived Temporal Workers. Unlike Lambda, AgentCore has no serverless Worker package. <!-- docs/encyclopedia/workers/serverless-workers/index.mdx:215 --> The Runtime entry point must implement the AgentCore Runtime HTTP contract by serving `/invocations` and `/ping`. For a Serverless Worker, `/invocations` starts the Worker as background work and acknowledges the request without waiting for the Worker to stop. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:61-65,157-164 --> The per-language entry point is in the selected `sdk-<language>.md` reference.
+AgentCore Workers are standard long-lived Temporal Workers. There is no serverless Worker package. <!-- docs/encyclopedia/workers/serverless-workers/index.mdx:215 --> The Runtime entry point must implement the AgentCore Runtime HTTP contract by serving `/invocations` and `/ping`. For a Serverless Worker, `/invocations` starts the Worker as background work and acknowledges the request without waiting for the Worker to stop. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:61-65,157-164 --> The per-language entry point is in the selected `sdk-<language>.md` reference.
 
 ## Compute lifetime
 
 - **Up to 8 hours per compute.** With the serverless microVM compute type, a Runtime session can run for up to 8 hours. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:73 --> The `maxLifetime` setting accepts 60–28800 seconds for microVM runtimes and defaults to 28800 seconds. Its timer starts when the microVM is created and cannot be reset. <!-- aws:runtime-lifecycle-settings.html#configuration-attributes, #lifecycle-and-session-relationship -->
-- **No fixed invocation deadline.** Unlike Lambda, an AgentCore Worker has no invocation deadline to monitor. It polls until it drains or AgentCore ends its compute. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:135-136 -->
+- **No fixed invocation deadline.** An AgentCore Worker has no invocation deadline to monitor. It polls until it drains or AgentCore ends its compute. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:135-136 -->
 - **The session is not durable storage.** AgentCore can resume a session on new compute after the previous compute ends, and a later Task can run on another Worker. Keep the state a Workflow needs in the Workflow or another durable store. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:131-133 -->
 - **Process-local reuse is an optimization only.** The Worker can reuse initialization work, in-memory caches and temporary files while its Runtime compute remains available. Do not make Workflow progress depend on them. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:57,74 -->
 - **Workflow duration is unbounded.** A Workflow continues across as many Worker processes as needed. Durable Timers and waits for approvals or external events do not keep compute running. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:64-67 -->
@@ -54,7 +54,7 @@ AgentCore can end the compute before an Activity completes. Configure Activity t
 
 ## Autoscaling
 
-AgentCore uses the same event-driven autoscaling model as Lambda (`no-sync`). The WCI invokes individual Runtime sessions when it needs more capacity. It does not manage a target-sized pool. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:87-91; docs/production-deployment/worker-deployments/serverless-workers/agentcore-self-hosted-setup.mdx:70-72 --> For the shared WCI lifecycle and inspection commands, see [Worker Controller Instance (WCI)](../wci.md).
+Autoscaling is event-driven (`no-sync`). The WCI invokes individual Runtime sessions when it needs more capacity. It does not manage a target-sized pool. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:87-91; docs/production-deployment/worker-deployments/serverless-workers/agentcore-self-hosted-setup.mdx:70-72 --> For the shared WCI lifecycle and inspection commands, see [Worker Controller Instance (WCI)](../wci.md).
 
 When the provider's capacity limit is reached, the WCI cannot add Workers. Tasks wait in the backlog without data loss. <!-- docs/encyclopedia/workers/serverless-workers/index.mdx:188-195 -->
 
