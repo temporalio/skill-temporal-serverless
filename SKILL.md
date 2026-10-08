@@ -222,7 +222,7 @@ For Temporal Cloud, the user stores the Temporal API key in Secrets Manager from
 
 7. **Verify.** Start a Workflow, confirm its history progresses, and confirm the AgentCore logs show the Worker starting, processing Tasks, and draining. If it does not progress, → `references/aws-agentcore/diagnostics.md`.
 
-8. **Hand back the inventory first; offer teardown as the closing note.** Include the items in `references/aws-agentcore/setup.md` under "Resource inventory". The skill's sources do not cover AgentCore teardown commands, so ask the user how they want AgentCore resources removed before deleting any.
+8. **Hand back the inventory first; offer teardown as the closing note.** Include the items in `references/aws-agentcore/setup.md` under "Resource inventory", each marked created or reused. Follow the same inventory-before-teardown and approval rules as the Lambda path. → `references/aws-agentcore/setup.md` (Teardown).
 
 ### GCP Cloud Run: steps 3–8
 

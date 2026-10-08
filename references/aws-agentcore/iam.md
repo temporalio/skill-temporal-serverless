@@ -86,5 +86,5 @@ On Temporal Cloud, **Actions → Validate Connection** on the Worker Deployment 
 
 ## Rules
 
-- Never paste or echo AWS secret keys or the Temporal API key in commands the agent runs.
-- When an existing invocation stack is in use, add the new Runtime ARN to its `AgentRuntimeARNs` (comma-separated) instead of creating a parallel role. Ask the user before you change a stack this run did not create.
+- Never paste or echo AWS secret keys or the Temporal API key in commands the agent runs, and never run `aws secretsmanager get-secret-value`.
+- When an existing invocation stack is in use, add the new Runtime ARN to its `AgentRuntimeARNs` (comma-separated) instead of creating a parallel role. Ask the user before you change a stack this run did not create, and record the stack as *reused* in the `setup.md` inventory. Teardown then removes only this Runtime's ARN from it (`setup.md`, [Teardown](setup.md#teardown)).
