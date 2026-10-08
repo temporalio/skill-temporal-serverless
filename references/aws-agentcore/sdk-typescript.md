@@ -270,6 +270,20 @@ export async function myActivity(items: string[]): Promise<string> {
 
 → `constraints.md`.
 
+## Logging and diagnostic signatures
+
+Write Worker lifecycle logs to stdout and stderr with `console`, as the handler above does, and read them with `agentcore logs --runtime <RUNTIME_NAME>`. The handler logs the four points `observability.md` requires, with the same messages as the Python sample, so the signatures match across SDKs. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore_worker.py:118,139,148,160 --> Never log the API key or the secret value.
+
+| Log signature | Meaning / action |
+|---|---|
+| `polling <TASK_QUEUE> as <DEPLOYMENT_NAME>/<BUILD_ID>` | A Worker started in this session. If the deployment name or Build ID differs from the Worker Deployment Version, the Runtime's env vars are wrong. → `diagnostics.md`, [Invoked, but no Worker registers](diagnostics.md#invoked-but-no-worker-registers). |
+| `worker already polling <TASK_QUEUE>` | Another invocation reached a session whose Worker is still running. No second Worker started. Expected. |
+| `worker idle for <N>s; drained` | The idle policy fired and the Worker drained. The session emits no further Worker logs; this is not a failure. → `observability.md`. |
+| `worker failed in async task`, followed by an error | `runWorker` rejected, and the async task was released. Diagnose from the error that follows. |
+| `<NAME> must be set` at startup | A required variable is missing from the Runtime's `envVars`. Set it (`setup.md` Step 1) and redeploy. |
+
+These are the messages this guide's handler writes; like the handler, they are **not covered by the docs**. Temporal documents no AgentCore-specific TypeScript log signatures. For anything else, follow `diagnostics.md`.
+
 ## Observability
 
 There is no AgentCore-specific TypeScript helper. Configure metrics and tracing with the TypeScript SDK's standard observability options, as for any long-running Worker. Worker lifecycle logs written to stdout are read with `agentcore logs --runtime <RUNTIME_NAME>`. → `observability.md`. **Not covered by the docs:** Temporal does not publish TypeScript-specific AgentCore observability guidance.

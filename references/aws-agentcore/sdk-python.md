@@ -284,6 +284,21 @@ async def my_activity(items: list[str]) -> str:
 
 → `constraints.md`.
 
+## Logging and diagnostic signatures
+
+Write Worker lifecycle logs with `app.logger`, as the handler above does, and read them with `agentcore logs --runtime <RUNTIME_NAME>`. The handler logs the four points `observability.md` requires, with the same messages as the sample. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore_worker.py:118,139,148,160 --> Never log the API key or the secret value.
+
+| Log signature | Meaning / action |
+|---|---|
+| `polling <TASK_QUEUE> as <DEPLOYMENT_NAME>/<BUILD_ID>` | A Worker started in this session. If the deployment name or Build ID differs from the Worker Deployment Version, the Runtime's env vars are wrong. → `diagnostics.md`, [Invoked, but no Worker registers](diagnostics.md#invoked-but-no-worker-registers). |
+| `worker already polling <TASK_QUEUE>` | Another invocation reached a session whose Worker is still running. No second Worker started. Expected. |
+| `worker idle for <N>s; drained` | The idle policy fired and the Worker drained. The session emits no further Worker logs; this is not a failure. → `observability.md`. |
+| `worker failed in async task`, followed by a traceback | `run_worker` raised, and the async task was released. Diagnose from the exception in the traceback. |
+| `KeyError` naming a `TEMPORAL_*` variable at startup | A required variable is missing from the Runtime's `envVars`. Set it (`setup.md` Step 1) and redeploy. |
+| `uv install failed ... with exit code null` from `agentcore deploy` | `uv` is missing on the operator's machine. → `setup.md` Prerequisites. <!-- samples-python/bedrock_agentcore/strands_agent/bin/create-runtime.sh:16-18 --> |
+
+Temporal documents no other AgentCore-specific Python log signatures. For anything else, follow `diagnostics.md`.
+
 ## Observability
 
 An AgentCore Worker emits the same traces and metrics as a Worker on other compute. Configure them with the Python SDK's standard metrics and OpenTelemetry tracing interceptors; there is no AgentCore-specific helper. <!-- docs/develop/python/workers/serverless-workers/agentcore.mdx:279-283 --> `BedrockAgentCoreApp` exposes `app.logger`, which the sample uses for Worker lifecycle logs; read them with `agentcore logs --runtime <RUNTIME_NAME>`. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore_worker.py:41-42 --> → `observability.md`.
