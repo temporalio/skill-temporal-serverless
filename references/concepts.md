@@ -10,6 +10,8 @@
 
 **GCP Cloud Run — Public Preview.** Open to all Temporal Cloud customers with a GCP-hosted Namespace. There is no access request, support ticket, or manual toggle to enable: select GCP Cloud Run as the compute provider and proceed. Never route a user to support to "get access" for Cloud Run either.
 
+**Amazon Bedrock AgentCore Runtime — Pre-release.** APIs may change in backwards-incompatible ways. On Temporal Cloud, the Namespace must be AWS-hosted and needs Pre-release access, which the user requests through a [support ticket](https://docs.temporal.io/evaluate/cloud/support#support-ticket) or their account team. A self-hosted Temporal Service v1.32.0 or later needs no access request. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:19-24; docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:41-43 -->
+
 Do not adapt one provider's material to another provider. For provider-specific release status, execution models, scaling behavior, lifecycle, and limits, read [AWS Lambda constraints](aws-lambda/constraints.md), [GCP Cloud Run constraints](gcp-cloud-run/constraints.md), or [AgentCore constraints](aws-agentcore/constraints.md).
 
 Public Preview is not General Availability. APIs are still evolving and may be subject to backwards-incompatible changes between versions — pin SDK and CLI versions for anything long-lived, and read the installed package's real API surface rather than writing from memory.
