@@ -69,14 +69,81 @@ Add the Temporal settings to the Runtime's `envVars`:
 |---|---|
 | `TEMPORAL_ADDRESS` | Namespace gRPC endpoint (Cloud) or the frontend address (self-hosted) |
 | `TEMPORAL_NAMESPACE` | Namespace |
-| `TEMPORAL_API_KEY` | Temporal Cloud API key. See the secret rule below. |
+| `TEMPORAL_API_KEY_SECRET_ARN` | ARN of the Secrets Manager secret that holds the Temporal Cloud API key (Temporal Cloud with an API key only). This is the ARN, never the key. |
 | `TEMPORAL_TASK_QUEUE` | Task Queue the application uses |
 | `TEMPORAL_DEPLOYMENT_NAME` | Worker Deployment name. It must match Step 5. |
 | `TEMPORAL_BUILD_ID` | Build ID. It must match Step 5. |
 
 <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:91-127 -->
 
-**Do not commit a populated API key.** In production, store it in AWS Secrets Manager, grant the Runtime **execution** role permission to read it, and load it in the entry point. The key is the user's to handle: never print it or echo it through the agent's shell. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:129-131 -->
+**The API key never goes in `agentcore.json`, an env var, or any command the agent runs.** It lives only in AWS Secrets Manager. The Runtime **execution** role reads it, and the entry point loads it before it connects. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:129-131 --> Set up the secret, the grant and the user's hand-off as described in [Store the Temporal API key](#store-the-temporal-api-key) before Step 3. A self-hosted Service without API-key auth needs no secret, so leave `TEMPORAL_API_KEY_SECRET_ARN` unset.
+
+### Store the Temporal API key
+
+Skip this for a self-hosted Service that does not use API keys. The full key lifecycle (source, rotation, revocation) is in [`iam.md`](iam.md#temporal-api-key-lifecycle).
+
+1. **Create the secret, with no value.** First check whether it exists: `aws secretsmanager describe-secret --secret-id <SECRET_NAME> --region <AWS_REGION> --query ARN --output text`. If it returns `ResourceNotFoundException`, create it and record it in the inventory as *created*. If it exists, reuse it only when the user confirms it is theirs to use for this Worker, and record it as *reused*. A secret can exist without a version; the hand-off adds the first one. <!-- aws-cli 2.35.15: secretsmanager describe-secret, create-secret, put-secret-value help -->
+
+   ```bash
+   aws secretsmanager create-secret --name <SECRET_NAME> \
+     --description "Temporal API key for <DEPLOYMENT_NAME>" \
+     --region <AWS_REGION> --query ARN --output text
+   ```
+
+   Put the printed ARN in `TEMPORAL_API_KEY_SECRET_ARN`.
+
+2. **Grant the execution role read access to this one secret.** Add a policy file next to `agentcore/`, as the sample does for Code Interpreter, and list it in the Runtime's `additionalPolicies`. `agentcore deploy` attaches it to the execution role. Never grant it to the invocation role, and never use `"Resource": "*"`. <!-- samples-python/bedrock_agentcore/strands_agent/agentcore/agentcore.json:64-66; samples-python/bedrock_agentcore/strands_agent/README.md:110-116 -->
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "ReadTemporalApiKey",
+         "Effect": "Allow",
+         "Action": "secretsmanager:GetSecretValue",
+         "Resource": "<SECRET_ARN>"
+       }
+     ]
+   }
+   ```
+
+   ```json
+   "additionalPolicies": ["temporal-api-key-secret-policy.json"]
+   ```
+
+3. **Hand off the key.** The user runs this once, **in their own interactive terminal**, after the secret exists. It reads the key once and writes it as the secret's first version. Do not run it through the agent's shell: `read -s` needs a terminal, and the key would pass through the agent's session. Steps 2–4 need no key and can continue meanwhile. **Step 5 must wait:** creating the version makes Temporal start the Worker, which fails to connect until the secret has an `AWSCURRENT` version.
+
+   ```bash
+   (
+     if [ ! -t 0 ]; then
+       printf 'Run this in an interactive terminal; nothing was changed\n' >&2; exit 1
+     fi
+     printf 'Temporal API key: ' >&2
+     IFS= read -r -s key
+     printf '\nlen=%s\n' "${#key}" >&2
+     dots=${key//[^.]/}
+     if [ "${#dots}" -ne 2 ]; then
+       printf 'Expected a JWT-shaped key with two dots; nothing was changed\n' >&2; exit 1
+     fi
+     printf %s "$key" | aws secretsmanager put-secret-value \
+       --secret-id <SECRET_ARN> --secret-string file:///dev/stdin \
+       --region <AWS_REGION> --query VersionId --output text
+   )
+   ```
+
+   The parentheses run the script in a subshell, so the key does not stay in the user's shell. `printf %s` pipes the key without a trailing newline; pasting it into a file or a here-doc would store one and corrupt the credential. The key never appears on a command line, so it is not visible in the process list.
+
+   Write the script to a file outside the code directory, with every placeholder filled in, such as `<WORK_DIR>/<RUNTIME_NAME>-handoff.sh`. It contains no key. Then end your turn with the user's action first: one line saying the run is waiting on them; the file's absolute path and the command `bash <ABSOLUTE_PATH>` to run in their own terminal; and what to reply when it finishes. Put status and notes after that. While the run is blocked on the hand-off, repeat these steps in full rather than pointing back to them.
+
+4. **Verify without reading the key back.** When the user replies, check the secret's versions rather than trusting the reply:
+
+   ```bash
+   aws secretsmanager describe-secret --secret-id <SECRET_ARN> \
+     --region <AWS_REGION> --query VersionIdsToStages
+   ```
+
+   Expect exactly one version labelled `AWSCURRENT`. Never run `aws secretsmanager get-secret-value`, and never print, log or pass the key in a command. The Worker registering in Step 5 is the proof that the key authenticates. <!-- aws-cli 2.35.15: secretsmanager describe-secret help -->
 
 If the Runtime uses a VPC instead of `PUBLIC`, configure outbound access from the VPC to the Temporal Service. <!-- docs/production-deployment/worker-deployments/serverless-workers/agentcore.mdx:287-288 -->
 
