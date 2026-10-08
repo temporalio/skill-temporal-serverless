@@ -25,7 +25,7 @@ This skill deploys and operates the Worker. To design the agent itself (Workflow
 
 ### Select the Namespace
 
-For Temporal Cloud, list the user's Namespaces, for example with `tcld namespace list`. Then show **every** Namespace that is hosted on AWS, not just the first match, and let the user choose. Then ask the user to confirm that the chosen Namespace has AgentCore Pre-release access. If it does not, stop and point them to a [support ticket](https://docs.temporal.io/evaluate/cloud/support#support-ticket) or their account team. Mention self-hosting (`self-hosted.md`) as the alternative. <!-- docs/encyclopedia/workers/serverless-workers/serverless-workers-agentcore.mdx:19-24 -->
+Select the Namespace and, for Temporal Cloud, confirm its AgentCore Pre-release access in SKILL.md Step 1.
 
 Use the gRPC endpoint that Temporal Cloud shows for the Namespace as `TEMPORAL_ADDRESS`. Do not construct it from the Namespace name.
 
