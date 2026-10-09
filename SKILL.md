@@ -323,8 +323,9 @@ Most questions need 2–3 reference files.
 | Execution model, Activity duration, autoscaling, scale-in, graceful shutdown, or mixed fleets. | `references/gcp-cloud-run/constraints.md` + the selected SDK reference |
 | Deploy, register, verify, or tear down a Worker Pool. | `references/gcp-cloud-run/setup.md` + the selected SDK reference |
 | Permissions, runner vs invoker identity, or Terraform IAM setup. | `references/gcp-cloud-run/iam.md` |
-| Update, publish a new build, or roll back. | `references/gcp-cloud-run/versioning.md` |
+| Update, publish a new build, roll back, or manage Worker Pools in Terraform when the user asks. | `references/gcp-cloud-run/versioning.md` |
 | Worker Pool not scaling, Worker not polling, or Workflows not progressing. | `references/gcp-cloud-run/diagnostics.md` |
+| Check whether an existing Worker Pool is configured correctly. | `references/gcp-cloud-run/diagnostics.md` |
 | Metrics, tracing, logs, or scaling signals. | `references/gcp-cloud-run/observability.md` + the selected SDK reference |
 | Self-hosted Temporal Service prerequisites. | `references/gcp-cloud-run/self-hosted.md` + `references/gcp-cloud-run/iam.md` |
 

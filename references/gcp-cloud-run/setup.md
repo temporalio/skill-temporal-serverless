@@ -240,7 +240,7 @@ Require the `Ready` condition to be true and the revision digest to match the re
 
 Cloud Run has no invocation grant. Temporal **impersonates an invoker service account** and drives the Cloud Run admin API. Create it with Temporal's Terraform module — the Cloud UI supplies a filled-in template under **Workers → Create Worker Deployment → Access**. → `iam.md` for the module, its variables, and the two-service-account distinction.
 
-Terraform's `invoker_email` output is what Step 6 needs.
+Terraform's `invoker_email` output is what Step 6 needs. The module covers the invoker's IAM only; create pools with `gcloud` as in Step 4 unless the user asks to manage them in Terraform → [`versioning.md`](versioning.md#managing-pools-with-terraform).
 
 **Wait for IAM propagation before Step 6.** The module's `serviceAccountTokenCreator` grants take time to reach Temporal's impersonation path. A `create-version` issued before they propagate is rejected with a 403 on `iam.serviceAccounts.getAccessToken`. Rely on the read-back in Step 6 rather than on the clock; on that rejection, wait a few minutes, then retry once. → `iam.md`.
 
@@ -327,7 +327,7 @@ temporal --profile <PROFILE> worker deployment describe \
            and .routingConfig.currentVersionBuildID == "build-1"'
 ```
 
-CLI v1.8.2 reports the current version under these field names.
+CLI v1.8.2 reports the current version under these field names. A ramping version appears in the same object as `rampingVersionDeploymentName`, `rampingVersionBuildID`, and `rampingVersionPercentage`, which are empty strings and `0` when no version is ramping.
 
 ## Step 8: Verify
 
