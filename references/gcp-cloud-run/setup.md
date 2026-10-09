@@ -14,7 +14,6 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - A Temporal SDK supported by this skill: Go, Python, TypeScript, Java, or .NET.
 - A Temporal Cloud API key that can access the target Namespace. **The user creates it**, either in the Temporal Cloud UI under **Settings → API Keys** or by running `tcld apikey create --name <NAME> --duration <DURATION>` in their own terminal. Never run `tcld apikey create` from the agent's shell: it prints the new key. The command creates a key for the current user; add `--service-account-id <ID>` to create it for an existing service account instead. Prefer a service-account-owned key for shared or long-lived Workers and a short-lived user key for a personal test. The key is needed twice, in the operator's Temporal CLI profile and in the Worker's Secret Manager runtime secret; the [API-key hand-off](#hand-off-the-temporal-api-key) sets both from one read.
 
-<!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
 The `temporal` CLI commands in Steps 6–8 authenticate through a named CLI profile that the user creates during the [API-key hand-off](#hand-off-the-temporal-api-key). An exported variable in the user's terminal does not reach the agent's shell, so do not rely on `TEMPORAL_API_KEY` there. Never append `--api-key <value>` or put the key in an inline assignment. On macOS the default profile file is `~/Library/Application Support/temporalio/temporal.toml`. The examples below pass `--profile <PROFILE>` explicitly; omit it only when using a different already-configured authentication mechanism, including self-hosted mTLS.
 
@@ -146,7 +145,7 @@ Two things the Worker must do:
 1. **Declare its Worker Deployment Version and enable versioning**, with a deployment name and build ID that exactly match the version you register in Step 6.
 2. **Read its configuration from the environment** — address, Namespace, Task Queue, credentials — so one image can run against any Namespace. The pool supplies these via `--set-env-vars` and `--set-secrets`.
 
-**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:465-468 -->
+**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts.
 
 ## Step 2: Containerize the Worker
 
@@ -300,7 +299,7 @@ Through the UI, the version is set current automatically; through the CLI it is 
 
 ### Checkpoint: verify registration
 
-Creating the Worker Deployment Version starts its WCI, which temporarily raises the pool to at least one instance so the Worker can bind its Task Queues. This occurs even when the minimum and initial instance counts are `0`. Wait for the expected Task Queue types before setting the version current. The separate UI **Validate Connection** action checks pool read access only and is not a substitute for this registration check. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:824-827 -->
+Creating the Worker Deployment Version starts its WCI, which temporarily raises the pool to at least one instance so the Worker can bind its Task Queues. This occurs even when the minimum and initial instance counts are `0`. Wait for the expected Task Queue types before setting the version current. The separate UI **Validate Connection** action checks pool read access only and is not a substitute for this registration check.
 
 First run the machine-checkable [Task Queue binding check](diagnostics.md#start-here-did-the-expected-worker-bind). Do not continue until it finds the expected Task Queue and types. Then verify that Temporal wrote to the pool:
 
