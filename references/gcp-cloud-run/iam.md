@@ -78,6 +78,8 @@ output "invoker_email" {
 
 The `output` block is required: a module's outputs are not visible from the root module unless it re-exports them, and Step 6 needs `invoker_email`.
 
+Keep Worker Pools out of this root; see [`versioning.md`](versioning.md#managing-pools-with-terraform).
+
 | Variable | Required | Description |
 |---|---|---|
 | `project_id` | Yes | Project hosting the pool and the invoker. |
