@@ -2,11 +2,11 @@
 
 ## One Worker Pool per Build ID
 
-**The compute configuration names a project, region, and Worker Pool — it does not name a [revision](https://cloud.google.com/run/docs/managing/revisions).** Temporal runs whichever revision the pool serves, so durable isolation requires a separate pool per build. Carry the Build ID in the pool name (`my-worker-pool-build-1`) to keep that mapping visible. A pool-level instance split can temporarily hold a revision, but the split remains mutable state outside Temporal. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:82-89 -->
+**The compute configuration names a project, region, and Worker Pool — it does not name a [revision](https://cloud.google.com/run/docs/managing/revisions).** Temporal runs whichever revision the pool serves, so durable isolation requires a separate pool per build. Carry the Build ID in the pool name (`my-worker-pool-build-1`) to keep that mapping visible. A pool-level instance split can temporarily hold a revision, but the split remains mutable state outside Temporal.
 
 ## The hazard: redeploying into a live pool
 
-A normal `gcloud run worker-pools deploy` creates a new revision and promotes it to every instance by default. The Temporal version still points to the same pool, so the code changes underneath it. Replay-unsafe changes can cause non-determinism errors for in-flight Workflows, including Pinned ones, because pinning selects a Temporal version rather than a Cloud Run revision. Use a new pool for durable isolation; `--no-promote` is only a same-pool guardrail. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:94-100 -->
+A normal `gcloud run worker-pools deploy` creates a new revision and promotes it to every instance by default. The Temporal version still points to the same pool, so the code changes underneath it. Replay-unsafe changes can cause non-determinism errors for in-flight Workflows, including Pinned ones, because pinning selects a Temporal version rather than a Cloud Run revision. Use a new pool for durable isolation; `--no-promote` is only a same-pool guardrail.
 
 ## Guardrail and recovery when a pool is reused
 
@@ -47,7 +47,7 @@ After emergency recovery, return to one pool per Build ID for the next release s
 3. Register a new Worker Deployment Version pointing at the new pool, with a build ID matching the new Worker code.
 4. Confirm registration bootstrapped the pool: the expected Task Queue types are bound, the deployed image digest matches the intended artifact, and the Worker startup log announces the new build ID. `lastModifier` showing the invoker proves only that Temporal wrote the pool's requested count. Treat the separate UI Validate Connection action as a read-only check. → `diagnostics.md`.
 5. Set the new version current, or ramp to it.
-6. **Leave the old pool in place** while Pinned Workflows still run on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version. <!-- docs/encyclopedia/workers/serverless-workers/cloud-run.mdx:91-92 -->
+6. **Leave the old pool in place** while Pinned Workflows still run on it. It can sit at zero instances; its WCI scales it back up when a Task arrives for that version.
 
 Only the invoker's permissions are shared across pools, so a new pool usually needs no IAM change — provided the invoker's `deploy_roles` are project-level, which is the module's default. Check `iam.md` if you scoped them to individual pools instead.
 

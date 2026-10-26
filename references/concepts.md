@@ -1,6 +1,5 @@
 # Serverless Workers — Concepts
 
-<!-- Sources: docs/encyclopedia/workers/serverless-workers.mdx, docs/evaluate/development-production-features/serverless-workers/index.mdx -->
 
 ## Shared serverless concepts
 
@@ -20,17 +19,16 @@ A Serverless Worker is a Temporal Worker whose compute lifecycle is managed by T
 
 ### Compute providers
 
-A compute provider is the configuration that tells Temporal how to start or scale compute for a Worker Deployment Version. It is set on the Worker Deployment Version and specifies the provider type, the compute target, and the identity Temporal uses to act on that target. <!-- docs/encyclopedia/workers/serverless-workers.mdx:310-312 -->
+A compute provider is the configuration that tells Temporal how to start or scale compute for a Worker Deployment Version. It is set on the Worker Deployment Version and specifies the provider type, the compute target, and the identity Temporal uses to act on that target.
 
-For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function. <!-- docs/encyclopedia/workers/serverless-workers.mdx:314-315 -->
+For example, an AWS Lambda compute provider includes the Lambda function ARN and the IAM role that Temporal assumes to invoke the function.
 
 A GCP Cloud Run compute provider names the Worker Pool and the invoker service account that Temporal impersonates to resize it.
 
-Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server. <!-- docs/encyclopedia/workers/serverless-workers.mdx:317-318 -->
+Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server.
 
 #### Supported providers
 
-<!-- docs/encyclopedia/workers/serverless-workers.mdx:322-324 -->
 
 | Provider | Description |
 |---|---|

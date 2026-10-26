@@ -10,13 +10,13 @@ Cloud Run uses three identities:
 
 Temporal reaches the invoker through `roles/iam.serviceAccountTokenCreator`. The Terraform module described below creates the invoker and applies its grants.
 
-**The two service accounts are not interchangeable.** The runner runs the pool and never scales it; the invoker scales the pool and never runs it. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:710-721 -->
+**The two service accounts are not interchangeable.** The runner runs the pool and never scales it; the invoker scales the pool and never runs it.
 
 ## Runner service account
 
 The runtime identity the pool's instances use to reach other Google Cloud services. Set in `setup.md` Step 4 with `gcloud run worker-pools deploy --service-account`. It may be an account that already exists; a dedicated one is preferred.
 
-**It needs no baseline role to run the Worker.** Cloud Run collects `stdout` and `stderr` into Cloud Logging through its own infrastructure, and the Cloud Run *service agent* — not the runner — pulls the container image. Grant only what your code actually reaches: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:667-677 -->
+**It needs no baseline role to run the Worker.** Cloud Run collects `stdout` and `stderr` into Cloud Logging through its own infrastructure, and the Cloud Run *service agent* — not the runner — pulls the container image. Grant only what your code actually reaches:
 
 - `roles/secretmanager.secretAccessor` on each secret you mount, including the Temporal API key.
 - `roles/logging.logWriter` **only if** the Worker writes through the Cloud Logging API rather than stdout/stderr.
@@ -27,7 +27,7 @@ The Collector uses the runner's Application Default Credentials. If its configur
 
 ## Invoker service account
 
-The identity Temporal Cloud impersonates to read and scale the pool. Two grants make it work: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/self-hosted-setup.mdx:102-113 -->
+The identity Temporal Cloud impersonates to read and scale the pool. Two grants make it work:
 
 - Temporal's identity receives **`roles/iam.serviceAccountTokenCreator`** on the invoker, so it can impersonate it.
 - The invoker receives a project-level Cloud Run role with at least **`run.workerPools.get`** (read) and **`run.workerPools.update`** (scale). `roles/run.developer` includes both.
@@ -36,13 +36,13 @@ The invoker also needs **`roles/iam.serviceAccountUser` on the runner service ac
 
 ### Validate Connection checks read access only
 
-`run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass, but version registration and scaling also require `run.workerPools.update`. Passing Validate Connection therefore does not prove that the invoker can scale the pool. See `diagnostics.md` for registration and scaling checks. <!-- docs/troubleshooting/serverless-workers/cloud-run.mdx:75-99 -->
+`run.workerPools.get` alone is enough for the UI's **Validate Connection** action to pass, but version registration and scaling also require `run.workerPools.update`. Passing Validate Connection therefore does not prove that the invoker can scale the pool. See `diagnostics.md` for registration and scaling checks.
 
 ## The Terraform module
 
 Temporal publishes [`serverless-workers/gcp/cloud-run`](https://github.com/temporalio/terraform-modules/tree/main/modules/serverless-workers/gcp/cloud-run), which creates the invoker service account and applies the grants.
 
-Apply the module block below. Temporal Cloud's UI template is the source of the account-specific `impersonator_service_account_emails` only; see [Where `impersonator_service_account_emails` comes from](#where-impersonator_service_account_emails-comes-from). For a standalone root module, declare the Google provider constraint expected by the module and configure the project explicitly; reconcile any existing root constraint before running `terraform init`: <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:723-744 -->
+Apply the module block below. Temporal Cloud's UI template is the source of the account-specific `impersonator_service_account_emails` only; see [Where `impersonator_service_account_emails` comes from](#where-impersonator_service_account_emails-comes-from). For a standalone root module, declare the Google provider constraint expected by the module and configure the project explicitly; reconcile any existing root constraint before running `terraform init`:
 
 ```hcl
 terraform {

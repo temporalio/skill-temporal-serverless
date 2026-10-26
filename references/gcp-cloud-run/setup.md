@@ -14,7 +14,6 @@ End-to-end: write a standard Worker, containerize it, push the image, create a W
 - A Temporal SDK supported by this skill: Go, Python, TypeScript, Java, or .NET.
 - Two Temporal Cloud API keys that can access the target Namespace, one for each consumer. The **Worker's key** lives only in the Secret Manager runtime secret. The **operator's key** lives only in the operator's Temporal CLI profile. Both need the Namespace's Write permission, because polling Task Queues and changing Worker Deployment routing are both Write operations. Separate keys therefore do not reduce privilege; they let each key be rotated or revoked without breaking the other. **The user creates both keys**, either in the Temporal Cloud UI under **Settings → API Keys** or by running `tcld apikey create --name <NAME> --duration <DURATION>` in their own terminal. Never run `tcld apikey create` from the agent's shell: it prints the new key. The command creates a key for the current user; add `--service-account-id <ID>` to create it for an existing service account instead. For a shared or long-lived Worker, give the Worker's key to a service account scoped to this Namespace, which an account administrator creates with `tcld service-account create-scoped --name <NAME> --namespace-permission "<NAMESPACE>=Write"`, and let the operator use their own key. For a personal test, the user may enter one short-lived user key in both [hand-offs](#hand-off-the-temporal-api-keys); say that rotating or revoking it then breaks both.
 
-<!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:36-51 -->
 
 The `temporal` CLI commands in Steps 6–8 authenticate through a named CLI profile that holds the operator's key, written by the [operator hand-off](#hand-off-the-temporal-api-keys) or reused from an earlier deployment. An exported variable in the user's terminal does not reach the agent's shell, so do not rely on `TEMPORAL_API_KEY` there. Never append `--api-key <value>` or put the key in an inline assignment. On macOS the default profile file is `~/Library/Application Support/temporalio/temporal.toml`. The examples below pass `--profile <PROFILE>` explicitly; omit it only when using a different already-configured authentication mechanism, including self-hosted mTLS.
 
@@ -127,7 +126,7 @@ gcloud secrets versions list <SECRET_NAME> --project <YOUR_GCP_PROJECT> \
   --format='table(name,state,createTime)'
 ```
 
-Never read back `api_key` with `temporal config get`, and never run `gcloud secrets versions access`. The `worker deployment list` call proves the profile authenticates to the Namespace. Expect exactly one `ENABLED` secret version. If the Worker hand-off ran more than once, keep the newest version and disable the older ones with `gcloud secrets versions disable <VERSION> --secret <SECRET_NAME> --project <YOUR_GCP_PROJECT>`. Secret versions are immutable: replace a bad one by adding a correct version, never by editing it.
+Never read back `api_key` with `temporal config get`, and never run `gcloud secrets versions access`. The `worker deployment list` call proves the profile authenticates to the Namespace. Expect the newest secret version to be `ENABLED`. Secret versions are immutable: replace a bad one by adding a correct version, never by editing it.
 
 **Check the Temporal-side names now.** If the profile is new, it did not exist at approval time, so this is the first chance to check the deployment name:
 
@@ -140,6 +139,8 @@ It should report that the deployment does not exist. If it exists, stop and agre
 #### Reuse what already works
 
 **An existing CLI profile.** If the operator already has a profile for this Namespace, for example from an earlier deployment, skip the operator hand-off, but only after the user confirms that the profile's key is not also stored in a secret. A profile written together with a secret from a single key shares that key with every pool that mounts the secret, so rotating or revoking it breaks them. If the user cannot confirm, run the operator hand-off with a new key; you must not read either value to compare them. Confirm the profile with the read-back commands above, always passing `--namespace`: a profile's stored Namespace can differ from the target.
+
+**A profile and a secret written from one key.** Give the operator a key of their own: run the operator hand-off with a new key, then confirm `temporal --profile <PROFILE> worker deployment list --namespace <NAMESPACE>` works. Keep the old key enabled, because the Workers still use it, and retire it only by [rotating the Worker's key](#rotate-the-temporal-api-keys).
 
 **An existing secret.** Reuse a secret only when the user confirms that it holds a key meant for Workers; you must not read it. Do not reuse a secret that holds the operator's own key; run the Worker hand-off into a new secret instead. Confirm a reused secret has an `ENABLED` version with `gcloud secrets versions list`, and record it as shared, so teardown keeps it.
 
@@ -171,7 +172,7 @@ Two things the Worker must do:
 1. **Declare its Worker Deployment Version and enable versioning**, with a deployment name and build ID that exactly match the version you register in Step 6.
 2. **Read its configuration from the environment** — address, Namespace, Task Queue, credentials — so one image can run against any Namespace. The pool supplies these via `--set-env-vars` and `--set-secrets`.
 
-**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:465-468 -->
+**The entrypoint must start the Worker process**, so an instance begins polling as soon as it starts.
 
 ## Step 2: Containerize the Worker
 
@@ -325,7 +326,7 @@ Through the UI, the version is set current automatically; through the CLI it is 
 
 ### Checkpoint: verify registration
 
-Creating the Worker Deployment Version starts its WCI, which temporarily raises the pool to at least one instance so the Worker can bind its Task Queues. This occurs even when the minimum and initial instance counts are `0`. Wait for the expected Task Queue types before setting the version current. The separate UI **Validate Connection** action checks pool read access only and is not a substitute for this registration check. <!-- docs/production-deployment/worker-deployments/serverless-workers/cloud-run/index.mdx:824-827 -->
+Creating the Worker Deployment Version starts its WCI, which temporarily raises the pool to at least one instance so the Worker can bind its Task Queues. This occurs even when the minimum and initial instance counts are `0`. Wait for the expected Task Queue types before setting the version current. The separate UI **Validate Connection** action checks pool read access only and is not a substitute for this registration check.
 
 First run the machine-checkable [Task Queue binding check](diagnostics.md#start-here-did-the-expected-worker-bind). Do not continue until it finds the expected Task Queue and types. Then verify that Temporal wrote to the pool:
 
@@ -381,7 +382,12 @@ Confirm from two independent signals:
 Rotate each key on its own schedule, by overlap: the user creates the new key, its consumer switches to it, you confirm the consumer works, and only then is the old key disabled, with the user's approval, and later deleted. Never revoke the old key first. <!-- https://docs.temporal.io/cloud/api-keys -->
 
 - **The operator's key.** Run the [operator hand-off](#hand-off-the-temporal-api-keys) with the new key, then confirm with `temporal --profile <PROFILE> worker deployment list --namespace <NAMESPACE>`.
-- **The Worker's key.** Run the [Worker hand-off](#hand-off-the-temporal-api-keys), which adds a new secret version. Cloud Run reads the secret when an instance starts, so running instances keep the old key. Before the old key is disabled, list every pool that mounts the secret, in every region the project uses, and confirm from each pool's logs that every instance started before the new version has shut down. A requested count of `0` is not that evidence. Never disable the newest secret version. <!-- https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets -->
+- **The Worker's key.** Run the [Worker hand-off](#hand-off-the-temporal-api-keys), which adds a new secret version. Cloud Run reads the secret when an instance starts, so running instances keep the old key. Before the old key is disabled: <!-- https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets -->
+  - List every pool that mounts the secret, in every region the project uses, with the command below.
+  - Confirm the new key works: start a Workflow on this deployment's Task Queue and check each listed pool's logs for authentication errors. If a listed pool connects to a different Namespace (its `TEMPORAL_NAMESPACE`), confirm with that deployment's owner that the new key works there.
+  - Confirm from each pool's logs, with the [pool log query](diagnostics.md#read-the-pool-logs), that every instance started before the new version has shut down. A requested count of `0` is not that evidence. A pool with no instance started before the new version needs no action.
+
+  If any of these cannot be confirmed, keep the old key enabled and report the rotation as incomplete. Disabling a secret version only stops new reads of it; revoking the key in Temporal Cloud is what ends its use. Never disable the newest secret version.
 
   ```bash
   gcloud run worker-pools list --region <REGION> --project <YOUR_GCP_PROJECT> --format=json \
@@ -393,7 +399,7 @@ Rotate each key on its own schedule, by overlap: the user creates the new key, i
 
 ## Teardown
 
-Record what you create as you go: project and region; the Artifact Registry repository, image tag and digest; the pool name; the runner and invoker service accounts, and whether this run created each; whether this run added the runner's secret-access binding; the Terraform state directory; the secret and its versions, and whether it is shared; the deployment name, build ID, and Task Queue; the local CLI profile name, and whether this run wrote it; and, for each Temporal API key, who created it, which user or service account owns it, and whether it is the Worker's, the operator's, or both.
+Record what you create as you go: project and region; the Artifact Registry repository, image tag and digest; the pool name; the runner and invoker service accounts, and whether this run created each; whether this run added the runner's secret-access binding; the Terraform state directory; the secret and its versions, and whether it is shared; the deployment name, build ID, and Task Queue; the local CLI profile name, and whether this run created it or modified an existing one; and, for each Temporal API key, who created it, which user or service account owns it, and whether it is the Worker's, the operator's, or both.
 
 Scale the pool to zero before deleting the version so its pollers stop without destroying the pool prematurely.
 
@@ -445,6 +451,6 @@ Scale the pool to zero before deleting the version so its pollers stop without d
      ```
 
    Keep any binding or runner the inventory does not attribute to this run.
-7. Delete the container image from Artifact Registry, and any Secret Manager secret this run created that no other deployment uses; keep a reused or shared secret. Delete the Artifact Registry repository too if this run created it. Ask before revoking either Temporal Cloud API key: a key is account-scoped, not deployment-scoped, and the Worker's key may also be mounted by another pool. List those pools as in [Rotate the Temporal API keys](#rotate-the-temporal-api-keys) first. Once nothing else uses the local CLI profile, and only if this run wrote it, remove it with `temporal config delete-profile --profile <PROFILE>`.
+7. Delete the container image from Artifact Registry, and any Secret Manager secret this run created that no other deployment uses; keep a reused or shared secret. Delete the Artifact Registry repository too if this run created it. Ask before revoking either Temporal Cloud API key: a key is account-scoped, not deployment-scoped, and the Worker's key may also be mounted by another pool. List those pools as in [Rotate the Temporal API keys](#rotate-the-temporal-api-keys) first. Once nothing else uses the local CLI profile, and only if this run created it, remove it with `temporal config delete-profile --profile <PROFILE>`; keep a profile this run only modified.
 
 Confirm each deletion with a list command rather than `describe`: a recently deleted service account can return `PERMISSION_DENIED` from `describe` instead of `NOT_FOUND`. For example, `gcloud iam service-accounts list --project <YOUR_GCP_PROJECT> --filter='email:<EMAIL>' --format='value(email)'` prints nothing once the account is gone.
