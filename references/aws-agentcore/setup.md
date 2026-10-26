@@ -304,7 +304,7 @@ Remove resources in this order: Temporal first, so that nothing invokes the Runt
 
    Verify by reading state back. `agentcore status --runtime <RUNTIME_NAME> --json` must no longer list the Runtime as deployed. `aws bedrock-agentcore-control get-agent-runtime --agent-runtime-id <RUNTIME_ID> --region <AWS_REGION>` must return `ResourceNotFoundException`. Then check the execution role with `aws iam get-role --role-name <EXECUTION_ROLE_NAME>`. If it still exists, report it to the user instead of deleting it, because the CLI's stack owns it.
 
-   The Runtime's log groups outlive it: deleting the Runtime and its stack leaves one `/aws/bedrock-agentcore/runtimes/<RUNTIME_ID>-<ENDPOINT_NAME>` group per endpoint, including `DEFAULT`. If this run created the Runtime, list and delete them:
+   The Runtime's log groups outlive it: deleting the Runtime and its stack leaves one `/aws/bedrock-agentcore/runtimes/<RUNTIME_ID>-<ENDPOINT_NAME>` group per endpoint, including `DEFAULT`. A Container build also leaves its CodeBuild project's log group (`/aws/codebuild/AgentCore-<PROJECT_NAME>-<TARGET>-container-builder`) and its build-trigger Lambda function's group (`/aws/lambda/AgentCore-…`, named after a truncated stack name, so read the function name from the stack before deleting it). If this run created the Runtime, list and delete them; use the same `describe-log-groups` prefix query for the two Container-build groups:
 
    ```bash
    aws logs describe-log-groups --region <AWS_REGION> \
