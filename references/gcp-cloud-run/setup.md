@@ -308,7 +308,7 @@ gcloud run worker-pools describe my-temporal-worker-pool-build-1 \
   --region <REGION> --project <YOUR_GCP_PROJECT> --format=yaml
 ```
 
-In the pool's `metadata.annotations`, `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. That proves only that Temporal wrote the requested pool size; it does not prove that the intended image started or that the Worker bound the Task Queue. Confirm the pool's deployed digest and a Worker startup log that announces the expected deployment name, build ID, and Task Queue. → `diagnostics.md`.
+At first registration, the pool's `metadata.annotations` `serving.knative.dev/lastModifier` should show the invoker service account after the WCI updates the pool. That proves only that Temporal wrote the requested pool size; it does not prove that the intended image started or that the Worker bound the Task Queue. Confirm the pool's deployed digest and a Worker startup log that announces the expected deployment name, build ID, and Task Queue. The startup log and `lastModifier` are first-registration evidence: logs age out, and any later update replaces `lastModifier`, which is informational from then on. For an existing version, use the binding check, the deployed digest, and the audit. → `diagnostics.md`.
 
 ## Step 7: Set the version current
 

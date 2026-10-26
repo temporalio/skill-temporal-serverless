@@ -61,7 +61,9 @@ temporal --profile <PROFILE> worker deployment describe \
   | jq -e --arg b '<PREVIOUS_BUILD_ID>' '[.versionSummaries[]?.BuildID] | index($b) != null'
 ```
 
-CLI v1.8.2 spells the field `BuildID`, and `worker deployment list` returns `versionSummaries` as `null`, so read versions from `describe`. Set the previous version current again, then read the routing back as in [`setup.md`](setup.md#step-7-set-the-version-current) Step 7. The previous version's existing pool scales up on the next Task without rebuilding or reverting an image. If you reused the same pool, setting the previous Temporal version current is not enough because both versions address mutable pool state. Restore the known-good Cloud Run revision split as described above; if that revision was deleted, redeploy the old image deliberately.
+CLI v1.8.2 spells the field `BuildID`, and `worker deployment list` returns `versionSummaries` as `null`, so read versions from `describe`. Then confirm the version can take traffic. Take its pool, region, image digest, and Task Queue from the recorded deployment inventory or committed release inputs; Temporal does not return the pool a version targets. Run the [Task Queue binding check](diagnostics.md#start-here-did-the-expected-worker-bind), and confirm the pool still exists, its instance split contains exactly one revision, and that revision serves the recorded digest as in [audit items 2 and 3](diagnostics.md#audit-an-existing-pool). If there is no record, or the pool is missing or serves another digest, stop before changing routing and tell the user.
+
+Set the previous version current again, then read the routing back as in [`setup.md`](setup.md#step-7-set-the-version-current) Step 7. The previous version's existing pool scales up on the next Task without rebuilding or reverting an image. If you reused the same pool, setting the previous Temporal version current is not enough because both versions address mutable pool state. Restore the known-good Cloud Run revision split as described above; if that revision was deleted, redeploy the old image deliberately.
 
 ## Managing pools with Terraform
 
