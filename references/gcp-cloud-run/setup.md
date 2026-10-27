@@ -88,6 +88,10 @@ Worker hand-off:
 
 Operator hand-off:
 
+Before preparing the script, run `temporal config list` and record whether `<PROFILE>` already exists. For a new setup or shared-key migration, choose an unused name. Update an existing profile only when the user is intentionally rotating that profile's key; record it as modified so teardown preserves it.
+
+The script below creates a new profile. When preparing a script to rotate an existing profile's key, omit the two `config set` commands for `address` and `namespace`; retain its connection settings and write only `api_key`.
+
 ```bash
 (
   if [ ! -t 0 ]; then
@@ -379,13 +383,13 @@ Confirm from two independent signals:
 
 ## Rotate the Temporal API keys
 
-Rotate each key on its own schedule, by overlap: the user creates the new key, its consumer switches to it, you confirm the consumer works, and only then is the old key disabled, with the user's approval, and later deleted. Never revoke the old key first. <!-- https://docs.temporal.io/cloud/api-keys -->
+Rotate each key on its own schedule, by overlap: the user creates the new key, its consumer switches to it, you confirm the consumer works, and only then is the old key disabled, with the user's approval, and later deleted. Never revoke the old key first. For a key shared by the operator and Workers, follow the [shared-key migration](#reuse-what-already-works) and verify both consumers before disabling it. <!-- https://docs.temporal.io/cloud/api-keys -->
 
 - **The operator's key.** Run the [operator hand-off](#hand-off-the-temporal-api-keys) with the new key, then confirm with `temporal --profile <PROFILE> worker deployment list --namespace <NAMESPACE>`.
 - **The Worker's key.** Run the [Worker hand-off](#hand-off-the-temporal-api-keys), which adds a new secret version. Cloud Run reads the secret when an instance starts, so running instances keep the old key. Before the old key is disabled: <!-- https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets -->
-  - List every pool that mounts the secret, in every region the project uses, with the command below.
-  - Confirm the new key works: start a Workflow on this deployment's Task Queue and check each listed pool's logs for authentication errors. If a listed pool connects to a different Namespace (its `TEMPORAL_NAMESPACE`), confirm with that deployment's owner that the new key works there.
-  - Confirm from each pool's logs, with the [pool log query](diagnostics.md#read-the-pool-logs), that every instance started before the new version has shut down. A requested count of `0` is not that evidence. A pool with no instance started before the new version needs no action.
+  - List every pool that mounts the secret, in every region the project uses, with the command below. Record the new secret version's `createTime` from the secret-version listing above.
+  - Confirm from each pool's logs, with the [pool log query](diagnostics.md#read-the-pool-logs), that every instance started before that `createTime` has shut down, including idle pools. Extend the query's time range to include those instances' startup lines, and increase or remove its result limit. Match startup and shutdown evidence for each instance; a missing startup or shutdown line is unconfirmed, not proof that no old instance exists. A requested instance count of `0` does not show they stopped.
+  - Only after confirming the old instances have stopped, test the new key. Confirm each pool references `:latest` or the new secret version. Start a Workflow on this deployment's Task Queue and confirm it completes. Correlate its Task history with per-instance pool logs to verify execution by a Worker started after `createTime`; Worker identity alone does not establish that mapping. The absence of authentication errors does not prove the new key works. For other listed pools, confirm successful Task processing by a new Worker with that deployment's owner, including access to its Namespace (`TEMPORAL_NAMESPACE`).
 
   If any of these cannot be confirmed, keep the old key enabled and report the rotation as incomplete. Disabling a secret version only stops new reads of it; revoking the key in Temporal Cloud is what ends its use. Never disable the newest secret version.
 
