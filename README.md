@@ -194,3 +194,7 @@ Nothing is created before you approve the resource list. Troubleshooting and ins
 ## Feedback
 
 Feedback is welcome in the [Temporal Community Slack](https://t.mp/slack), in the [`#topic-ai` channel](https://temporalio.slack.com/archives/C0818FQPYKY), or through [GitHub issues](https://github.com/temporalio/skill-temporal-serverless/issues).
+
+## Contributing
+
+Before opening a pull request, read [`CONTRIBUTING.md`](CONTRIBUTING.md). It covers how to write instructions the agent can rely on, safety rules for setup and teardown, how to validate SDK guides, and what adding a compute provider involves. It ends with a checklist to run before requesting review.
