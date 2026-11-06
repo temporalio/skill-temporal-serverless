@@ -13,7 +13,7 @@ The WCI responds to sync match failures and Task Queue backlog or rate informati
 
 ## Inspect the WCI
 
-Run these with the CLI connection the version was registered with: on Cloud Run, add `--profile <PROFILE>` (the operator's profile from `gcp-cloud-run/setup.md`); on AWS Lambda, use the connection configured in `aws-lambda/setup.md`.
+Run these with the CLI connection the version was registered with: on Cloud Run, add `--profile <PROFILE>` (the operator's profile from `gcp-cloud-run/setup.md`); on AWS Lambda or AgentCore, use the connection configured in that provider's `setup.md`.
 
 List WCI Workflows in the Namespace:
 
@@ -38,7 +38,9 @@ temporal workflow show \
   --detailed
 ```
 
-The default table shows event types but hides the payloads needed for diagnosis. Use `--detailed` as above or `-o json`. During registration, look for `ValidateSpec` and the `InvokeWorkersToRegisterTaskQueues` bootstrap. A result such as `worker_count: 1` means the WCI requested bootstrap capacity; it does not mean that an instance started or that the expected Worker registered and polled. Provider-specific scaling later appears through the provider action described in its diagnostics guide.
+`workflow show` reads the latest run. The WCI can continue-as-new soon after registration, so if the latest run has no `ValidateSpec` or `InvokeWorkersToRegisterTaskQueues` events, find the earlier run (add `AND ExecutionStatus = "ContinuedAsNew"` to the list query) and pass its `--run-id`.
+
+The default table shows event types but hides the payloads needed for diagnosis. Use `--detailed` as above or `-o json`. During registration, look for `ValidateSpec` and the `InvokeWorkersToRegisterTaskQueues` bootstrap. A result such as `worker_count: 1` means the WCI requested bootstrap capacity; it does not mean that an instance started or that the expected Worker registered and polled. Provider-specific scaling later appears through the provider action described in its diagnostics guide. On AgentCore, that is a `WorkflowExecutionSignaled` event when work arrives followed by an `InvokeWorker` Activity, alongside periodic `PullStats` Activities.
 
 `SignalExternalWorkflowExecutionFailed` with `NOT_FOUND` can appear in healthy Cloud Run deployments, but do not classify it from the event name alone. Correlate it with the surrounding signal target and confirm that registration, polling, and the provider action succeeded before treating it as benign.
 
