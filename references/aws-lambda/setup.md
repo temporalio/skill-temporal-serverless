@@ -57,8 +57,9 @@ temporal env get --env prod          # --env mechanism
 temporal config get --prop address   # --profile mechanism
 ```
 
-- For Temporal Cloud the Namespace is the fully-qualified `<namespace_id>.<account_id>`, not the bare name. <!-- docs/develop/environment-configuration.mdx:128-129 -->
-- Supplying an API key auto-enables TLS; no cert flags are needed for API-key auth. <!-- docs/develop/environment-configuration.mdx:70 -->
+- For Temporal Cloud the Namespace is the fully-qualified `<namespace_id>.<account_id>`, not the bare name.
+- The examples use the Namespace endpoint (`tcld namespace get` → `.uri.grpc`). If the Namespace's `.spec.authMethod` is `ApiKeyOrMtls` (API keys and mTLS both enabled), API keys cannot authenticate through it: use the regional endpoint (`.uri.regionalGrpc`, `<region>.aws.api.temporal.io:7233`) as the address instead, here and in the function's `TEMPORAL_ADDRESS` ([Access Namespaces](https://docs.temporal.io/cloud/namespaces#access-namespaces)).
+- Supplying an API key auto-enables TLS; no cert flags are needed for API-key auth.
 - The `temporal ...` commands in Steps 4–6 assume this is configured. To create an API key, see `skill-temporal-ops`.
 
 **Temporal-side preflight.** Confirm the CLI can reach the Namespace before deploying — this is the Temporal side of the pre-deploy access check. It should list (empty is fine) without an auth or connection error:
