@@ -7,6 +7,23 @@ The Worker Controller Instance (WCI) is a Temporal system Workflow that scales c
 
 Temporal creates and manages the WCI automatically. Never create, start, or manage it yourself.
 
+## Namespace limit
+
+A Namespace can run at most **100 WCIs by default**. The count covers every Worker Deployment Version with a compute configuration, across all Worker Deployments in the Namespace. **Drained versions still count**, because a version's WCI runs until the version itself is deleted.
+
+Creating or updating a Worker Deployment Version with a compute configuration past the limit fails with:
+
+```text
+reached maximum worker controller instances in namespace
+```
+
+To make room without raising the limit, delete Worker Deployment Versions you no longer need. To raise the limit:
+
+- **Temporal Cloud:** contact Temporal support.
+- **Self-hosted Temporal Service:** set the dynamic config key `workercontroller.maxInstances`. It accepts the same `constraints` section as `workercontroller.enabled`, so it can be raised for one Namespace. → the selected provider's `self-hosted.md`.
+
+This limit is separate from the per-deployment cap on versions, which counts versions within one Worker Deployment rather than WCIs across the Namespace.
+
 ## Inputs
 
 The WCI responds to sync match failures and Task Queue backlog or rate information. The selected provider's constraints and diagnostics references describe how those inputs become compute changes, along with the provider-specific lifecycle and failure signatures.
