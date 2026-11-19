@@ -27,6 +27,8 @@ A GCP Cloud Run compute provider names the Worker Pool and the invoker service a
 
 Compute providers are only needed for Serverless Workers. Traditional long-lived Workers do not require a compute provider because the Worker process lifecycle is not managed by the Temporal server.
 
+**Validating a compute configuration needs Namespace write access.** In the Temporal server's API method metadata, `ValidateWorkerDeploymentVersionComputeConfig` is `AccessWrite`; it was previously `AccessReadOnly`. That is the same level as `CreateWorkerDeploymentVersion` and `UpdateWorkerDeploymentVersionComputeConfig`. The access level is advisory: the server's default authorizer checks it against the caller's roles, and other authorizers may apply their own rules. If validation is denied to a read-only identity, retry it with the identity that creates or updates the version rather than changing compute-provider IAM.
+
 #### Supported providers
 
 
