@@ -275,3 +275,8 @@ traces_flushed = await asyncio.to_thread(
 ```
 
 The helper defaults to the local OTLP/gRPC Collector endpoint. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled.
+
+- Do not install both this plugin and the generic `temporalio.contrib.opentelemetry.OpenTelemetryPlugin` on the same client.
+- Metrics export every 60 seconds by default. Change it with `metric_periodicity`.
+- The service name falls back to `service_name=`, `OTEL_SERVICE_NAME`, `CLOUD_RUN_WORKER_POOL`, `K_SERVICE`, then `temporal-worker`.
+- With your own `Runtime`, pass it as `OpenTelemetryPlugin(runtime=rt)`. Setting both `runtime` and `metric_periodicity` raises `ValueError`, and so does passing a different runtime to `Client.connect`.

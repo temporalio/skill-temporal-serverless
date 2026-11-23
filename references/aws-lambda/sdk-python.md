@@ -182,6 +182,11 @@ def configure(config: LambdaWorkerConfig) -> None:
 
 By default, telemetry is sent to `localhost:4317`, which is the ADOT Lambda layer's default collector endpoint.
 
+- The endpoint falls back to `OTEL_EXPORTER_OTLP_ENDPOINT`, then `localhost:4317`.
+- The service name falls back to `OTEL_SERVICE_NAME`, then `AWS_LAMBDA_FUNCTION_NAME`, then `temporal-lambda-worker`.
+- Core exports metrics every `metric_periodicity` (default 10 seconds). There is no metrics-flush API, so keep the period short enough that each invocation exports at least once.
+- `build_metrics_telemetry_config()` returns a `TelemetryConfig` for a `Runtime` you create yourself.
+
 Attach the ADOT Python Lambda layer to your Lambda function. The layer includes both auto-instrumentation and an OpenTelemetry Collector that receives telemetry on `localhost:4317` and forwards traces to AWS X-Ray and metrics to Amazon CloudWatch.
 
 `OPENTELEMETRY_COLLECTOR_CONFIG_FILE=/var/task/otel-collector-config.yaml`

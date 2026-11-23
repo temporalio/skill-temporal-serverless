@@ -1,6 +1,6 @@
 ---
 name: temporal-serverless
-description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "deploy Temporal worker on Cloud Run".'
+description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "deploy Temporal worker on Cloud Run", "serverless Worker OpenTelemetry", "ADOT Lambda layer", "Cloud Run Collector sidecar". Not for instrumenting non-serverless Workers (temporal-developer) or querying and alerting on Temporal metrics (temporal-observability).'
 disable-model-invocation: true
 ---
 
@@ -332,7 +332,22 @@ Most questions need 2–3 reference files.
 
 ## Out of Scope
 
-- **General SDK development patterns** (Workflows, Activities, signals, queries, Worker Versioning concepts): see `skill-temporal-developer`.
+- **General SDK development patterns** (Workflows, Activities, signals, queries, Worker Versioning concepts) and **instrumenting Workers that are not serverless** (SDK metrics export, tracing plugins, logging): see `skill-temporal-developer`.
+- **Collecting, querying, dashboarding, and alerting on Temporal metrics** once they leave the Worker: see `skill-temporal-observability`.
 - **Traditional Worker tuning** (slot suppliers, tuners, poller autoscaling, resource-based tuning): see `skill-temporal-workertuning`.
 - **Temporal Cloud administration** (Namespaces, users, certificates, billing): see `skill-temporal-ops`.
 - **CLI command reference** (beyond the serverless-specific flags): see `skill-temporal-cli`.
+
+### Observability ownership
+
+Three skills split Temporal observability. Each row has one owner.
+
+| Observability concern | Skill |
+|---|---|
+| Code and configuration inside a Worker or Client process, except the serverless helpers in the last row: SDK metrics export (Prometheus, OTLP, buffered), custom metrics, OpenTelemetry and OpenTracing plugins and interceptors, replay-safe loggers, meters and tracers, Runtime telemetry and logging, and Worker heartbeat settings | [temporal-developer](https://github.com/temporalio/skill-temporal-developer) |
+| Everything after telemetry leaves the process: the Temporal Cloud OpenMetrics endpoint and `temporal_cloud_v1_*` metrics, self-hosted Temporal Service metrics, scraping SDK metrics, what each `temporal_*` SDK metric means and its units, PromQL, DQL and NRQL queries, dashboards, alerts, platform integrations (Datadog, Grafana, New Relic, ClickStack, OpenTelemetry Collector), and metric-driven diagnosis | [temporal-observability](https://github.com/temporalio/skill-temporal-observability) |
+| OpenTelemetry on serverless Workers: AWS Lambda ADOT helpers, the Cloud Run OpenTelemetry plugin and Collector sidecar, and flushing telemetry before shutdown | [temporal-serverless](https://github.com/temporalio/skill-temporal-serverless) |
+
+A new or renamed SDK metric belongs to temporal-observability. A new API or option that emits, exports or configures telemetry belongs to temporal-developer.
+
+Changes limited to a row owned by temporal-developer or temporal-observability are out of scope for this skill: for example SDK exporters, custom-metric APIs, tracing plugins, or Worker heartbeat settings for Workers in general, the Cloud metrics endpoint, or self-hosted Temporal Service monitoring.
