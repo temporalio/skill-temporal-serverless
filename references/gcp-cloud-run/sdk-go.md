@@ -250,4 +250,9 @@ if runErr != nil {
 }
 ```
 
-Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint, exports metrics every 60 seconds, and takes the service name from `PluginOptions.ServiceName`, `OTEL_SERVICE_NAME`, `CLOUD_RUN_WORKER_POOL`, `K_SERVICE`, then `temporal-worker`. Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The [samples-go Cloud Run sample](https://github.com/temporalio/samples-go/tree/main/gcp/cloudrun) shows the plugin wiring and the Collector configuration; it runs an unversioned Worker, so take versioning and the shutdown budget from this guide.
+Add `context` and import `go.temporal.io/sdk/contrib/gcp/cloudrun/otel`. The helper defaults to the local OTLP/gRPC Collector endpoint.
+
+- Metrics export every 60 seconds by default.
+- The service name falls back to `PluginOptions.ServiceName`, `OTEL_SERVICE_NAME`, `CLOUD_RUN_WORKER_POOL`, `K_SERVICE`, then `temporal-worker`.
+
+Use the multi-container topology, IAM, and shutdown order in `observability.md`; do not add the plugin unless that Collector path is enabled. The [samples-go Cloud Run sample](https://github.com/temporalio/samples-go/tree/main/gcp/cloudrun) shows the plugin wiring and the Collector configuration; it runs an unversioned Worker, so take versioning and the shutdown budget from this guide.
