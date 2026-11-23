@@ -1,6 +1,6 @@
 ---
 name: temporal-serverless
-description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "deploy Temporal worker on Cloud Run", "serverless Worker OpenTelemetry", "ADOT Lambda layer", "Cloud Run Collector sidecar". Not for instrumenting non-serverless Workers (temporal-developer) or querying and alerting on Temporal metrics (temporal-observability).'
+description: 'Deploy and operate Temporal Workers on serverless compute (AWS Lambda, GCP Cloud Run) driven by the Worker Controller Instance (WCI). Use when the user mentions: "serverless worker", "Temporal serverless", "Worker Controller Instance", "WCI", "deploy Temporal worker on Lambda", "Lambda packaging", "Lambda timeout", "WCI inspection", "CloudFormation Temporal", "Cloud Run worker", "deploy Temporal worker on Cloud Run", "serverless Worker OpenTelemetry", "ADOT Lambda layer", "Cloud Run Collector sidecar". Not for SDK telemetry outside the Lambda and Cloud Run packages, such as exporters, tracing plugins, or Worker heartbeats (temporal-developer), or for metric queries, dashboards, and alerts (temporal-observability).'
 disable-model-invocation: true
 ---
 
@@ -9,6 +9,15 @@ disable-model-invocation: true
 ## Overview
 
 This skill helps users deploy and operate Temporal Workers on serverless compute. On AWS Lambda, Temporal invokes the Worker on demand through the Worker Controller Instance (WCI); the Worker processes available Tasks and shuts down, scaling to zero when idle. On GCP Cloud Run, the WCI instead resizes a Worker Pool whose instances run ordinary long-lived Workers. The skill produces Worker code, deployment configuration, connection configs, and packaging steps for the chosen SDK, and walks users through troubleshooting when serverless Workers aren't picking up Tasks.
+
+## Observability scope
+
+For observability, this skill covers only the serverless Worker packages `temporalio.contrib.aws.lambda_worker`, `temporalio.contrib.gcp.cloud_run`, `go.temporal.io/sdk/contrib/aws/lambdaworker`, and `go.temporal.io/sdk/contrib/gcp/cloudrun`: the ADOT layer, the Cloud Run OpenTelemetry plugin, the Collector sidecar, and flushing telemetry before shutdown.
+
+Not covered here:
+
+- Telemetry in Worker or Client code outside those packages, including SDK exporters, custom-metric APIs, tracing plugins such as `contrib/opentelemetry`, logging options, and Worker heartbeat contents or settings: use [temporal-developer](https://github.com/temporalio/skill-temporal-developer).
+- Collecting, querying, dashboarding, or alerting on Temporal telemetry, including the Temporal Cloud metrics endpoint and self-hosted monitoring documentation: use [temporal-observability](https://github.com/temporalio/skill-temporal-observability).
 
 ## Supported compute providers
 
@@ -336,14 +345,5 @@ Most questions need 2–3 reference files.
 - **Traditional Worker tuning** (slot suppliers, tuners, poller autoscaling, resource-based tuning): see `skill-temporal-workertuning`.
 - **Temporal Cloud administration** (Namespaces, users, certificates, billing): see `skill-temporal-ops`.
 - **CLI command reference** (beyond the serverless-specific flags): see `skill-temporal-cli`.
-- **Observability tasks other than serverless Worker OpenTelemetry**: see [Observability ownership](#observability-ownership).
+- **Observability tasks other than serverless Worker OpenTelemetry**: see [Observability scope](#observability-scope).
 
-### Observability ownership
-
-| Task | Skill |
-| --- | --- |
-| Emit or configure telemetry in Worker or Client code: SDK metrics exporters, custom metrics, tracing plugins, logging, Worker heartbeats | [temporal-developer](https://github.com/temporalio/skill-temporal-developer) |
-| OpenTelemetry for Workers on AWS Lambda or Google Cloud Run | [temporal-serverless](https://github.com/temporalio/skill-temporal-serverless) |
-| Collect, query, dashboard, alert on, or diagnose from telemetry: Cloud metrics endpoint, self-hosted Temporal Service metrics, SDK metric meanings | [temporal-observability](https://github.com/temporalio/skill-temporal-observability) |
-
-A new or renamed SDK metric belongs to temporal-observability.
