@@ -36,6 +36,15 @@ workercontroller.enabled:
       namespace: 'your-namespace'
 ```
 
+A Namespace runs at most 100 WCIs by default, one for each Worker Deployment Version that has a compute provider (→ `../wci.md#namespace-limit`). To change the limit, set `workercontroller.maxInstances`. It accepts the same `constraints` section, so you can raise it for one Namespace (`200` is an illustrative value):
+
+```yaml
+workercontroller.maxInstances:
+  - value: 200
+    constraints:
+      namespace: 'your-namespace'
+```
+
 The Service watches the file and applies updates **without a restart**.
 
 Two optional global keys cover multi-hop impersonation:
